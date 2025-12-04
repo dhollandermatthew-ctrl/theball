@@ -1,0 +1,7 @@
+{
+    "identifier": "main",
+    "permissions": [
+      "core:default",
+      "core:webview:allow-internal-toggle-devtools"
+    ]
+  }
