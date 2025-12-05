@@ -23,7 +23,7 @@ export interface Task {
 
 export interface OneOnOneItem {
   id: string;
-  personId: string;    
+  personId: string;
   content: string;
   isCompleted: boolean;
   createdAt: string;
@@ -38,7 +38,7 @@ export interface OneOnOnePerson {
 export interface Settings {
   zoom: number;
   sidebarOpen: boolean;
-  sidebarWidth?: number; // optional so your resize logic doesn’t break
+  sidebarWidth?: number;
 }
 
 // -----------------------------------------------------
@@ -53,7 +53,7 @@ export interface AppState {
 
   settings: Settings;
 
-  hydrated: boolean; // << needed for manual hydration
+  hydrated: boolean;
 
   // actions
   set: (fn: (draft: AppState) => void) => void;
@@ -61,7 +61,7 @@ export interface AppState {
 }
 
 // -----------------------------------------------------
-// Default State
+// Default state
 // -----------------------------------------------------
 const defaultState: Omit<AppState, "set" | "hydrate"> = {
   version: CURRENT_STATE_VERSION,
@@ -80,35 +80,31 @@ const defaultState: Omit<AppState, "set" | "hydrate"> = {
 };
 
 // -----------------------------------------------------
-// Store
+// Store (Zustand)
 // -----------------------------------------------------
 export const useAppStore = create<AppState>()(
   persist(
     immer((set, get) => ({
       ...defaultState,
 
-      // Universal state setter
+      // Generic setter
       set: (fn) => {
-        set((state) => {
-          fn(state);
-        });
-
-        // Save after each modification
+        set((state) => fn(state));
         saveState(get());
       },
 
       // Manual hydration
       hydrate: (incoming) => {
-        const state = get();
+        const current = get();
 
         const merged: AppState = {
-          ...state,
+          ...current,
           ...incoming,
           settings: {
-            ...state.settings,
+            ...current.settings,
             ...(incoming?.settings || {}),
           },
-          hydrated: true,
+          hydrated: true, // << key fix
         };
 
         set(() => merged);
@@ -118,34 +114,32 @@ export const useAppStore = create<AppState>()(
     {
       name: "app_state_mirror",
       version: CURRENT_STATE_VERSION,
-      skipHydration: true, // required because we hydrate manually via filesystem
+
+      // We tell Zustand: “Don’t auto-hydrate — we will do it manually.”
+      skipHydration: true,
     }
   )
 );
 
 // -----------------------------------------------------
-// Initialization — run once at app startup
+// Initialization — MUST run before React renders
 // -----------------------------------------------------
 export async function initializeAppState() {
-  try {
-    const state = useAppStore.getState();
+  const store = useAppStore.getState();
 
-    if (state.hydrated) {
-      console.log("⚠️ initializeAppState skipped — already hydrated");
-      return;
-    }
-
-    console.log("🔄 Loading state.json from Tauri FS…");
-    const stored = await loadState();
-
-    console.log("🔄 Calling store.hydrate()…");
-    state.hydrate(stored);
-  } catch (err) {
-    console.error("❌ initializeAppState error:", err);
+  if (store.hydrated) {
+    console.log("⚠️ initializeAppState skipped — already hydrated");
+    return;
   }
+
+  console.log("🔄 Loading state.json from Tauri FS…");
+  const stored = await loadState();
+
+  console.log("🔄 Calling store.hydrate()…");
+  store.hydrate(stored);
 }
 
-// Debugging
+// Debug hook
 ;(window as any).store = useAppStore;
 
 export { defaultState };
