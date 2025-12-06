@@ -1,8 +1,15 @@
+// FILE: src/domain/state.ts
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-import { loadState, saveState } from "./storage";
+import { enqueue } from "@/db/sync";
+import { db } from "@/db/client";
+
+import {
+  tasks as tasksTable,
+  oneOnOnes as oneOnOneTable,
+  oneOnOnePeople as oneOnOnePeopleTable,
+} from "@/db/schema";
 
 export const CURRENT_STATE_VERSION = 3;
 
@@ -14,7 +21,7 @@ export interface Task {
   content: string;
   date: string;
 
-  status: "todo" | "in_progress" | "done";
+  status: "todo" | "in_progress" | "done" | "missed";
   priority: "p1" | "p2" | "p3";
   category: "work" | "personal";
 
@@ -33,6 +40,7 @@ export interface OneOnOnePerson {
   id: string;
   name: string;
   avatarColor: string;
+  sortOrder: number;
 }
 
 export interface Settings {
@@ -42,7 +50,7 @@ export interface Settings {
 }
 
 // -----------------------------------------------------
-// Main State Shape
+// Main app state shape
 // -----------------------------------------------------
 export interface AppState {
   version: number;
@@ -55,15 +63,48 @@ export interface AppState {
 
   hydrated: boolean;
 
-  // actions
   set: (fn: (draft: AppState) => void) => void;
-  hydrate: (incoming: Partial<AppState>) => void;
+  setHydrated: () => void;
+
+  // Tasks
+  addTask: (task: Task) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  deleteTask: (id: string) => void;
+
+  // 1:1 people
+  addPerson: (p: OneOnOnePerson) => void;
+  editPerson: (id: string, updates: Partial<OneOnOnePerson>) => void;
+  reorderPeople: (orderedIds: string[]) => void;
+  deletePerson: (id: string) => void;
+
+  // 1:1 notes
+  addOneOnOneItem: (item: OneOnOneItem) => void;
+  updateOneOnOneItem: (id: string, updates: Partial<OneOnOneItem>) => void;
+  deleteOneOnOneItem: (id: string) => void;
+
+  // helpers
+  getNoteCount: (id: string) => number;
 }
 
 // -----------------------------------------------------
 // Default state
 // -----------------------------------------------------
-const defaultState: Omit<AppState, "set" | "hydrate"> = {
+const defaultState: Omit<
+  AppState,
+  | "set"
+  | "setHydrated"
+  | "addTask"
+  | "updateTask"
+  | "deleteTask"
+  | "addPerson"
+  | "editPerson"
+  | "reorderPeople"
+  | "deletePerson"
+  | "addOneOnOneItem"
+  | "updateOneOnOneItem"
+  | "deleteOneOnOneItem"
+  | "getNoteCount"
+> = {
   version: CURRENT_STATE_VERSION,
 
   tasks: [],
@@ -80,66 +121,222 @@ const defaultState: Omit<AppState, "set" | "hydrate"> = {
 };
 
 // -----------------------------------------------------
-// Store (Zustand)
+// Zustand Store
 // -----------------------------------------------------
 export const useAppStore = create<AppState>()(
-  persist(
-    immer((set, get) => ({
-      ...defaultState,
+  immer((set, get) => ({
+    ...defaultState,
 
-      // Generic setter
-      set: (fn) => {
-        set((state) => fn(state));
-        saveState(get());
-      },
+    set: (fn) => set(fn),
 
-      // Manual hydration
-      hydrate: (incoming) => {
-        const current = get();
+    setHydrated: () =>
+      set((s) => {
+        s.hydrated = true;
+      }),
 
-        const merged: AppState = {
-          ...current,
-          ...incoming,
-          settings: {
-            ...current.settings,
-            ...(incoming?.settings || {}),
-          },
-          hydrated: true, // << key fix
-        };
+    // ---------------------- TASKS ----------------------
+    addTask: (task) =>
+      set((state) => {
+        state.tasks.push(task);
 
-        set(() => merged);
-        saveState(merged);
-      },
-    })),
-    {
-      name: "app_state_mirror",
-      version: CURRENT_STATE_VERSION,
+        enqueue({
+          type: "insert",
+          table: "tasks",
+          data: task,
+        });
+      }),
 
-      // We tell Zustand: “Don’t auto-hydrate — we will do it manually.”
-      skipHydration: true,
-    }
-  )
+    updateTask: (id, updates) =>
+      set((state) => {
+        const t = state.tasks.find((t) => t.id === id);
+        if (!t) return;
+
+        Object.assign(t, updates);
+
+        enqueue({
+          type: "update",
+          table: "tasks",
+          id,
+          data: updates,
+        });
+      }),
+
+    deleteTask: (id) =>
+      set((state) => {
+        state.tasks = state.tasks.filter((t) => t.id !== id);
+
+        enqueue({
+          type: "delete",
+          table: "tasks",
+          id,
+        });
+      }),
+
+    // ---------------------- 1:1 PEOPLE ----------------------
+    addPerson: (person) =>
+      set((state) => {
+        const maxOrder =
+          state.people.length > 0
+            ? Math.max(...state.people.map((p) => p.sortOrder))
+            : 0;
+
+        person.sortOrder = maxOrder + 1;
+
+        state.people.push(person);
+
+        enqueue({
+          type: "insert",
+          table: "oneOnOnePeople",
+          data: person,
+        });
+      }),
+
+    editPerson: (id, updates) =>
+      set((state) => {
+        const person = state.people.find((p) => p.id === id);
+        if (!person) return;
+
+        Object.assign(person, updates);
+
+        enqueue({
+          type: "update",
+          table: "oneOnOnePeople",
+          id,
+          data: updates,
+        });
+      }),
+
+    reorderPeople: (orderedIds) =>
+      set((state) => {
+        state.people = orderedIds.map((id, index) => {
+          const p = state.people.find((x) => x.id === id)!;
+          p.sortOrder = index;
+
+          enqueue({
+            type: "update",
+            table: "oneOnOnePeople",
+            id,
+            data: { sortOrder: index },
+          });
+
+          return p;
+        });
+      }),
+
+      deletePerson: (id) =>
+        set((state) => {
+          console.log("🗑 STATE → deleting person:", id);
+      
+          // Remove all 1:1 notes for this person
+          if (state.oneOnOnes[id]) {
+            delete state.oneOnOnes[id];
+          }
+      
+          // Remove the person
+          state.people = state.people.filter((p) => p.id !== id);
+      
+          console.log("✅ STATE → person removed from memory");
+      
+          // DB delete
+          enqueue({
+            type: "delete",
+            table: "oneOnOnePeople",
+            id,
+          });
+      
+          console.log("📡 DB delete enqueued:", id);
+        }),
+
+    getNoteCount: (id) => {
+      const st = get();
+      return st.oneOnOnes[id]?.length ?? 0;
+    },
+
+    // ---------------------- 1:1 NOTES ----------------------
+    addOneOnOneItem: (item) =>
+      set((state) => {
+        const list = state.oneOnOnes[item.personId] ?? [];
+        state.oneOnOnes[item.personId] = [item, ...list];
+
+        enqueue({
+          type: "insert",
+          table: "oneOnOnes",
+          data: item,
+        });
+      }),
+
+    updateOneOnOneItem: (id, updates) =>
+      set((state) => {
+        for (const list of Object.values(state.oneOnOnes)) {
+          const found = list.find((i) => i.id === id);
+          if (found) {
+            Object.assign(found, updates);
+
+            enqueue({
+              type: "update",
+              table: "oneOnOnes",
+              id,
+              data: updates,
+            });
+          }
+        }
+      }),
+
+    deleteOneOnOneItem: (id) =>
+      set((state) => {
+        for (const [pid, list] of Object.entries(state.oneOnOnes)) {
+          const next = list.filter((i) => i.id !== id);
+          if (next.length !== list.length) {
+            state.oneOnOnes[pid] = next;
+          }
+        }
+
+        enqueue({
+          type: "delete",
+          table: "oneOnOnes",
+          id,
+        });
+      }),
+  }))
 );
 
 // -----------------------------------------------------
-// Initialization — MUST run before React renders
+// INITIALIZATION — Load from Turso
 // -----------------------------------------------------
 export async function initializeAppState() {
   const store = useAppStore.getState();
+  if (store.hydrated) return;
 
-  if (store.hydrated) {
-    console.log("⚠️ initializeAppState skipped — already hydrated");
-    return;
+  console.log("🔄 Hydrating from Turso database…");
+
+  try {
+    const [taskRows, oneOnOneRows, peopleRows] = await Promise.all([
+      db.select().from(tasksTable),
+      db.select().from(oneOnOneTable),
+      db.select().from(oneOnOnePeopleTable),
+    ]);
+
+    const grouped: Record<string, OneOnOneItem[]> = {};
+    for (const row of oneOnOneRows) {
+      const item = row as unknown as OneOnOneItem;
+      (grouped[item.personId] ??= []).push(item);
+    }
+
+    useAppStore.setState((s) => {
+      s.tasks = taskRows as Task[];
+      s.people = (peopleRows as OneOnOnePerson[]).sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+      s.oneOnOnes = grouped;
+      s.hydrated = true;
+    });
+
+    console.log("✅ DB hydration complete");
+  } catch (err) {
+    console.error("❌ Failed to hydrate from DB:", err);
   }
-
-  console.log("🔄 Loading state.json from Tauri FS…");
-  const stored = await loadState();
-
-  console.log("🔄 Calling store.hydrate()…");
-  store.hydrate(stored);
 }
 
-// Debug hook
-;(window as any).store = useAppStore;
-
-export { defaultState };
+// Devtools helper
+// @ts-ignore
+(window as any).store = useAppStore;

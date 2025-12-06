@@ -1,3 +1,4 @@
+// FILE: src/components/Board.tsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { addDays, addWeeks, addMonths, endOfMonth } from "date-fns";
 
@@ -20,7 +21,6 @@ import {
 } from "@dnd-kit/core";
 
 import {
-  arrayMove,
   SortableContext,
   verticalListSortingStrategy,
   sortableKeyboardCoordinates,
@@ -40,12 +40,15 @@ import { Header, ViewMode } from "@/components/Header";
 import { MonthView } from "@/components/MonthView";
 import { TaskCard } from "@/components/TaskCard";
 
+import { useAppStore } from "@/domain/state";
+
 import {
   Task,
   TaskStatus,
   TaskCategory,
   TaskPriority,
 } from "@/domain/types";
+
 import {
   generateId,
   formatDateKey,
@@ -53,22 +56,26 @@ import {
   DEFAULT_TASK_CONTENT,
 } from "@/domain/utils";
 
+// --------------------------------------------------------
+// Drag overlay animation
+// --------------------------------------------------------
 const dropAnimation: DropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: {
-        active: {
-          opacity: '0.5',
-        },
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: "0.5",
       },
-    }),
-  };
+    },
+  }),
+};
 
 // --------------------------------------------------------
-// Props
+// Props – kept optional so App.tsx won't break,
+// but Board now ONLY uses Zustand for tasks.
 // --------------------------------------------------------
 interface BoardProps {
-  tasks: Task[];
-  onTasksChange: React.Dispatch<React.SetStateAction<Task[]>>;
+  tasks?: Task[];
+  onTasksChange?: React.Dispatch<React.SetStateAction<Task[]>>;
 }
 
 // --------------------------------------------------------
@@ -202,6 +209,7 @@ const InboxDrawer = ({
         isOpen ? "translate-x-0" : "translate-x-full"
       )}
     >
+      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2 text-slate-700 font-semibold">
           <InboxIcon size={18} />
@@ -218,6 +226,7 @@ const InboxDrawer = ({
         </button>
       </div>
 
+      {/* List */}
       <div
         ref={setNodeRef}
         className={cn(
@@ -305,7 +314,13 @@ const BoardScrollMonitor = ({
 // --------------------------------------------------------
 // Main Board
 // --------------------------------------------------------
-export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
+export const Board: React.FC<BoardProps> = () => {
+  // 🔗 All tasks come from Zustand
+  const tasks = useAppStore((s) => s.tasks);
+  const addTaskToStore = useAppStore((s) => s.addTask);
+  const updateTaskInStore = useAppStore((s) => s.updateTask);
+  const deleteTaskFromStore = useAppStore((s) => s.deleteTask);
+
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [category, setCategory] = useState<TaskCategory>("work");
@@ -317,15 +332,30 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     "left" | "right" | null
   >(null);
 
+  // ------------------------------------------------------
+  // Derived: current week
+  // ------------------------------------------------------
   const currentWeekStart = useMemo(() => {
     const d = new Date(currentDate);
     const day = d.getDay();
-    const diff = d.getDate() - day; // Sunday-start
-    d.setDate(diff);
+    d.setDate(d.getDate() - day); // Sunday-start
     d.setHours(0, 0, 0, 0);
     return d;
   }, [currentDate]);
 
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i)),
+    [currentWeekStart]
+  );
+
+  const currentWeekDateKeys = useMemo(
+    () => weekDays.map((d) => formatDateKey(d)),
+    [weekDays]
+  );
+
+  // ------------------------------------------------------
+  // Helpers
+  // ------------------------------------------------------
   const getPriorityWeight = (p: TaskPriority) => {
     switch (p) {
       case "p1":
@@ -333,9 +363,8 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
       case "p2":
         return 2;
       case "p3":
-        return 1;
       default:
-        return 0;
+        return 1;
     }
   };
 
@@ -352,16 +381,7 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     });
   };
 
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i)),
-    [currentWeekStart]
-  );
-
-  const currentWeekDateKeys = useMemo(
-    () => weekDays.map((d) => formatDateKey(d)),
-    [weekDays]
-  );
-
+  // Weekly or monthly stats
   const weeklyStats = useMemo(() => {
     let relevantTasks: Task[] = [];
 
@@ -390,14 +410,18 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     return { total: relevantTasks.length, done };
   }, [tasks, category, currentWeekDateKeys, viewMode, currentDate]);
 
-  const inboxCount = useMemo(
-    () =>
-      tasks.filter(
-        (t) => t.date === "inbox" && t.category === category
-      ).length,
-    [tasks, category]
-  );
+  const inboxTasks = useMemo(() => {
+    const filtered = tasks.filter(
+      (t) => t.date === "inbox" && t.category === category
+    );
+    return sortTasks(filtered);
+  }, [tasks, category]);
 
+  const inboxCount = inboxTasks.length;
+
+  // ------------------------------------------------------
+  // Sensors
+  // ------------------------------------------------------
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -407,7 +431,9 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     })
   );
 
-  // Auto-scroll while hovering the scroll zones
+  // ------------------------------------------------------
+  // Auto-scroll while dragging
+  // ------------------------------------------------------
   useEffect(() => {
     if (!scrollDirection) return;
 
@@ -422,7 +448,9 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     return () => clearInterval(interval);
   }, [scrollDirection]);
 
-  // Custom collision handling to give priority to special zones
+  // ------------------------------------------------------
+  // Custom collision handling
+  // ------------------------------------------------------
   const customCollisionDetection: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
 
@@ -446,7 +474,6 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     if (scrollZoneRight) return [scrollZoneRight];
     if (inboxZone) return [inboxZone];
 
-    // Prefer whatever the pointer is currently over so columns register as targets
     if (pointerCollisions.length > 0) {
       return pointerCollisions;
     }
@@ -455,7 +482,7 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
   };
 
   // ------------------------------------------------------
-  // CRUD helpers
+  // CRUD helpers — all now use Zustand actions
   // ------------------------------------------------------
   const handleAddTask = (dateStr: string) => {
     const newTask: Task = {
@@ -468,18 +495,18 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
       createdAt: new Date().toISOString(),
     };
 
-    onTasksChange((prev) => [...prev, newTask]);
+    console.log("🟦 handleAddTask sending to Zustand:", newTask);
+    addTaskToStore(newTask);
+
     if (dateStr === "inbox") setShowInbox(true);
   };
 
   const handleUpdateTaskStatus = (id: string, status: TaskStatus) => {
-    onTasksChange((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status } : t))
-    );
+    updateTaskInStore(id, { status });
   };
 
   const handleUpdateTaskPriority = (id: string, priority: TaskPriority) => {
-    const mapped =
+    const mapped: TaskPriority =
       priority === "p1" || priority === "p2" || priority === "p3"
         ? priority
         : priority === "high"
@@ -488,19 +515,15 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
         ? "p2"
         : "p3";
 
-    onTasksChange((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, priority: mapped } : t))
-    );
+    updateTaskInStore(id, { priority: mapped });
   };
 
   const handleUpdateTaskContent = (id: string, content: string) => {
-    onTasksChange((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, content } : t))
-    );
+    updateTaskInStore(id, { content });
   };
 
   const handleDeleteTask = (id: string) => {
-    onTasksChange((prev) => prev.filter((t) => t.id !== id));
+    deleteTaskFromStore(id);
   };
 
   const handlePrev = () => {
@@ -519,6 +542,9 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     setCurrentDate(new Date());
   };
 
+  // ------------------------------------------------------
+  // Drag start / end
+  // ------------------------------------------------------
   const onDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const task = tasks.find((t) => t.id === active.id);
@@ -529,9 +555,9 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     const { active, over } = event;
     const activeTaskCopy = activeTask;
     setActiveTask(null);
-  
+
     if (!over || !activeTaskCopy) return;
-  
+
     const activeId = active.id as string;
     const overId = over.id as string;
     const overData = over.data.current;
@@ -539,59 +565,40 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
     const isColumnId = currentWeekDateKeys.includes(overId);
 
     const moveTaskToDate = (dateStr: string) => {
-      onTasksChange((prev) =>
-        prev.map((t) => (t.id === activeId ? { ...t, date: dateStr } : t))
-      );
+      updateTaskInStore(activeId, { date: dateStr });
     };
 
-    // Debug (optional – SUPER helpful)
     console.log("onDragEnd", {
       activeId,
       overId,
       overData,
     });
-  
-    // -----------------------
+
     // 1) Side zones (prev/next week)
-    // -----------------------
     if (overId === "side-zone-left") {
       const targetSunday = addWeeks(currentWeekStart, -1);
-      const newDateKey = formatDateKey(targetSunday);
-      onTasksChange((prev) =>
-        prev.map((t) =>
-          t.id === activeId ? { ...t, date: newDateKey } : t
-        )
-      );
+      moveTaskToDate(formatDateKey(targetSunday));
       return;
     }
-  
+
     if (overId === "side-zone-right") {
       const targetSunday = addWeeks(currentWeekStart, 1);
-      const newDateKey = formatDateKey(targetSunday);
-      onTasksChange((prev) =>
-        prev.map((t) =>
-          t.id === activeId ? { ...t, date: newDateKey } : t
-        )
-      );
+      moveTaskToDate(formatDateKey(targetSunday));
       return;
     }
-  
-    // -----------------------
-    // 2) Scroll zones – do nothing
-    // -----------------------
+
+    // 2) Scroll zones – ignore
     if (overId === "scroll-zone-left" || overId === "scroll-zone-right") {
       return;
     }
-  
-    // -----------------------
+
     // 3) Inbox drop
-    // -----------------------
     if (overId === "inbox-zone") {
       moveTaskToDate("inbox");
       return;
     }
 
-    // If there is no data on the droppable, bail
+    // If there is no droppable data, fall back
     if (!overData) {
       if (isColumnId) {
         moveTaskToDate(overId);
@@ -606,9 +613,7 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
 
     const overType = overData.type as string | undefined;
 
-    // -----------------------
     // 4) Dropped on a COLUMN
-    // -----------------------
     if (overType === "Column") {
       const targetDateStr =
         (overData.dateStr as string) || (isColumnId ? overId : null);
@@ -618,10 +623,7 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
       return;
     }
 
-    // -----------------------
     // 5) Dropped on a TASK
-    //    (use that task's date as target column)
-    // -----------------------
     if (overType === "Task") {
       const targetTask = (overData.task as Task) ?? overTaskFromList;
       if (targetTask) {
@@ -630,13 +632,6 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
       return;
     }
   };
-
-  const inboxTasks = useMemo(() => {
-    const filtered = tasks.filter(
-      (t) => t.date === "inbox" && t.category === category
-    );
-    return sortTasks(filtered);
-  }, [tasks, category]);
 
   // ------------------------------------------------------
   // Render
@@ -699,23 +694,13 @@ export const Board: React.FC<BoardProps> = ({ tasks, onTasksChange }) => {
             >
               <div className="flex h-full min-w-max px-4 pb-4 pl-[40px] pr-[40px]">
                 {weekDays.map((day) => {
-                  // debug helper
-                  // @ts-ignore
-                  window.lastDateKeys ??= [];
-                  // @ts-ignore
-                  window.lastDateKeys.push(
-                    day.toISOString(),
-                    formatDateKey(day)
-                  );
-
                   const dateKey = formatDateKey(day);
 
-                  const rawTasks = tasks.filter(
-                    (t) =>
-                      t.date === dateKey &&
-                      t.category === category
+                  const dayTasks = sortTasks(
+                    tasks.filter(
+                      (t) => t.date === dateKey && t.category === category
+                    )
                   );
-                  const dayTasks = sortTasks(rawTasks);
 
                   return (
                     <Column

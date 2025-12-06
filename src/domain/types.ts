@@ -18,21 +18,6 @@ export interface DayColumnData {
   isToday: boolean;
 }
 
-export interface OneOnOnePerson {
-  id: string;
-  name: string;
-  role?: string;
-  avatarColor: string;
-}
-
-export interface OneOnOneItem {
-  id: string;
-  personId: string;
-  content: string;
-  isCompleted: boolean;
-  createdAt: string;
-}
-
 // Add support for Web Speech API
 declare global {
   interface Window {

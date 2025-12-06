@@ -29,7 +29,7 @@ export const getRandomColor = () => {
 };
 
 export const DEFAULT_TASK_CONTENT =
-  "<h2>Title</h2><ul><li></li></ul>";
+  "<h2>New Note</h2>";
 
 // Simple Markdown → HTML
 export const markdownToHtml = (markdown: string): string => {

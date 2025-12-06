@@ -7,51 +7,90 @@ import { Sidebar } from "./components/Sidebar";
 import { OneOnOneView } from "./components/OneOnOneView";
 import { SearchModal } from "./components/SearchModal";
 
-import { useAppStore } from "./domain/state";
-import { Task, OneOnOneItem, OneOnOnePerson } from "./domain/types";
+import {
+  useAppStore,
+  Task,
+  OneOnOneItem,
+  OneOnOnePerson,
+} from "./domain/state";
+
 import { generateId, getRandomColor } from "./domain/utils";
 
-// ---------------------------------------------------------
-// App
-// ---------------------------------------------------------
 function App() {
-  const { tasks, people, oneOnOnes, settings, set, hydrated } = useAppStore();
+  const {
+    tasks,
+    people,
+    oneOnOnes,
+    settings,
+    hydrated,
+    set,
 
-  const [currentView, setCurrentView] = useState<string>("calendar");
+    addPerson,
+    editPerson,
+    reorderPeople,
+    deletePerson,
+
+    addOneOnOneItem,
+    updateOneOnOneItem,
+    deleteOneOnOneItem,
+
+    getNoteCount,
+  } = useAppStore();
+
+  // -------------------------------------------
+  // Local UI State
+  // -------------------------------------------
+  const [currentView, setCurrentView] = useState("calendar");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
-  // -------------------------------------------------------
-  // Sidebar resizing
-  // -------------------------------------------------------
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingSidebar) return;
+  // Sidebar state derived from settings
+  const sidebarOpen = settings.sidebarOpen;
+  const sidebarWidth = settings.sidebarWidth ?? 260;
+  const zoomLevel = settings.zoom;
 
-      const newWidth = Math.min(Math.max(e.clientX, 200), 400);
+  const setSidebarOpen = (v: boolean) =>
+    set((draft) => {
+      draft.settings.sidebarOpen = v;
+    });
+
+  const setZoomLevel = (v: number) =>
+    set((draft) => {
+      draft.settings.zoom = v;
+    });
+
+  const startSidebarResize = () => setIsResizingSidebar(true);
+
+  // -------------------------------------------
+  // Sidebar resizing handler
+  // -------------------------------------------
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!isResizingSidebar) return;
+      const width = Math.min(Math.max(e.clientX, 200), 400);
 
       set((draft) => {
         draft.settings.sidebarOpen = true;
-        draft.settings.sidebarWidth = newWidth;
+        draft.settings.sidebarWidth = width;
       });
     };
 
-    const handleMouseUp = () => {
+    const stop = () => {
       if (isResizingSidebar) setIsResizingSidebar(false);
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", stop);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", stop);
     };
   }, [isResizingSidebar, set]);
 
-  // -------------------------------------------------------
-  // Loading (store hydration)
-  // -------------------------------------------------------
+  // -------------------------------------------
+  // Loading screen
+  // -------------------------------------------
   if (!hydrated) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50 text-slate-500">
@@ -60,151 +99,104 @@ function App() {
     );
   }
 
-  // -------------------------------------------------------
-  // Settings update helper
-  // -------------------------------------------------------
-  const updateSettings = (partial: Partial<typeof settings>) => {
-    set((draft) => {
-      draft.settings = { ...draft.settings, ...partial };
-    });
-  };
+  // -------------------------------------------
+  // Helpers
+  // -------------------------------------------
+  const sortedPeople = [...people].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  );
 
-  // -------------------------------------------------------
-  // Task helpers
-  // -------------------------------------------------------
-  const updateTasks = (updater: (prev: Task[]) => Task[]) => {
-    useAppStore.setState((state) => ({
-      tasks: updater(state.tasks),
-    }));
-  };
+  const activePerson = sortedPeople.find((p) => p.id === currentView);
+  const activeItems: OneOnOneItem[] = activePerson
+    ? oneOnOnes[activePerson.id] || []
+    : [];
 
-  // -------------------------------------------------------
-  // People
-  // -------------------------------------------------------
-  const addPerson = (name: string) => {
-    const newPerson: OneOnOnePerson = {
-      id: generateId(),
-      name,
-      avatarColor: getRandomColor(),
-    };
+  const handleToggleOneOnOneItem = (id: string) => {
+    let current: OneOnOneItem | undefined;
 
-    set((draft) => {
-      draft.people.push(newPerson);
-      draft.oneOnOnes[newPerson.id] = [];
-    });
-
-    setCurrentView(newPerson.id);
-  };
-
-  const deletePerson = (id: string) => {
-    set((draft) => {
-      draft.people = draft.people.filter((p) => p.id !== id);
-      delete draft.oneOnOnes[id];
-    });
-
-    if (currentView === id) setCurrentView("calendar");
-  };
-
-  // -------------------------------------------------------
-  // One-on-One Items
-  // -------------------------------------------------------
-  const addOneOnOneItem = (personId: string, content: string) => {
-    const newItem: OneOnOneItem = {
-      id: generateId(),
-      content,
-      isCompleted: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    set((draft) => {
-      const existing = draft.oneOnOnes[personId] || [];
-      draft.oneOnOnes[personId] = [newItem, ...existing];
-    });
-  };
-
-  const updateOneOnOneItem = (id: string, content: string) => {
-    set((draft) => {
-      for (const [pid, list] of Object.entries(draft.oneOnOnes)) {
-        draft.oneOnOnes[pid] = list.map((i) =>
-          i.id === id ? { ...i, content } : i
-        );
+    for (const list of Object.values(oneOnOnes)) {
+      const found = list.find((i) => i.id === id);
+      if (found) {
+        current = found;
+        break;
       }
-    });
+    }
+
+    if (current) {
+      updateOneOnOneItem(id, { isCompleted: !current.isCompleted });
+    }
   };
 
-  const toggleOneOnOneItem = (id: string) => {
-    set((draft) => {
-      for (const [pid, list] of Object.entries(draft.oneOnOnes)) {
-        draft.oneOnOnes[pid] = list.map((i) =>
-          i.id === id ? { ...i, isCompleted: !i.isCompleted } : i
-        );
-      }
-    });
-  };
-
-  const deleteOneOnOneItem = (id: string) => {
-    set((draft) => {
-      for (const [pid, list] of Object.entries(draft.oneOnOnes)) {
-        draft.oneOnOnes[pid] = list.filter((i) => i.id !== id);
-      }
-    });
-  };
-
-  // -------------------------------------------------------
-  // Derived computed
-  // -------------------------------------------------------
-  const sidebarWidth =
-    settings.sidebarOpen && settings.sidebarWidth
-      ? settings.sidebarWidth
-      : settings.sidebarOpen
-      ? 260
-      : 0;
-
-  const activePerson = people.find((p) => p.id === currentView);
-  const activeItems = activePerson ? oneOnOnes[activePerson.id] || [] : [];
-
-  // -------------------------------------------------------
+  // -------------------------------------------
   // Render
-  // -------------------------------------------------------
+  // -------------------------------------------
   return (
     <div
-      className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden"
-      style={{ zoom: settings.zoom }}
+      className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden"
+      style={{ zoom: zoomLevel }}
     >
+      {/* SIDEBAR */}
       <Sidebar
         currentView={currentView}
-        people={people}
+        people={sortedPeople}
         onNavigate={setCurrentView}
-        onAddPerson={addPerson}
-        onDeletePerson={deletePerson}
+        onAddPerson={(name) => {
+          const newPerson: OneOnOnePerson = {
+            id: generateId(),
+            name,
+            avatarColor: getRandomColor(),
+            sortOrder: people.length,
+          };
+          console.log("➕ APP → adding person:", newPerson);
+          addPerson(newPerson);
+        }}
+        onDeletePerson={(id) => {
+          console.log("🔥 APP.onDeletePerson called with id:", id);
+          deletePerson(id);
+          console.log("🔥 APP.onDeletePerson finished for id:", id);
+        }}
+        onEditPerson={editPerson}
+        onReorderPeople={reorderPeople}
+        getNoteCount={getNoteCount}
         onSearchClick={() => setIsSearchOpen(true)}
-        isOpen={settings.sidebarOpen}
-        onClose={() => updateSettings({ sidebarOpen: false })}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         width={sidebarWidth}
-        onResizeStart={() => setIsResizingSidebar(true)}
-        zoomLevel={settings.zoom}
-        onZoomChange={(zoom) => updateSettings({ zoom })}
+        onResizeStart={startSidebarResize}
+        zoomLevel={zoomLevel}
+        onZoomChange={setZoomLevel}
       />
 
-      <main className="flex-1 h-full overflow-hidden bg-white border-l border-slate-200 relative">
-        {!settings.sidebarOpen && (
+      {/* MAIN CONTENT */}
+      <main className="flex-1 h-full overflow-hidden bg-white relative border-l border-slate-200">
+        {!sidebarOpen && (
           <button
-            onClick={() => updateSettings({ sidebarOpen: true })}
-            className="absolute top-3 left-4 z-40 p-2 bg-white/80 rounded-md shadow-sm border"
+            onClick={() => setSidebarOpen(true)}
+            className="absolute top-3 left-4 z-40 p-2 bg-white/80 rounded border shadow-sm"
           >
             <Menu size={20} />
           </button>
         )}
 
         {currentView === "calendar" ? (
-          <Board tasks={tasks} onTasksChange={updateTasks} />
+          <Board tasks={tasks} />
         ) : activePerson ? (
           <OneOnOneView
             person={activePerson}
             items={activeItems}
-            onAddItem={addOneOnOneItem}
-            onUpdateItem={updateOneOnOneItem}
-            onToggleItem={toggleOneOnOneItem}
+            onAddItem={(personId, content) =>
+              addOneOnOneItem({
+                id: generateId(),
+                personId,
+                content,
+                isCompleted: false,
+                createdAt: new Date().toISOString(),
+              })
+            }
+            onUpdateItem={(id, content) =>
+              updateOneOnOneItem(id, { content })
+            }
+            onToggleItem={handleToggleOneOnOneItem}
             onDeleteItem={deleteOneOnOneItem}
           />
         ) : (
@@ -214,12 +206,13 @@ function App() {
         )}
       </main>
 
+      {/* SEARCH MODAL */}
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         tasks={tasks}
         items={Object.values(oneOnOnes).flat()}
-        people={people}
+        people={sortedPeople}
         onNavigate={setCurrentView}
       />
     </div>
