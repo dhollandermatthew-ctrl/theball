@@ -9,7 +9,6 @@ import { SearchModal } from "./components/SearchModal";
 
 import {
   useAppStore,
-  Task,
   OneOnOneItem,
   OneOnOnePerson,
 } from "./domain/state";
@@ -198,6 +197,7 @@ function App() {
             }
             onToggleItem={handleToggleOneOnOneItem}
             onDeleteItem={deleteOneOnOneItem}
+            onEditPerson={editPerson}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-slate-400">

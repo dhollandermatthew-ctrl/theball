@@ -14,37 +14,37 @@ import { tasks } from "./db/schema";
 import "@/db/sync";
 
 // -------------------------------------------------------
-// 1) Initialize Zustand state BEFORE React renders
+// Async bootstrap wrapper (fix for top-level await error)
 // -------------------------------------------------------
-await initializeAppState();
+async function start() {
+  // 1) Initialize Zustand state BEFORE React renders
+  await initializeAppState();
 
-// -------------------------------------------------------
-// 2) Debug env vars in dev
-// -------------------------------------------------------
-if (import.meta.env.DEV) {
-  console.log("VITE_TURSO_DB_URL:", import.meta.env.VITE_TURSO_DB_URL);
-  console.log("VITE_TURSO_DB_TOKEN:", import.meta.env.VITE_TURSO_DB_TOKEN);
+  // 2) Debug env vars in dev
+  if (import.meta.env.DEV) {
+    console.log("VITE_TURSO_DB_URL:", import.meta.env.VITE_TURSO_DB_URL);
+    console.log("VITE_TURSO_DB_TOKEN:", import.meta.env.VITE_TURSO_DB_TOKEN);
 
-  // -------------------------------------------------------
-  // 3) Quick DB connectivity check (runs only in dev)
-  // -------------------------------------------------------
-  db.select()
-    .from(tasks)
-    .then((rows) => {
-      console.log("🔥 DB connected! tasks table rows:", rows);
-    })
-    .catch((err) => {
-      console.error("❌ DB connection FAILED:", err);
-    });
+    // 3) Quick DB connectivity check (dev only)
+    db.select()
+      .from(tasks)
+      .then((rows) => {
+        console.log("🔥 DB connected! tasks table rows:", rows);
+      })
+      .catch((err) => {
+        console.error("❌ DB connection FAILED:", err);
+      });
+  }
+
+  // 4) Render React app AFTER hydration
+  const rootEl = document.getElementById("root") as HTMLElement;
+
+  ReactDOM.createRoot(rootEl).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
 }
 
-// -------------------------------------------------------
-// 4) Render React app
-// -------------------------------------------------------
-const rootEl = document.getElementById("root") as HTMLElement;
-
-ReactDOM.createRoot(rootEl).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// Start the async bootstrap
+start();

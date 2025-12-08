@@ -41,6 +41,7 @@ import { MonthView } from "@/components/MonthView";
 import { TaskCard } from "@/components/TaskCard";
 
 import { useAppStore } from "@/domain/state";
+import type { AppState } from "@/domain/state";
 
 import {
   Task,
@@ -317,9 +318,9 @@ const BoardScrollMonitor = ({
 export const Board: React.FC<BoardProps> = () => {
   // 🔗 All tasks come from Zustand
   const tasks = useAppStore((s) => s.tasks);
-  const addTaskToStore = useAppStore((s) => s.addTask);
-  const updateTaskInStore = useAppStore((s) => s.updateTask);
-  const deleteTaskFromStore = useAppStore((s) => s.deleteTask);
+  const addTaskToStore = useAppStore((s: AppState) => s.addTask);
+  const updateTaskInStore = useAppStore((s: AppState) => s.updateTask);
+  const deleteTaskFromStore = useAppStore((s: AppState) => s.deleteTask);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
@@ -522,6 +523,10 @@ export const Board: React.FC<BoardProps> = () => {
     updateTaskInStore(id, { content });
   };
 
+  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+    updateTaskInStore(id, updates);
+  };
+
   const handleDeleteTask = (id: string) => {
     deleteTaskFromStore(id);
   };
@@ -659,6 +664,7 @@ export const Board: React.FC<BoardProps> = () => {
             currentDate={currentDate}
             tasks={tasks}
             category={category}
+            onUpdateTask={handleUpdateTask}  
             onDateClick={(date) => {
               setCurrentDate(date);
               setViewMode("week");

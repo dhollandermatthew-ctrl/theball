@@ -89,7 +89,7 @@ export interface AppState {
 // -----------------------------------------------------
 // Default state
 // -----------------------------------------------------
-const defaultState: Omit<
+export const defaultState: Omit<
   AppState,
   | "set"
   | "setHydrated"
@@ -119,7 +119,7 @@ const defaultState: Omit<
 
   hydrated: false,
 };
-
+export type PersistedState = typeof defaultState;
 // -----------------------------------------------------
 // Zustand Store
 // -----------------------------------------------------

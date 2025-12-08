@@ -30,6 +30,30 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import AppIcon from "../assets/icon.png";
+
+/* -----------------------------------------------------
+   Sidebar Props (FIXED)
+----------------------------------------------------- */
+interface SidebarProps {
+  currentView: string;
+  people: OneOnOnePerson[];
+  onNavigate: (id: string) => void;
+  onAddPerson: (name: string) => void;
+  onDeletePerson: (id: string) => void;
+  onEditPerson: (id: string, updates: Partial<OneOnOnePerson>) => void;
+  onReorderPeople: (newOrder: string[]) => void;
+  getNoteCount: (id: string) => number;
+  onSearchClick: () => void;
+
+  isOpen: boolean;
+  onClose: () => void;
+  width?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
+
+  zoomLevel: number;
+  onZoomChange: (level: number) => void;
+}
 
 /* -----------------------------------------------------
    Confirm Modal
@@ -258,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const saveEditPerson = () => {
     if (!editingId) return;
     const trimmed = editingName.trim();
-    if (trimmed.length > 0) onEditPerson(editingId, trimmed);
+    if (trimmed.length > 0) onEditPerson(editingId, { name: trimmed });
     setEditingId(null);
     setEditingName("");
   };
@@ -274,7 +298,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
 
-    // Notes exist → open modal
     console.log("⚠️ Has notes — opening confirmation modal");
     setPendingDelete(person);
     setModalOpen(true);
@@ -314,13 +337,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onZoomChange(Number(newLevel.toFixed(1)));
   };
 
-  /* ----------------------------------------------------- */
-  /* ---------------------- RENDER ----------------------- */
-  /* ----------------------------------------------------- */
-
+  /* ---------------------- Render ---------------------- */
   return (
     <>
-      {/* Confirm Modal */}
       <ConfirmDeleteModal
         open={modalOpen}
         onCancel={cancelDelete}
@@ -347,7 +366,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         style={{ width: window.innerWidth >= 768 ? width : 256 }}
       >
 
-        {/* Resize */}
+        {/* Resize Handle */}
         <div
           className="hidden md:block absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-50"
           onMouseDown={(e) => {
@@ -356,12 +375,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         />
 
-        {/* HEADER */}
+        {/* Header */}
         <div className="p-4 flex items-center justify-between border-b border-slate-200/50">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-slate-900 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xs">WF</span>
-            </div>
+          <img
+  src={AppIcon}
+  alt="The Ball Logo"
+  className="w-6 h-6 object-contain"
+/>
             <span className="font-semibold text-slate-700 truncate">
               The Ball
             </span>
@@ -374,7 +395,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* CONTENT */}
+        {/* Body */}
         <div className="flex-1 overflow-hidden flex flex-col">
 
           {/* Quick Find */}
@@ -404,7 +425,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* SECTION HEADER */}
+          {/* Section Title */}
           <div className="mt-4 px-3 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               One-on-Ones
@@ -418,7 +439,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* Add Input */}
+          {/* Add Person Input */}
           {isAdding && (
             <form onSubmit={handleAddSubmit} className="px-3 mt-2">
               <input
@@ -441,7 +462,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </form>
           )}
 
-          {/* LIST */}
+          {/* People List */}
           <div className="flex-1 overflow-y-auto px-2 mt-2 pb-4 space-y-1">
             <DndContext
               sensors={sensors}
@@ -476,7 +497,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {/* ZOOM */}
+          {/* Zoom Controls */}
           <div className="p-3 border-t border-slate-200 bg-slate-50">
             <div className="flex items-center justify-between bg-white p-1 rounded-md border border-slate-200 shadow-sm">
               <button onClick={() => handleZoom(-0.1)} className="p-1">

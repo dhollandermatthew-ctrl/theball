@@ -1,3 +1,4 @@
+// FILE: src/domain/storage.ts
 import { invoke } from "@tauri-apps/api/core";
 import {
   AppState,
@@ -7,17 +8,16 @@ import {
 
 const FILENAME = "state.json";
 
-// -----------------------------------------------------
-// MIGRATIONS
-// -----------------------------------------------------
+/* ----------------------------------------------
+   MIGRATION → returns an AppState-shaped object
+   (Zustand will override all function fields)
+---------------------------------------------- */
 function migrateState(data: any): AppState {
-  const migrated: AppState = {
+  return {
     version: CURRENT_STATE_VERSION,
 
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
-
     people: Array.isArray(data.people) ? data.people : [],
-
     oneOnOnes:
       typeof data.oneOnOnes === "object" &&
       data.oneOnOnes !== null &&
@@ -31,39 +31,59 @@ function migrateState(data: any): AppState {
         typeof data.settings?.sidebarOpen === "boolean"
           ? data.settings.sidebarOpen
           : true,
+      sidebarWidth:
+        typeof data.settings?.sidebarWidth === "number"
+          ? data.settings.sidebarWidth
+          : 260,
     },
-  };
 
-  return migrated;
+    // REQUIRED FIELD
+    hydrated: false,
+
+    // Zustand will replace all these functions at runtime
+    set: () => {},
+    setHydrated: () => {},
+
+    addTask: () => {},
+    updateTask: () => {},
+    deleteTask: () => {},
+
+    addPerson: () => {},
+    editPerson: () => {},
+    reorderPeople: () => {},
+    deletePerson: () => {},
+
+    addOneOnOneItem: () => {},
+    updateOneOnOneItem: () => {},
+    deleteOneOnOneItem: () => {},
+
+    getNoteCount: () => 0,
+  };
 }
 
-// -----------------------------------------------------
-// LOAD FROM FILE VIA TAURI
-// -----------------------------------------------------
-export async function loadState(): Promise<AppState> {
+/* ----------------------------------------------
+   LOAD (Tauri → Zustand hydration)
+---------------------------------------------- */
+export async function loadState(): Promise<AppState | null> {
   try {
-    const raw = await invoke<string>("read_data_file", {
-      file: FILENAME,
-    });
+    const raw = await invoke<string>("read_data_file", { file: FILENAME });
 
-    if (!raw) return defaultState;
-
-    const parsed = JSON.parse(raw);
-
-    if (typeof parsed.tasks === "function") {
-      parsed.tasks = [];
+    if (!raw || raw.trim().length === 0) {
+      console.warn("loadState(): empty file → returning null");
+      return null;
     }
 
+    const parsed = JSON.parse(raw);
     return migrateState(parsed);
   } catch (err) {
-    console.warn("loadState(): no file found → using default", err);
-    return defaultState;
+    console.warn("loadState(): failed → returning null", err);
+    return null;
   }
 }
 
-// -----------------------------------------------------
-// SAVE TO FILE VIA TAURI
-// -----------------------------------------------------
+/* ----------------------------------------------
+   SAVE (Zustand → Tauri JSON file)
+---------------------------------------------- */
 export async function saveState(state: AppState) {
   try {
     await invoke("write_data_file", {
@@ -75,6 +95,6 @@ export async function saveState(state: AppState) {
       ),
     });
   } catch (err) {
-    console.error("saveState error:", err);
+    console.error("saveState(): error writing file", err);
   }
 }
