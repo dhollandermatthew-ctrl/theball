@@ -105,10 +105,31 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   // KEYBOARD SHORTCUTS (Ctrl/Cmd + B/I/U)
   // -------------------------------------------
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // -----------------------------
+    // TAB → indent / outdent
+    // -----------------------------
+    if (e.key === "Tab") {
+      e.preventDefault();
+  
+      // Shift+Tab = outdent
+      if (e.shiftKey) {
+        document.execCommand("outdent");
+      } else {
+        // Tab = indent
+        document.execCommand("indent");
+      }
+  
+      handleInput();
+      return;
+    }
+  
+    // -----------------------------
+    // FORMAT SHORTCUTS (Ctrl/Cmd)
+    // -----------------------------
     if (!(e.metaKey || e.ctrlKey)) return;
-
+  
     const key = e.key.toLowerCase();
-
+  
     if (key === "b") {
       e.preventDefault();
       execCommand("bold");
@@ -124,7 +145,9 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
       execCommand("underline");
       return;
     }
-
+  
+    // Ordered list: Cmd+Shift+7  
+    // Bullet list: Cmd+Shift+8
     if (e.shiftKey && (key === "7" || key === "8")) {
       e.preventDefault();
       execCommand(key === "7" ? "insertOrderedList" : "insertUnorderedList");

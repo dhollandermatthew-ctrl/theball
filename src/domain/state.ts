@@ -18,6 +18,7 @@ export const CURRENT_STATE_VERSION = 3;
 // -----------------------------------------------------
 export interface Task {
   id: string;
+  title: string;      // ← ADD THIS
   content: string;
   date: string;
 

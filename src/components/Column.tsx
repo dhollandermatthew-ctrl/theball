@@ -16,6 +16,7 @@ interface ColumnProps {
   onUpdateTaskPriority: (id: string, priority: TaskPriority) => void;
   onUpdateTaskContent: (id: string, content: string) => void;
   onDeleteTask: (id: string) => void;
+  onUpdateTaskTitle: (id: string, title: string) => void;   // <-- REQUIRED
 }
 
 export const Column: React.FC<ColumnProps> = ({
@@ -25,7 +26,8 @@ export const Column: React.FC<ColumnProps> = ({
   onUpdateTaskStatus,
   onUpdateTaskPriority,
   onUpdateTaskContent,
-  onDeleteTask
+  onDeleteTask,
+  onUpdateTaskTitle,   // <-- MUST BE ACCEPTED HERE
 }) => {
   const dateStr = formatDateKey(date);
   const isCurrentDay = isToday(date);
@@ -107,6 +109,7 @@ export const Column: React.FC<ColumnProps> = ({
                   onUpdateStatus={onUpdateTaskStatus}
                   onUpdatePriority={onUpdateTaskPriority}
                   onUpdateContent={onUpdateTaskContent}
+                  onUpdateTitle={onUpdateTaskTitle}  
                   onDelete={onDeleteTask}
                 />
               </React.Fragment>

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
 import {
   Check,
   X,
@@ -13,24 +14,21 @@ import {
 } from "lucide-react";
 
 import { Task, TaskStatus, TaskPriority } from "@/domain/types";
-import { cn, DEFAULT_TASK_CONTENT } from "@/domain/utils";
+import { cn, DEFAULT_TASK_BODY } from "@/domain/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { WysiwygEditor } from "@/components/WysiwygEditor";
-import { runAI } from "@/domain/ai";
+import { runAI } from "@/domain/ai/ai";
 
+/* --------------------------------------------------
+ * NORMALIZE STATUS
+ * -------------------------------------------------- */
 
-// --------------------------------------------------
-// 🔧 UTIL — convert "in_progress" to "todo"
-// --------------------------------------------------
+const normalizeStatus = (status: TaskStatus): TaskStatus =>
+  status === "in_progress" ? "todo" : status;
 
-const normalizeStatus = (status: TaskStatus): TaskStatus => {
-  return status === "in_progress" ? "todo" : status;
-};
-
-
-// --------------------------------------------------
-// STATUS ACCORDION
-// --------------------------------------------------
+/* --------------------------------------------------
+ * STATUS ACCORDION
+ * -------------------------------------------------- */
 
 interface StatusAccordionProps {
   status: TaskStatus;
@@ -45,18 +43,13 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({ status, onSelect }) =
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const selectStatus = (s: TaskStatus) => {
-    onSelect(normalizedStatus === s ? "todo" : s);
-    setIsOpen(false);
-  };
 
   const baseIcon = () => {
     switch (normalizedStatus) {
@@ -69,47 +62,42 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({ status, onSelect }) =
     }
   };
 
-  const baseStyle = () => {
-    switch (normalizedStatus) {
-      case "done":
-        return "bg-green-500 border-green-600";
-      case "missed":
-        return "bg-red-500 border-red-600";
-      default:
-        return "bg-transparent hover:bg-slate-100 border-transparent";
-    }
-  };
-
   return (
     <div
       ref={ref}
-      className={cn(
-        "relative flex items-center h-6 transition-all z-20",
+      className={cn("relative flex items-center h-6 transition-all z-20",
         isOpen ? "w-[88px]" : "w-6"
       )}
     >
       {isOpen ? (
         <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg ring-1 ring-slate-200 rounded-full p-0.5">
-          <button className="p-1 rounded-full hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); selectStatus("done"); }}>
+          <button className="p-1 hover:bg-slate-100 rounded-full"
+            onClick={(e) => { e.stopPropagation(); onSelect("done"); setIsOpen(false); }}>
             <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-              <Check className="w-3 h-3 text-white" />
+              <Check className="text-white w-3 h-3" />
             </div>
           </button>
 
-          <button className="p-1 rounded-full hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); selectStatus("missed"); }}>
+          <button className="p-1 hover:bg-slate-100 rounded-full"
+            onClick={(e) => { e.stopPropagation(); onSelect("missed"); setIsOpen(false); }}>
             <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-              <X className="w-3 h-3 text-white" />
+              <X className="text-white w-3 h-3" />
             </div>
           </button>
 
-          <button className="p-1 rounded-full hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); selectStatus("todo"); }}>
-            <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+          <button className="p-1 hover:bg-slate-100 rounded-full"
+            onClick={(e) => { e.stopPropagation(); onSelect("todo"); setIsOpen(false); }}>
+            <div className="w-4 h-4 border-2 border-slate-300 rounded-full" />
           </button>
         </div>
       ) : (
         <div
-          className={cn("flex items-center justify-center w-6 h-6 rounded-md cursor-pointer border transition-colors", baseStyle())}
-          onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
+          className={cn(
+            "flex items-center justify-center w-6 h-6 rounded-md cursor-pointer hover:bg-slate-100",
+            normalizedStatus === "done" && "bg-green-500 border-green-600",
+            normalizedStatus === "missed" && "bg-red-500 border-red-600"
+          )}
+          onClick={() => setIsOpen(true)}
         >
           {baseIcon()}
         </div>
@@ -118,23 +106,25 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({ status, onSelect }) =
   );
 };
 
-
-// --------------------------------------------------
-// PRIORITY ACCORDION
-// --------------------------------------------------
+/* --------------------------------------------------
+ * PRIORITY ACCORDION
+ * -------------------------------------------------- */
 
 interface PriorityAccordionProps {
   priority: TaskPriority;
   onSelect: (p: TaskPriority) => void;
 }
 
-const PriorityAccordion: React.FC<PriorityAccordionProps> = ({ priority, onSelect }) => {
+const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
+  priority,
+  onSelect,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -142,44 +132,51 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({ priority, onSelec
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const labelFor = (p: TaskPriority) => {
+  const label = (p: TaskPriority) => {
     switch (p) {
       case "p1":
-        return <span className="font-bold text-red-600 text-[10px] tracking-tight">P1</span>;
+        return <span className="text-[10px] font-bold text-red-600">P1</span>;
       case "p2":
-        return <span className="font-bold text-amber-500 text-[10px] tracking-tight">P2</span>;
+        return <span className="text-[10px] font-bold text-amber-500">P2</span>;
       default:
-        return <span className="font-bold text-slate-400 text-[10px] tracking-tight">P3</span>;
+        return <span className="text-[10px] font-bold text-slate-400">P3</span>;
     }
   };
 
   return (
-    <div ref={ref} className={cn("relative flex items-center h-6 transition-all", isOpen ? "w-[96px]" : "w-6")}>
+    <div
+      ref={ref}
+      className={cn("relative flex items-center h-6 transition-all",
+        isOpen ? "w-[96px]" : "w-6"
+      )}
+    >
       {isOpen ? (
-        <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg ring-1 ring-slate-200 rounded-full p-0.5">
+        <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg rounded-full ring-1 ring-slate-200 p-0.5">
           {(["p1", "p2", "p3"] as TaskPriority[]).map((p) => (
             <button
               key={p}
-              className="flex items-center justify-center w-7 h-6 rounded-full hover:bg-slate-100"
               onClick={(e) => { e.stopPropagation(); onSelect(p); setIsOpen(false); }}
+              className="w-7 h-6 hover:bg-slate-100 rounded-full flex items-center justify-center"
             >
-              {labelFor(p)}
+              {label(p)}
             </button>
           ))}
         </div>
       ) : (
-        <div className="flex items-center justify-center w-6 h-6 rounded-md cursor-pointer hover:bg-slate-100" onClick={() => setIsOpen(true)}>
-          {labelFor(priority)}
+        <div
+          className="w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-slate-100 rounded-md"
+          onClick={() => setIsOpen(true)}
+        >
+          {label(priority)}
         </div>
       )}
     </div>
   );
 };
 
-
-// --------------------------------------------------
-// CARD STYLE
-// --------------------------------------------------
+/* --------------------------------------------------
+ * CARD STYLE
+ * -------------------------------------------------- */
 
 const getCardStyle = (task: Task) => {
   if (task.status === "done") return "bg-slate-50/60 border-slate-200";
@@ -194,16 +191,16 @@ const getCardStyle = (task: Task) => {
   }
 };
 
-
-// --------------------------------------------------
-// TASK CARD
-// --------------------------------------------------
+/* --------------------------------------------------
+ * TASK CARD
+ * -------------------------------------------------- */
 
 interface TaskCardProps {
   task: Task;
   onUpdateStatus: (id: string, s: TaskStatus) => void;
   onUpdatePriority: (id: string, p: TaskPriority) => void;
   onUpdateContent: (id: string, c: string) => void;
+  onUpdateTitle: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   disableDrag?: boolean;
 }
@@ -213,33 +210,46 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onUpdateStatus,
   onUpdatePriority,
   onUpdateContent,
+  onUpdateTitle,
   onDelete,
   disableDrag = false,
 }) => {
+  const initialBody =
+    !task.content || task.content === DEFAULT_TASK_BODY
+      ? DEFAULT_TASK_BODY
+      : task.content;
 
-  const [isEditing, setIsEditing] = useState(
-    !task.content || task.content === DEFAULT_TASK_CONTENT
-  );
-  const [editValue, setEditValue] = useState(task.content);
+  const [isEditing, setIsEditing] = useState(!task.content || task.content === DEFAULT_TASK_BODY);
+  const [editValue, setEditValue] = useState(initialBody);
+  const [titleValue, setTitleValue] = useState(task.title ?? "New Task");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
 
-  const disableDueToState = isEditing || isAiLoading;
+  const disableState = isEditing || isAiLoading;
 
-  const { setNodeRef, listeners, attributes, transform, transition, isDragging } =
-    useSortable({
-      id: task.id,
-      data: { type: "Task", task, dateStr: task.date },
-      disabled: disableDrag || disableDueToState,
-    });
+  const {
+    setNodeRef,
+    listeners,
+    attributes,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: { type: "Task", task, dateStr: task.date },
+    disabled: disableDrag || disableState,
+  });
 
-  const style = { transform: CSS.Transform.toString(transform), transition };
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   const applyAI = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!editValue) return;
-    setIsAiLoading(true);
 
+    setIsAiLoading(true);
     try {
       const result = await runAI(editValue);
       if (result) {
@@ -253,10 +263,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   const handleBlur = () => {
-    setIsEditing(false);
+    const trimmed = titleValue.trim();
+
+    if (trimmed !== task.title) {
+      onUpdateTitle(task.id, trimmed);
+    }
+
     if (editValue !== task.content) {
       onUpdateContent(task.id, editValue);
     }
+
+    setIsEditing(false);
   };
 
   if (isDragging) {
@@ -264,37 +281,36 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       <div
         ref={setNodeRef}
         style={style}
-        className="opacity-40 bg-slate-50 border-2 border-slate-200 border-dashed rounded-lg h-[80px] w-full"
+        className="opacity-40 bg-slate-50 border-2 border-slate-200 border-dashed rounded-lg h-[80px]"
       />
     );
   }
 
   const normalizedStatus = normalizeStatus(task.status);
+  const isCompleted = normalizedStatus !== "todo";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group relative flex flex-col rounded-lg border shadow-sm mb-2 transition-all",
+        "group relative flex flex-col rounded-lg border shadow-sm mb-2 transition-all duration-200",
+        "hover:shadow-md hover:-translate-y-[1px]",
         getCardStyle({ ...task, status: normalizedStatus })
       )}
     >
-      {/* AI overlay */}
       {isAiLoading && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-lg">
+        <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
           <div className="flex flex-col items-center gap-2 animate-pulse">
             <Sparkles className="w-6 h-6" />
-            <span className="text-xs font-medium text-purple-600">
-              Improving...
-            </span>
+            <span className="text-xs font-medium text-purple-600">Improving...</span>
           </div>
         </div>
       )}
 
-      {/* HEADER ROW */}
       <div className="flex items-center gap-2 p-2 pb-0">
-        <div {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100">
+        <div {...listeners} {...attributes}
+          className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100">
           <GripVertical size={14} className="text-slate-400" />
         </div>
 
@@ -307,54 +323,54 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           priority={task.priority}
           onSelect={(p) => onUpdatePriority(task.id, p)}
         />
+
+        {isEditing ? (
+          <input
+            className="flex-1 font-bold bg-transparent text-sm outline-none border-b border-transparent focus:border-blue-300"
+            value={titleValue}
+            onChange={(e) => setTitleValue(e.target.value)}
+          />
+        ) : (
+          <div
+            className="flex-1 font-bold text-sm truncate cursor-text"
+            onClick={() => setIsEditing(true)}
+          >
+            {titleValue}
+          </div>
+        )}
       </div>
 
-      {/* CONTENT */}
-      <div className="p-2 pt-1">
+      <div className="p-2 pt-1 pl-10">
         {isEditing ? (
           <WysiwygEditor
             key={editorKey}
             initialContent={editValue}
             onChange={setEditValue}
             onBlur={handleBlur}
-            autoFocus
           />
         ) : (
-          <div onClick={() => setIsEditing(true)} className="cursor-text">
+          <div className="cursor-text min-h-[1.5em]" onClick={() => setIsEditing(true)}>
             {task.content ? (
-              <RichTextRenderer
-                text={task.content}
-                isCompleted={normalizedStatus !== "todo"}
-              />
+              <RichTextRenderer text={task.content} isCompleted={isCompleted} />
             ) : (
-              <span className="text-slate-400 italic text-sm">
-                Empty task
-              </span>
+              <span className="italic text-slate-400 text-sm">Add details...</span>
             )}
           </div>
         )}
       </div>
 
-      {/* ACTIONS */}
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
         <button
-          onClick={applyAI}
           disabled={isAiLoading}
-          className="p-1 rounded text-slate-300 hover:text-purple-500 hover:bg-purple-50"
+          onClick={applyAI}
+          className="p-1 rounded hover:bg-purple-50 text-slate-300 hover:text-purple-600"
         >
-          {isAiLoading ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Sparkles size={14} />
-          )}
+          {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
         </button>
 
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(task.id);
-          }}
-          className="p-1 rounded text-slate-300 hover:text-red-400 hover:bg-red-50"
+          onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
+          className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500"
         >
           <Trash2 size={14} />
         </button>

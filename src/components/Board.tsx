@@ -54,7 +54,7 @@ import {
   generateId,
   formatDateKey,
   cn,
-  DEFAULT_TASK_CONTENT,
+  DEFAULT_TASK_BODY,
 } from "@/domain/utils";
 
 // --------------------------------------------------------
@@ -70,25 +70,15 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
-// --------------------------------------------------------
-// Props – kept optional so App.tsx won't break,
-// but Board now ONLY uses Zustand for tasks.
-// --------------------------------------------------------
 interface BoardProps {
   tasks?: Task[];
   onTasksChange?: React.Dispatch<React.SetStateAction<Task[]>>;
 }
 
 // --------------------------------------------------------
-// Side “push” zones (move task to prev/next week)
+// Side Zones
 // --------------------------------------------------------
-const PushZone = ({
-  side,
-  active,
-}: {
-  side: "left" | "right";
-  active: boolean;
-}) => {
+const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `side-zone-${side}`,
     data: { type: "SideZone", side },
@@ -105,9 +95,7 @@ const PushZone = ({
           : side === "left"
           ? "-translate-x-full"
           : "translate-x-full",
-        isOver
-          ? "bg-blue-100/95 border-blue-500 shadow-xl"
-          : "hover:bg-slate-100/80"
+        isOver ? "bg-blue-100/95 border-blue-500 shadow-xl" : "hover:bg-slate-100/80"
       )}
     >
       <div
@@ -128,7 +116,7 @@ const PushZone = ({
 };
 
 // --------------------------------------------------------
-// Scroll zones (scroll within current week)
+// Scroll Zone
 // --------------------------------------------------------
 const ScrollZone = ({
   side,
@@ -179,7 +167,7 @@ const ScrollZone = ({
 };
 
 // --------------------------------------------------------
-// Inbox drawer on the right
+// Inbox Drawer
 // --------------------------------------------------------
 const InboxDrawer = ({
   tasks,
@@ -188,6 +176,7 @@ const InboxDrawer = ({
   onUpdateStatus,
   onUpdatePriority,
   onUpdateContent,
+  onUpdateTitle,
   onDelete,
 }: {
   tasks: Task[];
@@ -196,6 +185,7 @@ const InboxDrawer = ({
   onUpdateStatus: (id: string, s: TaskStatus) => void;
   onUpdatePriority: (id: string, p: TaskPriority) => void;
   onUpdateContent: (id: string, c: string) => void;
+  onUpdateTitle: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }) => {
   const { setNodeRef, isOver } = useDroppable({
@@ -210,7 +200,6 @@ const InboxDrawer = ({
         isOpen ? "translate-x-0" : "translate-x-full"
       )}
     >
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-2 text-slate-700 font-semibold">
           <InboxIcon size={18} />
@@ -227,7 +216,6 @@ const InboxDrawer = ({
         </button>
       </div>
 
-      {/* List */}
       <div
         ref={setNodeRef}
         className={cn(
@@ -236,47 +224,18 @@ const InboxDrawer = ({
             "bg-blue-50/50 box-border border-2 border-blue-300 border-dashed m-2 rounded-lg"
         )}
       >
-        {tasks.length === 0 && !isOver && (
-          <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-center px-4">
-            <InboxIcon size={32} className="mb-2 opacity-20" />
-            <p className="text-sm">Drag tasks here to save them for later</p>
-          </div>
-        )}
-
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task, index) => {
-            const isCompleted =
-              task.status === "done" || task.status === "missed";
-            const prevTask = tasks[index - 1];
-            const showSeparator =
-              isCompleted &&
-              (!prevTask ||
-                (prevTask.status !== "done" && prevTask.status !== "missed"));
-
-            return (
-              <React.Fragment key={task.id}>
-                {showSeparator && (
-                  <div className="flex items-center gap-2 py-4 px-1">
-                    <div className="h-px bg-slate-200 flex-1" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Completed
-                    </span>
-                    <div className="h-px bg-slate-200 flex-1" />
-                  </div>
-                )}
-                <TaskCard
-                  task={task}
-                  onUpdateStatus={onUpdateStatus}
-                  onUpdatePriority={onUpdatePriority}
-                  onUpdateContent={onUpdateContent}
-                  onDelete={onDelete}
-                />
-              </React.Fragment>
-            );
-          })}
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onUpdateStatus={onUpdateStatus}
+              onUpdatePriority={onUpdatePriority}
+              onUpdateContent={onUpdateContent}
+              onUpdateTitle={onUpdateTitle}
+              onDelete={onDelete}
+            />
+          ))}
         </SortableContext>
       </div>
     </div>
@@ -284,22 +243,14 @@ const InboxDrawer = ({
 };
 
 // --------------------------------------------------------
-// DND monitor for scroll zones
+// Scroll Monitor
 // --------------------------------------------------------
-const BoardScrollMonitor = ({
-  onScrollChange,
-}: {
-  onScrollChange: (dir: "left" | "right" | null) => void;
-}) => {
+const BoardScrollMonitor = ({ onScrollChange }: { onScrollChange: (dir: "left" | "right" | null) => void }) => {
   useDndMonitor({
     onDragOver({ over }) {
-      if (over?.id === "scroll-zone-left") {
-        onScrollChange("left");
-      } else if (over?.id === "scroll-zone-right") {
-        onScrollChange("right");
-      } else {
-        onScrollChange(null);
-      }
+      if (over?.id === "scroll-zone-left") onScrollChange("left");
+      else if (over?.id === "scroll-zone-right") onScrollChange("right");
+      else onScrollChange(null);
     },
     onDragEnd() {
       onScrollChange(null);
@@ -313,10 +264,9 @@ const BoardScrollMonitor = ({
 };
 
 // --------------------------------------------------------
-// Main Board
+// Main Board Component
 // --------------------------------------------------------
 export const Board: React.FC<BoardProps> = () => {
-  // 🔗 All tasks come from Zustand
   const tasks = useAppStore((s) => s.tasks);
   const addTaskToStore = useAppStore((s: AppState) => s.addTask);
   const updateTaskInStore = useAppStore((s: AppState) => s.updateTask);
@@ -329,9 +279,7 @@ export const Board: React.FC<BoardProps> = () => {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [scrollDirection, setScrollDirection] = useState<
-    "left" | "right" | null
-  >(null);
+  const [scrollDirection, setScrollDirection] = useState<"left" | "right" | null>(null);
 
   // ------------------------------------------------------
   // Derived: current week
@@ -339,7 +287,7 @@ export const Board: React.FC<BoardProps> = () => {
   const currentWeekStart = useMemo(() => {
     const d = new Date(currentDate);
     const day = d.getDay();
-    d.setDate(d.getDate() - day); // Sunday-start
+    d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
     return d;
   }, [currentDate]);
@@ -349,10 +297,7 @@ export const Board: React.FC<BoardProps> = () => {
     [currentWeekStart]
   );
 
-  const currentWeekDateKeys = useMemo(
-    () => weekDays.map((d) => formatDateKey(d)),
-    [weekDays]
-  );
+  const currentWeekDateKeys = useMemo(() => weekDays.map((d) => formatDateKey(d)), [weekDays]);
 
   // ------------------------------------------------------
   // Helpers
@@ -374,29 +319,32 @@ export const Board: React.FC<BoardProps> = () => {
       const isACompleted = a.status === "done" || a.status === "missed";
       const isBCompleted = b.status === "done" || b.status === "missed";
 
-      if (isACompleted !== isBCompleted) {
-        return isACompleted ? 1 : -1;
-      }
+      if (isACompleted !== isBCompleted) return isACompleted ? 1 : -1;
 
       return getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
     });
   };
 
-  // Weekly or monthly stats
+  const inboxTasks = useMemo(() => {
+    return sortTasks(
+      tasks.filter((t) => t.date === "inbox" && t.category === category)
+    );
+  }, [tasks, category]);
+
+  const inboxCount = inboxTasks.length;
+
+  // ------------------------------------------------------
+  // Stats
+  // ------------------------------------------------------
   const weeklyStats = useMemo(() => {
     let relevantTasks: Task[] = [];
 
     if (viewMode === "week") {
       relevantTasks = tasks.filter(
-        (t) =>
-          t.category === category && currentWeekDateKeys.includes(t.date)
+        (t) => t.category === category && currentWeekDateKeys.includes(t.date)
       );
     } else {
-      const monthStart = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth(),
-        1
-      );
+      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const monthEnd = endOfMonth(currentDate);
 
       relevantTasks = tasks.filter((t) => {
@@ -411,38 +359,24 @@ export const Board: React.FC<BoardProps> = () => {
     return { total: relevantTasks.length, done };
   }, [tasks, category, currentWeekDateKeys, viewMode, currentDate]);
 
-  const inboxTasks = useMemo(() => {
-    const filtered = tasks.filter(
-      (t) => t.date === "inbox" && t.category === category
-    );
-    return sortTasks(filtered);
-  }, [tasks, category]);
-
-  const inboxCount = inboxTasks.length;
-
   // ------------------------------------------------------
   // Sensors
   // ------------------------------------------------------
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   // ------------------------------------------------------
-  // Auto-scroll while dragging
+  // Scroll during drag
   // ------------------------------------------------------
   useEffect(() => {
     if (!scrollDirection) return;
 
-    const scrollSpeed = 15;
+    const speed = 15;
     const interval = setInterval(() => {
       if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollLeft +=
-          scrollDirection === "right" ? scrollSpeed : -scrollSpeed;
+        scrollContainerRef.current.scrollLeft += scrollDirection === "right" ? speed : -speed;
       }
     }, 16);
 
@@ -450,45 +384,37 @@ export const Board: React.FC<BoardProps> = () => {
   }, [scrollDirection]);
 
   // ------------------------------------------------------
-  // Custom collision handling
+  // Collision detection
   // ------------------------------------------------------
   const customCollisionDetection: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
 
-    const pushZoneLeft = pointerCollisions.find(
-      (c) => c.id === "side-zone-left"
-    );
-    const pushZoneRight = pointerCollisions.find(
-      (c) => c.id === "side-zone-right"
-    );
-    const scrollZoneLeft = pointerCollisions.find(
-      (c) => c.id === "scroll-zone-left"
-    );
-    const scrollZoneRight = pointerCollisions.find(
-      (c) => c.id === "scroll-zone-right"
-    );
-    const inboxZone = pointerCollisions.find((c) => c.id === "inbox-zone");
+    const zones = [
+      "side-zone-left",
+      "side-zone-right",
+      "scroll-zone-left",
+      "scroll-zone-right",
+      "inbox-zone",
+    ];
 
-    if (pushZoneLeft) return [pushZoneLeft];
-    if (pushZoneRight) return [pushZoneRight];
-    if (scrollZoneLeft) return [scrollZoneLeft];
-    if (scrollZoneRight) return [scrollZoneRight];
-    if (inboxZone) return [inboxZone];
-
-    if (pointerCollisions.length > 0) {
-      return pointerCollisions;
+    for (const z of zones) {
+      const hit = pointerCollisions.find((c) => c.id === z);
+      if (hit) return [hit];
     }
+
+    if (pointerCollisions.length > 0) return pointerCollisions;
 
     return closestCorners(args);
   };
 
   // ------------------------------------------------------
-  // CRUD helpers — all now use Zustand actions
+  // CRUD handlers
   // ------------------------------------------------------
   const handleAddTask = (dateStr: string) => {
     const newTask: Task = {
       id: generateId(),
-      content: DEFAULT_TASK_CONTENT,
+      title: "New Task",
+      content: DEFAULT_TASK_BODY,
       date: dateStr,
       status: "todo",
       priority: "p3",
@@ -496,63 +422,45 @@ export const Board: React.FC<BoardProps> = () => {
       createdAt: new Date().toISOString(),
     };
 
-    console.log("🟦 handleAddTask sending to Zustand:", newTask);
     addTaskToStore(newTask);
 
     if (dateStr === "inbox") setShowInbox(true);
   };
 
-  const handleUpdateTaskStatus = (id: string, status: TaskStatus) => {
+  const handleUpdateTaskStatus = (id: string, status: TaskStatus) =>
     updateTaskInStore(id, { status });
-  };
 
   const handleUpdateTaskPriority = (id: string, priority: TaskPriority) => {
-    const mapped: TaskPriority =
-      priority === "p1" || priority === "p2" || priority === "p3"
-        ? priority
-        : priority === "high"
-        ? "p1"
-        : priority === "medium"
-        ? "p2"
-        : "p3";
-
-    updateTaskInStore(id, { priority: mapped });
+    updateTaskInStore(id, { priority });
   };
 
-  const handleUpdateTaskContent = (id: string, content: string) => {
+  const handleUpdateTaskContent = (id: string, content: string) =>
     updateTaskInStore(id, { content });
-  };
 
-  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+  const handleUpdateTask = (id: string, updates: Partial<Task>) =>
     updateTaskInStore(id, updates);
-  };
 
-  const handleDeleteTask = (id: string) => {
-    deleteTaskFromStore(id);
-  };
+  const handleUpdateTaskTitle = (id: string, title: string) =>
+    updateTaskInStore(id, { title });
 
-  const handlePrev = () => {
-    setCurrentDate((prev) =>
-      viewMode === "week" ? addWeeks(prev, -1) : addMonths(prev, -1)
-    );
-  };
+  const handleDeleteTask = (id: string) => deleteTaskFromStore(id);
 
-  const handleNext = () => {
-    setCurrentDate((prev) =>
-      viewMode === "week" ? addWeeks(prev, 1) : addMonths(prev, 1)
-    );
-  };
+  // ------------------------------------------------------
+  // Navigation
+  // ------------------------------------------------------
+  const handlePrev = () =>
+    setCurrentDate((prev) => (viewMode === "week" ? addWeeks(prev, -1) : addMonths(prev, -1)));
 
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
+  const handleNext = () =>
+    setCurrentDate((prev) => (viewMode === "week" ? addWeeks(prev, 1) : addMonths(prev, 1)));
+
+  const handleToday = () => setCurrentDate(new Date());
 
   // ------------------------------------------------------
   // Drag start / end
   // ------------------------------------------------------
   const onDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const task = tasks.find((t) => t.id === active.id);
+    const task = tasks.find((t) => t.id === event.active.id);
     if (task) setActiveTask(task);
   };
 
@@ -565,75 +473,54 @@ export const Board: React.FC<BoardProps> = () => {
 
     const activeId = active.id as string;
     const overId = over.id as string;
+    const overTask = tasks.find((t) => t.id === overId);
+
     const overData = over.data.current;
-    const overTaskFromList = tasks.find((t) => t.id === overId);
     const isColumnId = currentWeekDateKeys.includes(overId);
 
-    const moveTaskToDate = (dateStr: string) => {
-      updateTaskInStore(activeId, { date: dateStr });
-    };
+    const move = (dateStr: string) => updateTaskInStore(activeId, { date: dateStr });
 
-    console.log("onDragEnd", {
-      activeId,
-      overId,
-      overData,
-    });
-
-    // 1) Side zones (prev/next week)
+    // Side zones
     if (overId === "side-zone-left") {
-      const targetSunday = addWeeks(currentWeekStart, -1);
-      moveTaskToDate(formatDateKey(targetSunday));
+      move(formatDateKey(addWeeks(currentWeekStart, -1)));
       return;
     }
-
     if (overId === "side-zone-right") {
-      const targetSunday = addWeeks(currentWeekStart, 1);
-      moveTaskToDate(formatDateKey(targetSunday));
+      move(formatDateKey(addWeeks(currentWeekStart, 1)));
       return;
     }
 
-    // 2) Scroll zones – ignore
+    // Scroll zones
     if (overId === "scroll-zone-left" || overId === "scroll-zone-right") {
       return;
     }
 
-    // 3) Inbox drop
+    // Inbox
     if (overId === "inbox-zone") {
-      moveTaskToDate("inbox");
+      move("inbox");
       return;
     }
 
-    // If there is no droppable data, fall back
+    // No data: fallback
     if (!overData) {
       if (isColumnId) {
-        moveTaskToDate(overId);
+        move(overId);
         return;
       }
-      if (overTaskFromList) {
-        moveTaskToDate(overTaskFromList.date);
+      if (overTask) {
+        move(overTask.date);
         return;
       }
       return;
     }
 
-    const overType = overData.type as string | undefined;
-
-    // 4) Dropped on a COLUMN
-    if (overType === "Column") {
-      const targetDateStr =
-        (overData.dateStr as string) || (isColumnId ? overId : null);
-      if (targetDateStr) {
-        moveTaskToDate(targetDateStr);
-      }
+    if (overData.type === "Column") {
+      move(overData.dateStr);
       return;
     }
 
-    // 5) Dropped on a TASK
-    if (overType === "Task") {
-      const targetTask = (overData.task as Task) ?? overTaskFromList;
-      if (targetTask) {
-        moveTaskToDate(targetTask.date);
-      }
+    if (overData.type === "Task") {
+      move(overData.task.date);
       return;
     }
   };
@@ -664,7 +551,7 @@ export const Board: React.FC<BoardProps> = () => {
             currentDate={currentDate}
             tasks={tasks}
             category={category}
-            onUpdateTask={handleUpdateTask}  
+            onUpdateTask={handleUpdateTask}
             onDateClick={(date) => {
               setCurrentDate(date);
               setViewMode("week");
@@ -683,29 +570,16 @@ export const Board: React.FC<BoardProps> = () => {
             <PushZone side="left" active={!!activeTask} />
             <PushZone side="right" active={!!activeTask} />
 
-            <ScrollZone
-              side="left"
-              active={!!activeTask}
-              isOver={scrollDirection === "left"}
-            />
-            <ScrollZone
-              side="right"
-              active={!!activeTask}
-              isOver={scrollDirection === "right"}
-            />
+            <ScrollZone side="left" active={!!activeTask} isOver={scrollDirection === "left"} />
+            <ScrollZone side="right" active={!!activeTask} isOver={scrollDirection === "right"} />
 
-            <div
-              ref={scrollContainerRef}
-              className="flex-1 overflow-x-auto overflow-y-hidden"
-            >
+            <div ref={scrollContainerRef} className="flex-1 overflow-x-auto overflow-y-hidden">
               <div className="flex h-full min-w-max px-4 pb-4 pl-[40px] pr-[40px]">
                 {weekDays.map((day) => {
                   const dateKey = formatDateKey(day);
 
                   const dayTasks = sortTasks(
-                    tasks.filter(
-                      (t) => t.date === dateKey && t.category === category
-                    )
+                    tasks.filter((t) => t.date === dateKey && t.category === category)
                   );
 
                   return (
@@ -717,6 +591,7 @@ export const Board: React.FC<BoardProps> = () => {
                       onUpdateTaskStatus={handleUpdateTaskStatus}
                       onUpdateTaskPriority={handleUpdateTaskPriority}
                       onUpdateTaskContent={handleUpdateTaskContent}
+                      onUpdateTaskTitle={handleUpdateTaskTitle}
                       onDeleteTask={handleDeleteTask}
                     />
                   );
@@ -731,6 +606,7 @@ export const Board: React.FC<BoardProps> = () => {
               onUpdateStatus={handleUpdateTaskStatus}
               onUpdatePriority={handleUpdateTaskPriority}
               onUpdateContent={handleUpdateTaskContent}
+              onUpdateTitle={handleUpdateTaskTitle}
               onDelete={handleDeleteTask}
             />
 
@@ -743,6 +619,7 @@ export const Board: React.FC<BoardProps> = () => {
                       onUpdateStatus={() => {}}
                       onUpdatePriority={() => {}}
                       onUpdateContent={() => {}}
+                      onUpdateTitle={() => {}}
                       onDelete={() => {}}
                       disableDrag
                     />

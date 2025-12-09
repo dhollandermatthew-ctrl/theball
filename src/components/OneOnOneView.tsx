@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { OneOnOnePerson, OneOnOneItem } from "@/domain/state";
-import { cn, DEFAULT_TASK_CONTENT } from "@/domain/utils";
+import { cn, DEFAULT_TASK_BODY } from "@/domain/utils";
 import { RichTextRenderer } from "./RichTextRenderer";
 import { WysiwygEditor } from "./WysiwygEditor";
 
@@ -41,7 +41,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
   onDeleteItem,
   onEditPerson,
 }) => {
-  const [newItemContent, setNewItemContent] = useState(DEFAULT_TASK_CONTENT);
+  const [newItemContent, setNewItemContent] = useState(DEFAULT_TASK_BODY);
   const [editorKey, setEditorKey] = useState(0);
 
   const [isEditingName, setIsEditingName] = useState(false);
@@ -57,9 +57,9 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
   const completedItems = orderedItems.filter((i) => i.isCompleted);
 
   const handleSubmitNewItem = () => {
-    if (newItemContent.trim() && newItemContent !== DEFAULT_TASK_CONTENT) {
+    if (newItemContent.trim() && newItemContent !== DEFAULT_TASK_BODY) {
       onAddItem(person.id, newItemContent);
-      setNewItemContent(DEFAULT_TASK_CONTENT);
+      setNewItemContent(DEFAULT_TASK_BODY);
       setEditorKey((prev) => prev + 1);
     }
   };

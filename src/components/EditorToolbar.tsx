@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "../domain/utils";
-import { runAI } from "../domain/ai";
+import { runAI } from "../domain/ai/ai";
 import { invoke } from "@tauri-apps/api/core";
 
 const EMOJIS = [
