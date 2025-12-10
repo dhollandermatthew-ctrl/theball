@@ -1,4 +1,5 @@
 // FILE: src/components/Board.tsx
+
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { addDays, addWeeks, addMonths } from "date-fns";
 
@@ -60,21 +61,15 @@ const dropAnimation: DropAnimation = {
 };
 
 /* --------------------------------------------------------
- * Collision detection (pointer-based)
+ * Collision detection
  * ------------------------------------------------------ */
 const customCollisionDetection: CollisionDetection = (args) =>
   pointerWithin(args);
 
 /* --------------------------------------------------------
- * Side push zones (prev / next week)
+ * Side push zones
  * ------------------------------------------------------ */
-const PushZone = ({
-  side,
-  active,
-}: {
-  side: "left" | "right";
-  active: boolean;
-}) => {
+const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `side-zone-${side}`,
     data: { type: "SideZone", side },
@@ -86,14 +81,8 @@ const PushZone = ({
       className={cn(
         "fixed top-0 bottom-0 w-[80px] z-[50] flex items-center justify-center transition-all duration-300 border-dashed border-slate-300 bg-slate-50/50 backdrop-blur-sm",
         side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
-        active
-          ? "translate-x-0"
-          : side === "left"
-          ? "-translate-x-full"
-          : "translate-x-full",
-        isOver
-          ? "bg-blue-100/95 border-blue-500 shadow-xl"
-          : "hover:bg-slate-100/80"
+        active ? "translate-x-0" : side === "left" ? "-translate-x-full" : "translate-x-full",
+        isOver ? "bg-blue-100/95 border-blue-500 shadow-xl" : "hover:bg-slate-100/80"
       )}
     >
       <div
@@ -112,15 +101,9 @@ const PushZone = ({
 };
 
 /* --------------------------------------------------------
- * Scroll zones (inner rails to scroll week while dragging)
+ * Scroll zones
  * ------------------------------------------------------ */
-const ScrollZone = ({
-  side,
-  active,
-}: {
-  side: "left" | "right";
-  active: boolean;
-}) => {
+const ScrollZone = ({ side, active }: { side: "left" | "right"; active: boolean }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `scroll-zone-${side}`,
     data: { type: "ScrollZone", side },
@@ -204,8 +187,7 @@ const InboxDrawer = ({
         ref={setNodeRef}
         className={cn(
           "flex-1 overflow-y-auto p-3 transition-colors",
-          isOver &&
-            "bg-blue-50/50 border-2 border-blue-300 border-dashed rounded-lg"
+          isOver && "bg-blue-50/50 border-2 border-blue-300 border-dashed rounded-lg"
         )}
       >
         <SortableContext
@@ -230,20 +212,14 @@ const InboxDrawer = ({
 };
 
 /* --------------------------------------------------------
- * DnD monitor bridge (must live inside DndContext)
+ * DnD Monitor Bridge
  * ------------------------------------------------------ */
-interface DndMonitorBridgeProps {
-  setSidePushDirection: React.Dispatch<
-    React.SetStateAction<"left" | "right" | null>
-  >;
-  setScrollDirection: React.Dispatch<
-    React.SetStateAction<"left" | "right" | null>
-  >;
-}
-
-const DndMonitorBridge: React.FC<DndMonitorBridgeProps> = ({
+const DndMonitorBridge = ({
   setSidePushDirection,
   setScrollDirection,
+}: {
+  setSidePushDirection: React.Dispatch<React.SetStateAction<"left" | "right" | null>>;
+  setScrollDirection: React.Dispatch<React.SetStateAction<"left" | "right" | null>>;
 }) => {
   useDndMonitor({
     onDragOver({ over }) {
@@ -261,7 +237,6 @@ const DndMonitorBridge: React.FC<DndMonitorBridgeProps> = ({
         return;
       }
 
-      // Not over any special zone
       setSidePushDirection(null);
       setScrollDirection(null);
     },
@@ -279,10 +254,11 @@ const DndMonitorBridge: React.FC<DndMonitorBridgeProps> = ({
 };
 
 /* --------------------------------------------------------
- * MAIN BOARD COMPONENT
+ * MAIN BOARD COMPONENT (NO PROPS)
  * ------------------------------------------------------ */
 export const Board: React.FC = () => {
   const tasks = useAppStore((s) => s.tasks);
+
   const addTask = useAppStore((s: AppState) => s.addTask);
   const updateTask = useAppStore((s: AppState) => s.updateTask);
   const deleteTask = useAppStore((s: AppState) => s.deleteTask);
@@ -293,19 +269,16 @@ export const Board: React.FC = () => {
   const [showInbox, setShowInbox] = useState(false);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [sidePushDirection, setSidePushDirection] = useState<
-    "left" | "right" | null
-  >(null);
-  const [scrollDirection, setScrollDirection] = useState<
-    "left" | "right" | null
-  >(null);
+  const [sidePushDirection, setSidePushDirection] = useState<"left" | "right" | null>(null);
+  const [scrollDirection, setScrollDirection] = useState<"left" | "right" | null>(null);
 
-  // Track which task was just created (for auto-focus + auto-scroll)
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Sensors
+  /* ------------------------------------------------------
+   * Sensors
+   * ------------------------------------------------------ */
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -313,7 +286,7 @@ export const Board: React.FC = () => {
 
   /* ------------------------------------------------------
    * Week calculations
-   * ---------------------------------------------------- */
+   * ------------------------------------------------------ */
   const weekStart = useMemo(() => {
     const d = new Date(currentDate);
     const day = d.getDay();
@@ -327,25 +300,22 @@ export const Board: React.FC = () => {
     [weekStart]
   );
 
-  const weekKeys = useMemo(
-    () => weekDays.map((d) => formatDateKey(d)),
-    [weekDays]
-  );
+  const weekKeys = useMemo(() => weekDays.map((d) => formatDateKey(d)), [weekDays]);
 
   /* ------------------------------------------------------
-   * Weekly stats
-   * ---------------------------------------------------- */
+   * Weekly stats (FIXED: must return { total, done })
+   * ------------------------------------------------------ */
   const weeklyStats = useMemo(() => {
     const weekTasks = tasks.filter(
       (t) => weekKeys.includes(t.date) && t.category === category
     );
-    const completed = weekTasks.filter((t) => t.status === "done").length;
-    return { completed, total: weekTasks.length };
+    const done = weekTasks.filter((t) => t.status === "done").length;
+    return { done, total: weekTasks.length };
   }, [tasks, weekKeys, category]);
 
   /* ------------------------------------------------------
-   * Sort + inbox tasks
-   * ---------------------------------------------------- */
+   * Sort + Inbox
+   * ------------------------------------------------------ */
   const sortTasks = (items: Task[]) => {
     const weight = (p: TaskPriority) => (p === "p1" ? 3 : p === "p2" ? 2 : 1);
     return [...items].sort((a, b) => {
@@ -358,25 +328,21 @@ export const Board: React.FC = () => {
 
   const inboxTasks = useMemo(
     () =>
-      sortTasks(
-        tasks.filter((t) => t.date === "inbox" && t.category === category)
-      ),
+      sortTasks(tasks.filter((t) => t.date === "inbox" && t.category === category)),
     [tasks, category]
   );
 
   /* ------------------------------------------------------
-   * Continuous side push (move week + task)
-   * ---------------------------------------------------- */
+   * Continuous side push
+   * ------------------------------------------------------ */
   useEffect(() => {
     if (!activeTask || !sidePushDirection) return;
 
     const interval = setInterval(() => {
-      // shift visible week
       setCurrentDate((prev) =>
         addWeeks(prev, sidePushDirection === "left" ? -1 : 1)
       );
 
-      // shift the live task date, preserving weekday
       const live = tasks.find((t) => t.id === activeTask.id);
       if (!live) return;
 
@@ -393,8 +359,8 @@ export const Board: React.FC = () => {
   }, [activeTask, sidePushDirection, tasks, updateTask]);
 
   /* ------------------------------------------------------
-   * Continuous horizontal scroll (inner rails)
-   * ---------------------------------------------------- */
+   * Continuous scroll rails
+   * ------------------------------------------------------ */
   useEffect(() => {
     if (!scrollDirection) return;
     const el = scrollContainerRef.current;
@@ -410,10 +376,9 @@ export const Board: React.FC = () => {
 
   /* ------------------------------------------------------
    * CRUD
-   * ---------------------------------------------------- */
+   * ------------------------------------------------------ */
   const addNewTask = (dateStr: string) => {
     const id = generateId();
-
     const newTask: Task = {
       id,
       title: "New Task",
@@ -442,230 +407,216 @@ export const Board: React.FC = () => {
 
   const updateTitle = (id: string, t: string) =>
     updateTask(id, { title: t });
-    /* ------------------------------------------------------
+
+  /* ------------------------------------------------------
    * Navigation
-   * ---------------------------------------------------- */
-    const goPrev = () =>
-      setCurrentDate((d) =>
-        viewMode === "week" ? addWeeks(d, -1) : addMonths(d, -1)
-      );
-  
-    const goNext = () =>
-      setCurrentDate((d) =>
-        viewMode === "week" ? addWeeks(d, 1) : addMonths(d, 1)
-      );
-  
-    const goToday = () => setCurrentDate(new Date());
-  
-    /* ------------------------------------------------------
-     * Drag logic
-     * ---------------------------------------------------- */
-    const onDragStart = (e: DragStartEvent) => {
-      const t = tasks.find((x) => x.id === e.active.id);
-      if (t) setActiveTask(t);
-    };
-  
-    const onDragEnd = (e: DragEndEvent) => {
-      const { active, over } = e;
-      const task = activeTask;
-      setActiveTask(null);
-      if (!over || !task) return;
-  
-      const activeId = active.id as string;
-      const overId = over.id as string;
-      const overData = over.data.current;
-      const overTask = tasks.find((t) => t.id === overId);
-      const isColumnId = weekKeys.includes(overId);
-  
-      const move = (dateStr: string) => updateTask(activeId, { date: dateStr });
-  
-      // Side zones: week shifting already handled via effect; ignore drop
-      if (overId === "side-zone-left" || overId === "side-zone-right") {
-        return;
-      }
-  
-      // Scroll zones: visual scroll only, ignore drop
-      if (overId === "scroll-zone-left" || overId === "scroll-zone-right") {
-        return;
-      }
-  
-      // Inbox zone
-      if (overId === "inbox-zone") {
-        move("inbox");
-        return;
-      }
-  
-      // No metadata: but ID is either column or another task
-      if (!overData) {
-        if (isColumnId) move(overId);
-        else if (overTask) move(overTask.date);
-        return;
-      }
-  
-      // Explicit column droppable
-      if (overData.type === "Column") {
-        move(overData.dateStr);
-        return;
-      }
-  
-      // Explicit task droppable
-      if (overData.type === "Task") {
-        move(overData.task.date);
-        return;
-      }
-    };
-  
-    /* ------------------------------------------------------
-     * Auto-scroll to newly created task's column
-     * ---------------------------------------------------- */
-    useEffect(() => {
-      if (!newTaskId) return;
-      if (viewMode !== "week") return;
-  
-      const newTask = tasks.find((t) => t.id === newTaskId);
-      if (!newTask) return;
-      if (newTask.date === "inbox") return;
-  
-      const container = scrollContainerRef.current;
-      if (!container) return;
-  
-      const colIndex = weekKeys.indexOf(newTask.date);
-      if (colIndex === -1) return;
-  
-      const inner = container.firstElementChild as HTMLElement | null;
-      if (!inner) return;
-  
-      const columnEl = inner.children[colIndex] as HTMLElement | null;
-      if (!columnEl) return;
-  
-      const targetLeft = Math.max(columnEl.offsetLeft - 40, 0);
-  
-      container.scrollTo({
-        left: targetLeft,
-        behavior: "smooth",
-      });
-    }, [newTaskId, tasks, viewMode, weekKeys]);
-  
-    /* ------------------------------------------------------
-     * Render
-     * ---------------------------------------------------- */
-    return (
-      <div className="flex flex-col h-full bg-white overflow-hidden relative">
-        <Header
-          currentDate={currentDate}
-          viewMode={viewMode}
-          category={category}
-          weeklyStats={weeklyStats}
-          isInboxOpen={showInbox}
-          inboxCount={inboxTasks.length}
-          onPrev={goPrev}
-          onNext={goNext}
-          onToday={goToday}
-          onViewModeChange={setViewMode}
-          onCategoryChange={setCategory}
-          onToggleInbox={() => setShowInbox(!showInbox)}
-        />
-  
-        <div className="flex-1 relative flex flex-col overflow-hidden">
-          {viewMode === "month" ? (
-            <MonthView
-              currentDate={currentDate}
-              tasks={tasks}
-              category={category}
-              onUpdateTask={(id, updates) => updateTask(id, updates)}
-              onDateClick={(d) => {
-                setCurrentDate(d);
-                setViewMode("week");
-              }}
-            />
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={customCollisionDetection}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              autoScroll={false}
-            >
-              {/* DnD monitor for side push + inner scroll rails */}
-              <DndMonitorBridge
-                setSidePushDirection={setSidePushDirection}
-                setScrollDirection={setScrollDirection}
-              />
-  
-              {/* Side push zones */}
-              <PushZone side="left" active={!!activeTask} />
-              <PushZone side="right" active={!!activeTask} />
-  
-              {/* Inner scroll rails */}
-              <ScrollZone side="left" active={!!activeTask} />
-              <ScrollZone side="right" active={!!activeTask} />
-  
-              {/* Week grid */}
-              <div
-                ref={scrollContainerRef}
-                className="week-scroll-container flex-1 overflow-x-auto overflow-y-hidden"
-              >
-                <div className="flex h-full min-w-max px-4 pb-4 pl-[40px] pr-[40px]">
-                  {weekDays.map((day) => {
-                    const key = formatDateKey(day);
-                    const dayTasks = sortTasks(
-                      tasks.filter(
-                        (t) => t.date === key && t.category === category
-                      )
-                    );
-  
-                    return (
-                      <Column
-                        key={key}
-                        date={day}
-                        tasks={dayTasks}
-                        newTaskId={newTaskId} // Column should pass isNewTask to TaskCard
-                        onAddTask={addNewTask}
-                        onUpdateTaskStatus={updateStatus}
-                        onUpdateTaskPriority={updatePriority}
-                        onUpdateTaskContent={updateContent}
-                        onUpdateTaskTitle={updateTitle}
-                        onDeleteTask={deleteTask}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-  
-              {/* Inbox */}
-              <InboxDrawer
-                isOpen={showInbox}
-                tasks={inboxTasks}
-                onClose={() => setShowInbox(false)}
-                onUpdateStatus={updateStatus}
-                onUpdatePriority={updatePriority}
-                onUpdateContent={updateContent}
-                onUpdateTitle={updateTitle}
-                onDelete={deleteTask}
-              />
-  
-              {/* Drag overlay */}
-              {createPortal(
-                <DragOverlay dropAnimation={dropAnimation}>
-                  {activeTask && (
-                    <div className="w-[320px]">
-                      <TaskCard
-                        task={activeTask}
-                        onUpdateStatus={() => {}}
-                        onUpdatePriority={() => {}}
-                        onUpdateContent={() => {}}
-                        onUpdateTitle={() => {}}
-                        onDelete={() => {}}
-                        disableDrag
-                      />
-                    </div>
-                  )}
-                </DragOverlay>,
-                document.body
-              )}
-            </DndContext>
-          )}
-        </div>
-      </div>
+   * ------------------------------------------------------ */
+  const goPrev = () =>
+    setCurrentDate((d) =>
+      viewMode === "week" ? addWeeks(d, -1) : addMonths(d, -1)
     );
+
+  const goNext = () =>
+    setCurrentDate((d) =>
+      viewMode === "week" ? addWeeks(d, 1) : addMonths(d, 1)
+    );
+
+  const goToday = () => setCurrentDate(new Date());
+
+  /* ------------------------------------------------------
+   * Drag logic
+   * ------------------------------------------------------ */
+  const onDragStart = (e: DragStartEvent) => {
+    const t = tasks.find((x) => x.id === e.active.id);
+    if (t) setActiveTask(t);
   };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    const task = activeTask;
+    setActiveTask(null);
+    if (!over || !task) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    const overData = over.data.current;
+    const overTask = tasks.find((t) => t.id === overId);
+    const isColumnId = weekKeys.includes(overId);
+
+    const move = (dateStr: string) => updateTask(activeId, { date: dateStr });
+
+    if (overId === "side-zone-left" || overId === "side-zone-right") return;
+    if (overId === "scroll-zone-left" || overId === "scroll-zone-right") return;
+    if (overId === "inbox-zone") {
+      move("inbox");
+      return;
+    }
+
+    if (!overData) {
+      if (isColumnId) move(overId);
+      else if (overTask) move(overTask.date);
+      return;
+    }
+
+    if (overData.type === "Column") {
+      move(overData.dateStr);
+      return;
+    }
+
+    if (overData.type === "Task") {
+      move(overData.task.date);
+      return;
+    }
+  };
+
+/* ------------------------------------------------------
+ * Auto-scroll to new task (fixed)
+ * ------------------------------------------------------ */
+useEffect(() => {
+  if (!newTaskId) return;
+  if (viewMode !== "week") return;
+
+  const newTask = tasks.find((t) => t.id === newTaskId);
+  if (!newTask) return;
+  if (newTask.date === "inbox") return;
+
+  const container = scrollContainerRef.current;
+  if (!container) return;
+
+  const colIndex = weekKeys.indexOf(newTask.date);
+  if (colIndex === -1) return;
+
+  const inner = container.firstElementChild as HTMLElement | null;
+  if (!inner) return;
+
+  const columnEl = inner.children[colIndex] as HTMLElement | null;
+  if (!columnEl) return;
+
+  const targetLeft = Math.max(columnEl.offsetLeft - 40, 0);
+
+  container.scrollTo({
+    left: targetLeft,
+    behavior: "smooth",
+  });
+
+  // 🔥 Prevent this effect from running again on updates
+  setNewTaskId(null);
+}, [newTaskId, viewMode, weekKeys]);
+
+  /* ------------------------------------------------------
+   * RENDER
+   * ------------------------------------------------------ */
+  return (
+    <div className="flex flex-col h-full bg-white overflow-hidden relative">
+      <Header
+        currentDate={currentDate}
+        viewMode={viewMode}
+        category={category}
+        weeklyStats={weeklyStats}
+        isInboxOpen={showInbox}
+        inboxCount={inboxTasks.length}
+        onPrev={goPrev}
+        onNext={goNext}
+        onToday={goToday}
+        onViewModeChange={setViewMode}
+        onCategoryChange={setCategory}
+        onToggleInbox={() => setShowInbox(!showInbox)}
+      />
+
+      <div className="flex-1 relative flex flex-col overflow-hidden">
+        {viewMode === "month" ? (
+          <MonthView
+            currentDate={currentDate}
+            tasks={tasks}
+            category={category}
+            onUpdateTask={(id, updates) => updateTask(id, updates)}
+            onDateClick={(d) => {
+              setCurrentDate(d);
+              setViewMode("week");
+            }}
+          />
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={customCollisionDetection}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            autoScroll={false}
+          >
+            <DndMonitorBridge
+              setSidePushDirection={setSidePushDirection}
+              setScrollDirection={setScrollDirection}
+            />
+
+            <PushZone side="left" active={!!activeTask} />
+            <PushZone side="right" active={!!activeTask} />
+
+            <ScrollZone side="left" active={!!activeTask} />
+            <ScrollZone side="right" active={!!activeTask} />
+
+            <div
+              ref={scrollContainerRef}
+              className="week-scroll-container flex-1 overflow-x-auto overflow-y-hidden"
+            >
+              <div className="flex h-full min-w-max px-4 pb-4 pl-[40px] pr-[40px]">
+                {weekDays.map((day) => {
+                  const key = formatDateKey(day);
+                  const dayTasks = sortTasks(
+                    tasks.filter(
+                      (t) => t.date === key && t.category === category
+                    )
+                  );
+
+                  return (
+                    <Column
+                      key={key}
+                      date={day}
+                      tasks={dayTasks}
+                      newTaskId={newTaskId}
+                      onAddTask={addNewTask}
+                      onUpdateTaskStatus={updateStatus}
+                      onUpdateTaskPriority={updatePriority}
+                      onUpdateTaskContent={updateContent}
+                      onUpdateTaskTitle={updateTitle}
+                      onDeleteTask={deleteTask}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <InboxDrawer
+              isOpen={showInbox}
+              tasks={inboxTasks}
+              onClose={() => setShowInbox(false)}
+              onUpdateStatus={updateStatus}
+              onUpdatePriority={updatePriority}
+              onUpdateContent={updateContent}
+              onUpdateTitle={updateTitle}
+              onDelete={deleteTask}
+            />
+
+            {createPortal(
+              <DragOverlay dropAnimation={dropAnimation}>
+                {activeTask && (
+                  <div className="w-[320px]">
+                    <TaskCard
+                      task={activeTask}
+                      onUpdateStatus={() => {}}
+                      onUpdatePriority={() => {}}
+                      onUpdateContent={() => {}}
+                      onUpdateTitle={() => {}}
+                      onDelete={() => {}}
+                      disableDrag
+                    />
+                  </div>
+                )}
+              </DragOverlay>,
+              document.body
+            )}
+          </DndContext>
+        )}
+      </div>
+    </div>
+  );
+};

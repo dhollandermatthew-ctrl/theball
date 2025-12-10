@@ -100,8 +100,10 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
       range.setStartAfter(node);
       range.collapse(true);
 
-      sel.removeAllRanges();
-      sel.addRange(range);
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
 
       handleInput();
       return;

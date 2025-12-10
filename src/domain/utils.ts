@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { marked } from "marked";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -31,27 +32,27 @@ export const getRandomColor = () => {
 export const DEFAULT_TASK_TITLE = "New Task";
 export const DEFAULT_TASK_BODY = "";
 
-// Simple Markdown → HTML fallback
+/**
+ * Proper Markdown → HTML conversion using `marked`
+ * Handles:
+ * - bullet lists
+ * - numbered lists
+ * - nested lists
+ * - headings (#, ##, ###)
+ * - bold/italic
+ * - links
+ * - line breaks
+ */
+
+
 export const markdownToHtml = (markdown: string): string => {
   if (!markdown) return "";
 
-  // If already HTML, skip
+  // If already HTML, skip markdown parsing
   if (/<[a-z][\s\S]*>/i.test(markdown)) return markdown;
 
-  let html = markdown
-    .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-    .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-    .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-    .replace(/\*\*(.*)\*\*/gim, "<b>$1</b>")
-    .replace(/\*(.*)\*/gim, "<i>$1</i>")
-    // Bullets
-    .replace(/^\s*[-*]\s+(.*)$/gim, "<li>$1</li>")
-    // Numbered
-    .replace(/^\s*\d+\.\s+(.*)$/gim, "<li>$1</li>")
-    .replace(/\n/gim, "<br />");
-
-  html = html.replace(/<\/ul>\s*<ul>/gim, "");
-  html = html.replace(/<\/ol>\s*<ol>/gim, "");
+  // Force marked to run in synchronous mode
+  const html = marked.parse(markdown, { async: false }) as string;
 
   return html;
 };

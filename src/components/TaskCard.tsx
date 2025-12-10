@@ -437,46 +437,49 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         )}
       </div>
 
-      {/* BODY */}
-      <div className="p-2 pt-1 pl-10">
-        <div
-          ref={finalBodyRef}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => {
-            setEditMode("body");
-
-            requestAnimationFrame(() => {
-              const editor =
-                finalBodyRef.current?.querySelector("[contenteditable]");
-              if (editor instanceof HTMLElement) {
-                editor.focus();
-              }
-            });
-          }}
-        >
-          {editMode === "body" ? (
-            <WysiwygEditor
-              key={editorKey}
-              initialContent={editValue}
-              onChange={setEditValue}
-              onBlur={handleContentBlur}
-            />
-          ) : (
-            <div className="cursor-text min-h-[1.5em]">
-              {task.content ? (
-                <RichTextRenderer
-                  text={task.content}
-                  isCompleted={isCompleted}
-                />
-              ) : (
-                <span className="italic text-slate-400 text-sm">
-                  Add details...
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+{/* BODY WITH SCROLL + FADE */}
+<div className="p-2 pt-1 pl-10 relative">
+  <div
+    className="max-h-[180px] overflow-y-auto pr-1"
+    ref={finalBodyRef}
+    onMouseDown={(e) => e.stopPropagation()}
+    onClick={() => {
+      setEditMode("body");
+      requestAnimationFrame(() => {
+        const editor =
+          finalBodyRef.current?.querySelector("[contenteditable]");
+        if (editor instanceof HTMLElement) {
+          editor.focus();
+        }
+      });
+    }}
+  >
+    {editMode === "body" ? (
+      <WysiwygEditor
+        key={editorKey}
+        initialContent={editValue}
+        onChange={setEditValue}
+        onBlur={handleContentBlur}
+      />
+    ) : (
+      <div className="cursor-text min-h-[1.5em]">
+        {task.content ? (
+          <RichTextRenderer
+            text={task.content}
+            isCompleted={isCompleted}
+          />
+        ) : (
+          <span className="italic text-slate-400 text-sm">
+            Add details...
+          </span>
+        )}
       </div>
+    )}
+  </div>
+
+  {/* Bottom fade */}
+  <div className="pointer-events-none absolute bottom-2 left-10 right-2 h-6 bg-gradient-to-t from-white to-transparent"></div>
+</div>
 
       {/* ACTIONS */}
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">

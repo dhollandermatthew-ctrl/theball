@@ -12,7 +12,7 @@ import { cn, formatDateKey } from '@/domain/utils';
 interface ColumnProps {
   date: Date;
   tasks: Task[];
-  newTaskId: string | null;           // 👈 added
+  newTaskId: string | null;
   onAddTask: (dateStr: string) => void;
   onUpdateTaskStatus: (id: string, status: TaskStatus) => void;
   onUpdateTaskPriority: (id: string, priority: TaskPriority) => void;
@@ -40,6 +40,13 @@ export const Column: React.FC<ColumnProps> = ({
     data: { type: 'Column', dateStr },
   });
 
+  // -----------------------------------------------
+  // NEW: COUNT METRICS FOR HEADER
+  // -----------------------------------------------
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.status === 'done' || t.status === 'missed').length;
+  const todo = total - completed;
+
   return (
     <div
       ref={setNodeRef}
@@ -62,6 +69,7 @@ export const Column: React.FC<ColumnProps> = ({
         </span>
 
         <div className="flex items-center justify-between">
+          {/* Date bubble */}
           <div className="flex items-center gap-2">
             <span
               className={cn(
@@ -71,16 +79,25 @@ export const Column: React.FC<ColumnProps> = ({
             >
               {format(date, 'd')}
             </span>
+
             {isCurrentDay && (
               <span className="text-xs font-medium text-blue-600">Today</span>
             )}
           </div>
 
-          {tasks.length > 0 && (
-            <div className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
-              {tasks.length}
-            </div>
-          )}
+          {/* -----------------------------------------------
+              NEW HEADER COUNTERS
+          ------------------------------------------------ */}
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+            <span>{total}</span>
+            <span className="text-slate-400">|</span>
+            <span className="flex items-center gap-1">
+              <span className="text-green-600">✓</span>{completed}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">•</span>{todo}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -108,7 +125,7 @@ export const Column: React.FC<ColumnProps> = ({
 
                 <TaskCard
                   task={task}
-                  isNewTask={task.id === newTaskId}          // 👈 THIS IS THE FIX
+                  isNewTask={task.id === newTaskId}
                   onUpdateStatus={onUpdateTaskStatus}
                   onUpdatePriority={onUpdateTaskPriority}
                   onUpdateContent={onUpdateTaskContent}
@@ -120,7 +137,7 @@ export const Column: React.FC<ColumnProps> = ({
           })}
         </SortableContext>
 
-        {/* Add Task */}
+        {/* Add Task Button */}
         <button
           onClick={() => onAddTask(dateStr)}
           className="flex items-center justify-center w-full p-2 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition mt-1 group"

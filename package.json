@@ -24,6 +24,7 @@
     "drizzle-orm": "^0.45.0",
     "immer": "^11.0.1",
     "lucide-react": "^0.555.0",
+    "marked": "^17.0.1",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0",

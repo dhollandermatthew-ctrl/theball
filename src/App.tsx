@@ -178,7 +178,7 @@ function App() {
         )}
 
         {currentView === "calendar" ? (
-          <Board tasks={tasks} />
+          <Board />
         ) : activePerson ? (
           <OneOnOneView
             person={activePerson}
