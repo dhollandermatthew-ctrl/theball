@@ -10,6 +10,8 @@ interface WysiwygEditorProps {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+
+  onEditorReady?: (el: HTMLElement) => void; // ⭐ NEW
 }
 
 export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
@@ -19,57 +21,64 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   placeholder,
   className,
   autoFocus,
+  onEditorReady, // ⭐ NEW
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const isInitialized = useRef(false);
   const [showToolbar, setShowToolbar] = useState(false);
 
-  // -----------------------------
-  // INITIALIZE CONTENT + CURSOR
-  // -----------------------------
+  // -------------------------------------------------
+  // Move caret to very top of editor
+  // -------------------------------------------------
+  const focusAtTop = () => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    el.focus();
+
+    const range = document.createRange();
+    range.setStart(el, 0);
+    range.collapse(true);
+
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  // -------------------------------------------------
+  // INITIALIZATION + notify TaskCard when ready
+  // -------------------------------------------------
   useEffect(() => {
     if (editorRef.current && !isInitialized.current) {
       editorRef.current.innerHTML = markdownToHtml(initialContent);
       isInitialized.current = true;
 
+      // Notify parent once the DOM exists
+      if (onEditorReady) {
+        onEditorReady(editorRef.current);
+      }
+
       if (autoFocus) {
         requestAnimationFrame(() => {
-          if (!editorRef.current) return;
-
-          editorRef.current.focus();
-
-          const h2 = editorRef.current.querySelector("h2");
-          const emptyLi = editorRef.current.querySelector("li:empty");
-          const range = document.createRange();
-          const sel = window.getSelection();
-
-          if (h2) {
-            range.selectNodeContents(h2);
-          } else if (emptyLi) {
-            range.selectNodeContents(emptyLi);
-          } else {
-            range.selectNodeContents(editorRef.current);
-          }
-
-          range.collapse(false);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
+          focusAtTop();
         });
       }
     }
-  }, [initialContent, autoFocus]);
+  }, [initialContent, autoFocus, onEditorReady]);
 
+  // -------------------------------------------------
+  // INPUT HANDLING
+  // -------------------------------------------------
   const handleInput = () => {
     if (!editorRef.current) return;
     onChange(editorRef.current.innerHTML);
   };
 
-  // -------------------------------------------
-  // EXEC COMMAND (with custom "insertText")
-  // -------------------------------------------
+  // -------------------------------------------------
+  // execCommand wrapper
+  // -------------------------------------------------
   const execCommand = (command: string, value?: string) => {
     if (!editorRef.current) return;
-
     editorRef.current.focus();
 
     if (command === "insertText" && typeof value === "string") {
@@ -85,13 +94,14 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
       }
 
       range.deleteContents();
-      const textNode = document.createTextNode(value);
-      range.insertNode(textNode);
+      const node = document.createTextNode(value);
+      range.insertNode(node);
 
-      range.setStartAfter(textNode);
+      range.setStartAfter(node);
       range.collapse(true);
-      sel?.removeAllRanges();
-      sel?.addRange(range);
+
+      sel.removeAllRanges();
+      sel.addRange(range);
 
       handleInput();
       return;
@@ -101,115 +111,82 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
     handleInput();
   };
 
-  // -------------------------------------------
-  // KEYBOARD SHORTCUTS (Ctrl/Cmd + B/I/U)
-  // -------------------------------------------
+  // -------------------------------------------------
+  // KEYBOARD: Tab indent/outdent + formatting
+  // -------------------------------------------------
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // -----------------------------
-    // TAB → indent / outdent
-    // -----------------------------
     if (e.key === "Tab") {
       e.preventDefault();
-  
-      // Shift+Tab = outdent
+
       if (e.shiftKey) {
         document.execCommand("outdent");
       } else {
-        // Tab = indent
         document.execCommand("indent");
       }
-  
       handleInput();
       return;
     }
-  
-    // -----------------------------
-    // FORMAT SHORTCUTS (Ctrl/Cmd)
-    // -----------------------------
+
     if (!(e.metaKey || e.ctrlKey)) return;
-  
     const key = e.key.toLowerCase();
-  
+
     if (key === "b") {
       e.preventDefault();
       execCommand("bold");
-      return;
-    }
-    if (key === "i") {
+    } else if (key === "i") {
       e.preventDefault();
       execCommand("italic");
-      return;
-    }
-    if (key === "u") {
+    } else if (key === "u") {
       e.preventDefault();
       execCommand("underline");
-      return;
-    }
-  
-    // Ordered list: Cmd+Shift+7  
-    // Bullet list: Cmd+Shift+8
-    if (e.shiftKey && (key === "7" || key === "8")) {
-      e.preventDefault();
-      execCommand(key === "7" ? "insertOrderedList" : "insertUnorderedList");
     }
   };
 
-  // -------------------------------------------
-  // AUTO-LIST: "1. " and "- "
-  // -------------------------------------------
+  // -------------------------------------------------
+  // Automatic list detection
+  // -------------------------------------------------
   const handleKeyUp = (e: React.KeyboardEvent) => {
     if (e.key !== " ") return;
 
-    const selection = window.getSelection();
-    if (!selection || !selection.anchorNode) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return;
 
-    const anchorNode = selection.anchorNode;
-    if (anchorNode.nodeType !== Node.TEXT_NODE) return;
-
-    const textContent = anchorNode.textContent || "";
-
-    const olMatch = textContent.match(/^1\.\s/);
-    const ulMatch = textContent.match(/^[\-\*]\s/);
+    const text = sel.anchorNode.textContent || "";
+    const olMatch = text.match(/^1\.\s/);
+    const ulMatch = text.match(/^[\-\*]\s/);
 
     if (!olMatch && !ulMatch) return;
 
-    const parentEl = (anchorNode as any).parentElement as HTMLElement | null;
+    const parentEl = (sel.anchorNode as any).parentElement;
     const parentList = parentEl?.closest("ul, ol");
-    if (parentList) {
-      const isOl = parentList.tagName === "OL";
-      const isUl = parentList.tagName === "UL";
-      if ((olMatch && isOl) || (ulMatch && isUl)) return;
-    }
+    if (parentList) return;
 
-    const matchLength = olMatch
-      ? olMatch[0].length
-      : ulMatch
-      ? ulMatch[0].length
-      : 0;
+    const length = olMatch ? 3 : ulMatch ? 2 : 0;
 
     const range = document.createRange();
-    range.setStart(anchorNode, 0);
-    range.setEnd(anchorNode, matchLength);
+    range.setStart(sel.anchorNode, 0);
+    range.setEnd(sel.anchorNode, length);
     range.deleteContents();
 
-    if (olMatch) {
-      execCommand("insertOrderedList");
-    } else {
-      execCommand("insertUnorderedList");
-    }
+    execCommand(olMatch ? "insertOrderedList" : "insertUnorderedList");
   };
 
+  // -------------------------------------------------
+  // AI completion handler
+  // -------------------------------------------------
   const handleAiComplete = (newHtml: string) => {
     if (!editorRef.current) return;
     editorRef.current.innerHTML = newHtml;
     onChange(newHtml);
   };
 
+  // -------------------------------------------------
+  // BLUR / FOCUS
+  // -------------------------------------------------
   const handleBlurInternal = (e: React.FocusEvent) => {
-    const relatedTarget = e.relatedTarget as HTMLElement | null;
-    if (relatedTarget && relatedTarget.closest(".editor-toolbar-container")) {
-      return;
-    }
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related?.closest(".editor-toolbar-container")) return;
+
     setShowToolbar(false);
     onBlur();
   };
@@ -218,15 +195,19 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
     setShowToolbar(true);
   };
 
+  // Expose method for parent (TaskCard)
+  (editorRef as any).focusAtTop = focusAtTop;
+
+  // -------------------------------------------------
+  // RENDER
+  // -------------------------------------------------
   return (
     <div className={cn("relative group font-normal", className)}>
       {/* Toolbar */}
       <div
         className={cn(
           "absolute bottom-full left-0 mb-1 z-50 editor-toolbar-container transition-opacity duration-200",
-          showToolbar
-            ? "opacity-100 visible"
-            : "opacity-0 invisible pointer-events-none"
+          showToolbar ? "opacity-100 visible" : "opacity-0 invisible"
         )}
       >
         <EditorToolbar
@@ -236,10 +217,11 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
         />
       </div>
 
-      {/* Editor */}
+      {/* Editable Area */}
       <div
         ref={editorRef}
         contentEditable
+        tabIndex={0} // ⭐ KEY FIX: allows single-click and tab focus
         suppressContentEditableWarning
         onInput={handleInput}
         onKeyDown={handleKeyDown}
@@ -251,15 +233,11 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
       />
 
       <style>{`
-        div[contentEditable] h1 { font-size: 1.1em; font-weight: 700; margin-bottom: 0.2em; margin-top: 0.4em; }
-        div[contentEditable] h2 { font-size: 1.05em; font-weight: 600; margin-bottom: 0.2em; margin-top: 0.4em; }
-        div[contentEditable] ul { list-style-type: disc; padding-left: 1.2em; margin: 0.2em 0; }
-        div[contentEditable] ol { list-style-type: decimal; padding-left: 1.2em; margin: 0.2em 0; }
-        div[contentEditable] li { margin-bottom: 0.1em; }
-        div[contentEditable] b { font-weight: 600; }
-        div[contentEditable] i { font-style: italic; }
-        div[contentEditable] a { color: #3b82f6; text-decoration: underline; cursor: pointer; }
-        div[contentEditable] blockquote { border-left: 2px solid #cbd5e1; padding-left: 0.5em; color: #64748b; font-style: italic; }
+        div[contentEditable] h1 { font-size: 1.1em; font-weight: 700; }
+        div[contentEditable] h2 { font-size: 1.05em; font-weight: 600; }
+        div[contentEditable] ul { list-style-type: disc; padding-left: 1.2em; }
+        div[contentEditable] ol { list-style-type: decimal; padding-left: 1.2em; }
+        div[contentEditable] li { margin-bottom: 0.15em; }
       `}</style>
     </div>
   );

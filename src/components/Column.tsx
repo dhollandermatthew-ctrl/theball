@@ -1,3 +1,4 @@
+// FILE: src/components/Column.tsx
 import React from 'react';
 import { format, isToday } from 'date-fns';
 import { useDroppable } from '@dnd-kit/core';
@@ -11,49 +12,49 @@ import { cn, formatDateKey } from '@/domain/utils';
 interface ColumnProps {
   date: Date;
   tasks: Task[];
+  newTaskId: string | null;           // 👈 added
   onAddTask: (dateStr: string) => void;
   onUpdateTaskStatus: (id: string, status: TaskStatus) => void;
   onUpdateTaskPriority: (id: string, priority: TaskPriority) => void;
   onUpdateTaskContent: (id: string, content: string) => void;
+  onUpdateTaskTitle: (id: string, title: string) => void;
   onDeleteTask: (id: string) => void;
-  onUpdateTaskTitle: (id: string, title: string) => void;   // <-- REQUIRED
 }
 
 export const Column: React.FC<ColumnProps> = ({
   date,
   tasks,
+  newTaskId,
   onAddTask,
   onUpdateTaskStatus,
   onUpdateTaskPriority,
   onUpdateTaskContent,
+  onUpdateTaskTitle,
   onDeleteTask,
-  onUpdateTaskTitle,   // <-- MUST BE ACCEPTED HERE
 }) => {
   const dateStr = formatDateKey(date);
   const isCurrentDay = isToday(date);
 
   const { setNodeRef, isOver } = useDroppable({
     id: dateStr,
-    data: {
-      type: 'Column',
-      dateStr,
-    },
+    data: { type: 'Column', dateStr },
   });
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col h-full min-w-[320px] max-w-[400px] w-full border-r border-slate-200 last:border-r-0 transition-all duration-200 shrink-0",
-        isCurrentDay ? "bg-blue-50/30" : "bg-white",
-        isOver && "bg-blue-50 ring-2 ring-blue-300 ring-inset z-10"
+        'flex flex-col h-full min-w-[320px] max-w-[380px] w-full border-r border-slate-200 last:border-r-0 transition-all duration-200 shrink-0',
+        isCurrentDay ? 'bg-blue-50/30' : 'bg-white',
+        isOver && 'bg-blue-50 ring-2 ring-blue-300 ring-inset z-10'
       )}
     >
+      {/* Header */}
       <div
         className={cn(
-          "p-3 flex flex-col gap-1 border-b sticky top-0 z-10 bg-white/80 backdrop-blur-sm",
-          isCurrentDay && "border-blue-100 bg-blue-50/80",
-          isOver && "bg-blue-100/50"
+          'p-3 flex flex-col gap-1 border-b sticky top-0 z-10 bg-white/80 backdrop-blur-sm',
+          isCurrentDay && 'border-blue-100 bg-blue-50/80',
+          isOver && 'bg-blue-100/50'
         )}
       >
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -64,8 +65,8 @@ export const Column: React.FC<ColumnProps> = ({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-lg font-bold flex items-center justify-center w-8 h-8 rounded-full",
-                isCurrentDay ? "bg-blue-600 text-white" : "text-slate-700"
+                'text-lg font-bold flex items-center justify-center w-8 h-8 rounded-full',
+                isCurrentDay ? 'bg-blue-600 text-white' : 'text-slate-700'
               )}
             >
               {format(date, 'd')}
@@ -83,14 +84,15 @@ export const Column: React.FC<ColumnProps> = ({
         </div>
       </div>
 
+      {/* Tasks */}
       <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2">
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task, index) => {
             const isCompleted = task.status === 'done' || task.status === 'missed';
-            const prevTask = tasks[index - 1];
+            const prev = tasks[index - 1];
             const showSeparator =
               isCompleted &&
-              (!prevTask || (prevTask.status !== 'done' && prevTask.status !== 'missed'));
+              (!prev || (prev.status !== 'done' && prev.status !== 'missed'));
 
             return (
               <React.Fragment key={task.id}>
@@ -106,10 +108,11 @@ export const Column: React.FC<ColumnProps> = ({
 
                 <TaskCard
                   task={task}
+                  isNewTask={task.id === newTaskId}          // 👈 THIS IS THE FIX
                   onUpdateStatus={onUpdateTaskStatus}
                   onUpdatePriority={onUpdateTaskPriority}
                   onUpdateContent={onUpdateTaskContent}
-                  onUpdateTitle={onUpdateTaskTitle}  
+                  onUpdateTitle={onUpdateTaskTitle}
                   onDelete={onDeleteTask}
                 />
               </React.Fragment>
@@ -117,6 +120,7 @@ export const Column: React.FC<ColumnProps> = ({
           })}
         </SortableContext>
 
+        {/* Add Task */}
         <button
           onClick={() => onAddTask(dateStr)}
           className="flex items-center justify-center w-full p-2 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition mt-1 group"

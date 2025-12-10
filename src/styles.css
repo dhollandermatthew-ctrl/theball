@@ -114,3 +114,12 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+/* Prevent dnd-kit from hijacking contentEditable focus */
+[contenteditable] {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+  user-select: text !important;
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
+}
