@@ -38,7 +38,6 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-
   const normalizedStatus = normalizeStatus(status);
 
   useEffect(() => {
@@ -74,6 +73,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
     >
       {isOpen ? (
         <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg ring-1 ring-slate-200 rounded-full p-0.5">
+
           <button
             className="p-1 hover:bg-slate-100 rounded-full"
             onClick={(e) => {
@@ -201,7 +201,7 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
 };
 
 /* --------------------------------------------------
- * TASK CARD
+ * TASK CARD — START
  * -------------------------------------------------- */
 
 interface TaskCardProps {
@@ -258,7 +258,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   } = useSortable({
     id: task.id,
     data: { type: "Task", task, dateStr: task.date },
-    disabled: editMode !== "none" || isAiLoading,
+    disabled: editMode !== "none" || isAiLoading || disableDrag,
   });
 
   const internalTitleRef = useRef<HTMLInputElement | null>(null);
@@ -279,55 +279,70 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setEditValue(body);
   }, [task.content]);
 
-  /* Auto-focus title on new task */
-  useEffect(() => {
-    if (editMode === "title" && finalTitleRef.current) {
-      finalTitleRef.current.focus();
-      finalTitleRef.current.select();
-    }
-  }, [editMode, finalTitleRef]);
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  /* AI APPLY */
-  const applyAI = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!editValue) return;
-    setIsAiLoading(true);
-    try {
-      const result = await runAI(editValue);
-      if (result) {
-        setEditValue(result);
-        onUpdateContent(task.id, result);
-        setEditorKey((k) => k + 1);
+    /* Auto-focus title */
+    useEffect(() => {
+      if (editMode === "title" && finalTitleRef.current) {
+        finalTitleRef.current.focus();
+        finalTitleRef.current.select();
       }
-    } finally {
-      setIsAiLoading(false);
+    }, [editMode, finalTitleRef]);
+  
+    const style: React.CSSProperties = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+  
+    /* AI APPLY */
+    const applyAI = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!editValue) return;
+  
+      setIsAiLoading(true);
+      try {
+        const result = await runAI(editValue);
+        if (result) {
+          setEditValue(result);
+          onUpdateContent(task.id, result);
+          setEditorKey((k) => k + 1);
+        }
+      } finally {
+        setIsAiLoading(false);
+      }
+    };
+  
+    /* TITLE BLUR */
+    const handleTitleBlur = () => {
+      const trimmed = titleValue.trim();
+      if (trimmed !== (task.title ?? "New Task")) {
+        onUpdateTitle(task.id, trimmed);
+      }
+      setEditMode("none");
+    };
+  
+    /* BODY BLUR */
+    const handleContentBlur = () => {
+      if (editValue !== task.content) {
+        onUpdateContent(task.id, editValue);
+      }
+      setEditMode("none");
+    };
+  
+    /* DRAG PLACEHOLDER WHILE DRAGGING */
+    if (isDragging) {
+      return (
+        <div
+          ref={(el) => {
+            setNodeRef(el);
+            if (cardRef) cardRef.current = el;
+          }}
+          style={style}
+          className="opacity-40 bg-slate-50 border-2 border-slate-200 border-dashed rounded-lg h-[80px]"
+        />
+      );
     }
-  };
-
-  /* TITLE BLUR */
-  const handleTitleBlur = () => {
-    const trimmed = titleValue.trim();
-    if (trimmed !== (task.title ?? "New Task")) {
-      onUpdateTitle(task.id, trimmed);
-    }
-    setEditMode("none");
-  };
-
-  /* BODY BLUR */
-  const handleContentBlur = () => {
-    if (editValue !== task.content) {
-      onUpdateContent(task.id, editValue);
-    }
-    setEditMode("none");
-  };
-
-  /* DRAG PLACEHOLDER */
-  if (isDragging) {
+  
+    const isCompleted = normalizedStatus !== "todo";
+  
     return (
       <div
         ref={(el) => {
@@ -335,124 +350,86 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           if (cardRef) cardRef.current = el;
         }}
         style={style}
-        className="opacity-40 bg-slate-50 border-2 border-slate-200 border-dashed rounded-lg h-[80px]"
-      />
-    );
-  }
-
-  const isCompleted = normalizedStatus !== "todo";
-
-  return (
-    <div
-      ref={(el) => {
-        setNodeRef(el);
-        if (cardRef) cardRef.current = el;
-      }}
-      style={style}
-      className={cn(
-        "group relative flex flex-col rounded-lg border shadow-sm mb-2 transition-all duration-200",
-        "hover:shadow-md hover:-translate-y-[1px]",
-        task.status === "done"
-          ? "bg-slate-50/60 border-slate-200"
-          : task.priority === "p1"
-          ? "bg-red-50/70 border-red-100"
-          : task.priority === "p2"
-          ? "bg-amber-50/70 border-amber-100"
-          : "bg-white border-slate-200"
-      )}
-    >
-      {/* AI overlay */}
-      {isAiLoading && (
-        <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
-          <div className="flex flex-col items-center gap-2 animate-pulse">
-            <Sparkles className="w-6 h-6" />
-            <span className="text-xs font-medium text-purple-600">
-              Improving...
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* HEADER */}
-      <div className="flex items-center gap-2 p-2 pb-0">
-        <div
-          {...listeners}
-          {...attributes}
-          className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
-        >
-          <GripVertical size={14} className="text-slate-400" />
-        </div>
-
-        <StatusAccordion
-          status={normalizedStatus}
-          onSelect={(s) => onUpdateStatus(task.id, s)}
-        />
-
-        <PriorityAccordion
-          priority={task.priority}
-          onSelect={(p) => onUpdatePriority(task.id, p)}
-        />
-
-        {/* TITLE INPUT */}
-        {editMode === "title" ? (
-          <input
-            ref={finalTitleRef}
-            className="flex-1 font-bold bg-transparent text-sm outline-none border-b border-transparent focus:border-blue-300"
-            value={titleValue}
-            onChange={(e) => setTitleValue(e.target.value)}
-            onBlur={handleTitleBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Tab") {
-                e.preventDefault();
-                setEditMode("body");
-
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(() => {
-                    const editor =
-                      finalBodyRef.current?.querySelector("[contenteditable]");
-                    if (editor instanceof HTMLElement) {
-                      editor.focus();
-
-                      // caret at TOP — Option A
-                      const range = document.createRange();
-                      range.selectNodeContents(editor);
-                      range.collapse(true);
-
-                      const sel = window.getSelection();
-                      sel?.removeAllRanges();
-                      sel?.addRange(range);
-                    }
-                  });
-                });
-              }
-            }}
-          />
-        ) : (
-          <div
-            className="flex-1 font-bold text-sm truncate cursor-text"
-            onClick={() => setEditMode("title")}
-          >
-            {titleValue}
+        className={cn(
+          "group relative flex flex-col rounded-lg border shadow-sm mb-2 transition-all duration-200",
+          "hover:shadow-md hover:-translate-y-[1px]",
+          task.status === "done"
+            ? "bg-slate-50/60 border-slate-200"
+            : task.priority === "p1"
+            ? "bg-red-50/70 border-red-100"
+            : task.priority === "p2"
+            ? "bg-amber-50/70 border-amber-100"
+            : "bg-white border-slate-200"
+        )}
+      >
+        {/* AI overlay */}
+        {isAiLoading && (
+          <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
+            <div className="flex flex-col items-center gap-2 animate-pulse">
+              <Sparkles className="w-6 h-6" />
+              <span className="text-xs font-medium text-purple-600">
+                Improving...
+              </span>
+            </div>
           </div>
         )}
-      </div>
-
-{/* BODY WITH SCROLL + FADE */}
-<div className="p-2 pt-1 pl-10 relative">
+  
+        {/* HEADER */}
+        <div className="flex items-center gap-2 p-2 pb-0">
+          <div
+            {...listeners}
+            {...attributes}
+            className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
+          >
+            <GripVertical size={14} className="text-slate-400" />
+          </div>
+  
+          <StatusAccordion
+            status={normalizedStatus}
+            onSelect={(s) => onUpdateStatus(task.id, s)}
+          />
+  
+          <PriorityAccordion
+            priority={task.priority}
+            onSelect={(p) => onUpdatePriority(task.id, p)}
+          />
+  
+          {/* TITLE INPUT */}
+          {editMode === "title" ? (
+            <input
+              ref={finalTitleRef}
+              className="flex-1 font-bold bg-transparent text-sm outline-none border-b border-transparent focus:border-blue-300"
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={handleTitleBlur}
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  setEditMode("body");
+                }
+              }}
+            />
+          ) : (
+            <div
+              className="flex-1 font-bold text-sm truncate cursor-text"
+              onClick={() => setEditMode("title")}
+            >
+              {titleValue}
+            </div>
+          )}
+        </div>
+  
+        {/* BODY SECTION */}
+        <div
+  className={cn(
+    "p-2 pt-1 pl-10 relative",
+    editMode !== "body" && "max-h-[220px] overflow-y-auto"
+  )}
+>
   <div
-    className="max-h-[180px] overflow-y-auto pr-1"
+    className="pr-1"
     ref={finalBodyRef}
-    onMouseDown={(e) => e.stopPropagation()}
-    onClick={() => {
-      setEditMode("body");
-      requestAnimationFrame(() => {
-        const editor =
-          finalBodyRef.current?.querySelector("[contenteditable]");
-        if (editor instanceof HTMLElement) {
-          editor.focus();
-        }
-      });
-    }}
+    onPointerDown={(e) => e.stopPropagation()}
   >
     {editMode === "body" ? (
       <WysiwygEditor
@@ -460,51 +437,53 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         initialContent={editValue}
         onChange={setEditValue}
         onBlur={handleContentBlur}
+        autoFocus
+        placeholder="Add details..."
       />
     ) : (
-      <div className="cursor-text min-h-[1.5em]">
+      <div
+        className="cursor-text min-h-[1.5em]"
+        onClick={() => setEditMode("body")}
+      >
         {task.content ? (
-          <RichTextRenderer
-            text={task.content}
-            isCompleted={isCompleted}
-          />
+          <RichTextRenderer text={task.content} isCompleted={isCompleted} />
         ) : (
-          <span className="italic text-slate-400 text-sm">
-            Add details...
-          </span>
+          <span className="italic text-slate-400 text-sm">Add details...</span>
         )}
       </div>
     )}
   </div>
 
-  {/* Bottom fade */}
-  <div className="pointer-events-none absolute bottom-2 left-10 right-2 h-6 bg-gradient-to-t from-white to-transparent"></div>
+  <div className="pointer-events-none absolute bottom-2 left-10 right-2 h-6 bg-gradient-to-t from-white to-transparent" />
 </div>
-
-      {/* ACTIONS */}
-      <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-        <button
-          disabled={isAiLoading}
-          onClick={applyAI}
-          className="p-1 rounded hover:bg-purple-50 text-slate-300 hover:text-purple-600"
-        >
-          {isAiLoading ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Sparkles size={14} />
-          )}
-        </button>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(task.id);
-          }}
-          className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500"
-        >
-          <Trash2 size={14} />
-        </button>
+  
+        {/* ACTIONS TOP RIGHT */}
+        <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+  
+          {/* AI */}
+          <button
+            disabled={isAiLoading}
+            onClick={applyAI}
+            className="p-1 rounded hover:bg-purple-50 text-slate-300 hover:text-purple-600"
+          >
+            {isAiLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+          </button>
+  
+          {/* DELETE */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+            }}
+            className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };

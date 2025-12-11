@@ -1,7 +1,9 @@
-// src/components/WysiwygEditor.tsx
+// FILE: src/components/WysiwygEditor.tsx
+
 import React, { useRef, useEffect, useState } from "react";
-import { EditorToolbar } from "./EditorToolbar";
 import { cn, markdownToHtml } from "../domain/utils";
+import { Mic, MicOff, Loader2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface WysiwygEditorProps {
   initialContent: string;
@@ -10,8 +12,6 @@ interface WysiwygEditorProps {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
-
-  onEditorReady?: (el: HTMLElement) => void; // ⭐ NEW
 }
 
 export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
@@ -21,224 +21,205 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   placeholder,
   className,
   autoFocus,
-  onEditorReady, // ⭐ NEW
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const isInitialized = useRef(false);
-  const [showToolbar, setShowToolbar] = useState(false);
 
-  // -------------------------------------------------
-  // Move caret to very top of editor
-  // -------------------------------------------------
-  const focusAtTop = () => {
+  const [showMic, setShowMic] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  // Audio recording refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+
+  /* -------------------------------------------------
+   * INSERT TEXT AT CARET
+   * ------------------------------------------------- */
+  const insertAtCaret = (text: string) => {
     const el = editorRef.current;
     if (!el) return;
 
     el.focus();
 
-    const range = document.createRange();
-    range.setStart(el, 0);
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    let range = sel.rangeCount ? sel.getRangeAt(0) : document.createRange();
+    range.deleteContents();
+
+    const node = document.createTextNode(text);
+    range.insertNode(node);
+
+    // move caret afterward
+    range = range.cloneRange();
+    range.setStartAfter(node);
     range.collapse(true);
 
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    onChange(el.innerHTML);
   };
 
-  // -------------------------------------------------
-  // INITIALIZATION + notify TaskCard when ready
-  // -------------------------------------------------
+  /* -------------------------------------------------
+   * INITIAL LOAD
+   * ------------------------------------------------- */
   useEffect(() => {
     if (editorRef.current && !isInitialized.current) {
       editorRef.current.innerHTML = markdownToHtml(initialContent);
       isInitialized.current = true;
 
-      // Notify parent once the DOM exists
-      if (onEditorReady) {
-        onEditorReady(editorRef.current);
-      }
-
       if (autoFocus) {
-        requestAnimationFrame(() => {
-          focusAtTop();
-        });
+        requestAnimationFrame(() => editorRef.current?.focus());
       }
     }
-  }, [initialContent, autoFocus, onEditorReady]);
+  }, [initialContent, autoFocus]);
 
-  // -------------------------------------------------
-  // INPUT HANDLING
-  // -------------------------------------------------
+  /* -------------------------------------------------
+   * INPUT HANDLER
+   * ------------------------------------------------- */
   const handleInput = () => {
-    if (!editorRef.current) return;
-    onChange(editorRef.current.innerHTML);
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
-  // -------------------------------------------------
-  // execCommand wrapper
-  // -------------------------------------------------
-  const execCommand = (command: string, value?: string) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
+  /* -------------------------------------------------
+   * START RECORDING (real)
+   * ------------------------------------------------- */
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    if (command === "insertText" && typeof value === "string") {
-      const sel = window.getSelection();
-      let range: Range;
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = recorder;
 
-      if (!sel || sel.rangeCount === 0) {
-        range = document.createRange();
-        range.selectNodeContents(editorRef.current);
-        range.collapse(false);
-      } else {
-        range = sel.getRangeAt(0);
-      }
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
 
-      range.deleteContents();
-      const node = document.createTextNode(value);
-      range.insertNode(node);
+      recorder.onstart = () => {
+        setRecording(true);
+      };
 
-      range.setStartAfter(node);
-      range.collapse(true);
+      recorder.onstop = async () => {
+        setRecording(false);
+        stream.getTracks().forEach((t) => t.stop());
 
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
 
-      handleInput();
-      return;
-    }
+        setIsSending(true);
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
 
-    document.execCommand(command, false, value);
-    handleInput();
-  };
+          const text = await invoke<string>("transcribe_audio", {
+            audio: Array.from(bytes),
+            apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+          });
 
-  // -------------------------------------------------
-  // KEYBOARD: Tab indent/outdent + formatting
-  // -------------------------------------------------
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
+          if (text) insertAtCaret(text + " ");
+        } finally {
+          setIsSending(false);
+        }
+      };
 
-      if (e.shiftKey) {
-        document.execCommand("outdent");
-      } else {
-        document.execCommand("indent");
-      }
-      handleInput();
-      return;
-    }
-
-    if (!(e.metaKey || e.ctrlKey)) return;
-    const key = e.key.toLowerCase();
-
-    if (key === "b") {
-      e.preventDefault();
-      execCommand("bold");
-    } else if (key === "i") {
-      e.preventDefault();
-      execCommand("italic");
-    } else if (key === "u") {
-      e.preventDefault();
-      execCommand("underline");
+      recorder.start();
+    } catch {
+      alert("Microphone permission denied.");
     }
   };
 
-  // -------------------------------------------------
-  // Automatic list detection
-  // -------------------------------------------------
-  const handleKeyUp = (e: React.KeyboardEvent) => {
-    if (e.key !== " ") return;
-
-    const sel = window.getSelection();
-    if (!sel || !sel.anchorNode) return;
-
-    const text = sel.anchorNode.textContent || "";
-    const olMatch = text.match(/^1\.\s/);
-    const ulMatch = text.match(/^[\-\*]\s/);
-
-    if (!olMatch && !ulMatch) return;
-
-    const parentEl = (sel.anchorNode as any).parentElement;
-    const parentList = parentEl?.closest("ul, ol");
-    if (parentList) return;
-
-    const length = olMatch ? 3 : ulMatch ? 2 : 0;
-
-    const range = document.createRange();
-    range.setStart(sel.anchorNode, 0);
-    range.setEnd(sel.anchorNode, length);
-    range.deleteContents();
-
-    execCommand(olMatch ? "insertOrderedList" : "insertUnorderedList");
+  /* -------------------------------------------------
+   * STOP RECORDING
+   * ------------------------------------------------- */
+  const stopRecording = () => {
+    const r = mediaRecorderRef.current;
+    if (r && r.state !== "inactive") r.stop();
   };
 
-  // -------------------------------------------------
-  // AI completion handler
-  // -------------------------------------------------
-  const handleAiComplete = (newHtml: string) => {
-    if (!editorRef.current) return;
-    editorRef.current.innerHTML = newHtml;
-    onChange(newHtml);
+  /* -------------------------------------------------
+   * MIC TOGGLE BUTTON
+   * ------------------------------------------------- */
+  const handleMicToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    editorRef.current?.focus();
+
+    if (recording) stopRecording();
+    else startRecording();
   };
 
-  // -------------------------------------------------
-  // BLUR / FOCUS
-  // -------------------------------------------------
-  const handleBlurInternal = (e: React.FocusEvent) => {
+  /* -------------------------------------------------
+   * FOCUS / BLUR LOGIC
+   * ------------------------------------------------- */
+  const handleFocus = () => setShowMic(true);
+
+  const handleBlur = (e: React.FocusEvent) => {
     const related = e.relatedTarget as HTMLElement | null;
-    if (related?.closest(".editor-toolbar-container")) return;
 
-    setShowToolbar(false);
+    // Don't blur when clicking mic
+    if (related?.dataset?.mic === "1") return;
+
+    setShowMic(false);
     onBlur();
   };
 
-  const handleFocus = () => {
-    setShowToolbar(true);
-  };
-
-  // Expose method for parent (TaskCard)
-  (editorRef as any).focusAtTop = focusAtTop;
-
-  // -------------------------------------------------
-  // RENDER
-  // -------------------------------------------------
+  /* -------------------------------------------------
+   * RENDER
+   * ------------------------------------------------- */
   return (
     <div className={cn("relative group font-normal", className)}>
-      {/* Toolbar */}
-      <div
-        className={cn(
-          "absolute bottom-full left-0 mb-1 z-50 editor-toolbar-container transition-opacity duration-200",
-          showToolbar ? "opacity-100 visible" : "opacity-0 invisible"
-        )}
-      >
-        <EditorToolbar
-          onFormat={execCommand}
-          currentContent={editorRef.current?.innerText || ""}
-          onAiComplete={handleAiComplete}
-        />
-      </div>
-
-      {/* Editable Area */}
+      {/* Editable area */}
       <div
         ref={editorRef}
         contentEditable
-        tabIndex={0} // ⭐ KEY FIX: allows single-click and tab focus
+        tabIndex={0}
         suppressContentEditableWarning
         onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleKeyUp}
-        onBlur={handleBlurInternal}
         onFocus={handleFocus}
-        className="w-full min-h-[24px] outline-none text-sm leading-snug empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 p-0.5"
+        onBlur={handleBlur}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="
+          w-full min-h-[24px] outline-none text-sm leading-snug
+          empty:before:content-[attr(data-placeholder)]
+          empty:before:text-slate-400 p-0.5
+        "
         data-placeholder={placeholder}
       />
+
+      {/* Floating Mic Button */}
+      <button
+        data-mic="1"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onClick={handleMicToggle}
+        className={cn(
+          "absolute bottom-1 right-1 p-1 rounded-full shadow transition-all",
+          showMic ? "opacity-100" : "opacity-0 pointer-events-none",
+          recording || isSending
+            ? "bg-red-500 text-white animate-pulse"
+            : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+        )}
+      >
+        {isSending ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : recording ? (
+          <MicOff size={14} />
+        ) : (
+          <Mic size={14} />
+        )}
+      </button>
 
       <style>{`
         div[contentEditable] h1 { font-size: 1.1em; font-weight: 700; }
         div[contentEditable] h2 { font-size: 1.05em; font-weight: 600; }
-        div[contentEditable] ul { list-style-type: disc; padding-left: 1.2em; }
-        div[contentEditable] ol { list-style-type: decimal; padding-left: 1.2em; }
+        div[contentEditable] ul { list-style: disc; padding-left: 1.2em; }
+        div[contentEditable] ol { list-style: decimal; padding-left: 1.2em; }
         div[contentEditable] li { margin-bottom: 0.15em; }
       `}</style>
     </div>
