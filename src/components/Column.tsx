@@ -88,16 +88,27 @@ export const Column: React.FC<ColumnProps> = ({
           {/* -----------------------------------------------
               NEW HEADER COUNTERS
           ------------------------------------------------ */}
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-            <span>{total}</span>
-            <span className="text-slate-400">|</span>
-            <span className="flex items-center gap-1">
-              <span className="text-green-600">✓</span>{completed}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="text-slate-400">•</span>{todo}
-            </span>
-          </div>
+<div className="flex items-center gap-3 text-xs font-medium text-slate-600">
+
+{/* ✓ completed */}
+<span className="flex items-center gap-1">
+  <span className="text-green-600">✓</span>
+  {completed}
+</span>
+
+{/* • remaining */}
+<span className="flex items-center gap-1">
+  <span className="text-slate-400">•</span>
+  {todo}
+</span>
+
+{/* | total */}
+<span className="flex items-center gap-1">
+  <span className="text-slate-400">|</span>
+  {total}
+</span>
+
+</div>
         </div>
       </div>
 

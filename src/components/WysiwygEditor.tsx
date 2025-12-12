@@ -84,6 +84,143 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
   };
 
   /* -------------------------------------------------
+   * KEYBOARD SHORTCUTS (Tab, Cmd/Ctrl+B/I/U, Enter in lists)
+   * ------------------------------------------------- */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    const sel = window.getSelection();
+    const anchorNode = sel?.anchorNode || null;
+
+    // Helper: find closest ancestor of a node matching selector
+    const closest = (node: Node | null, selector: string): HTMLElement | null => {
+      let el: HTMLElement | null =
+        node instanceof HTMLElement
+          ? node
+          : (node?.parentElement as HTMLElement | null);
+      while (el) {
+        if (el.matches(selector)) return el;
+        el = el.parentElement;
+      }
+      return null;
+    };
+
+    // TAB = indent / outdent (never leave editor)
+    if (e.key === "Tab") {
+      e.preventDefault();
+
+      const inList = !!closest(anchorNode, "li");
+
+      if (inList) {
+        // Use outdent/indent for list items
+        document.execCommand(e.shiftKey ? "outdent" : "indent");
+      } else {
+        // Fallback: indent paragraph (blockquote-style)
+        if (!e.shiftKey) {
+          document.execCommand("indent");
+        } else {
+          document.execCommand("outdent");
+        }
+      }
+      handleInput();
+      return;
+    }
+
+    // ENTER in list: empty li => exit list
+    if (e.key === "Enter") {
+      const li = closest(anchorNode, "li");
+      if (li) {
+        const text = li.textContent?.replace(/\u200B/g, "").trim() || "";
+        if (text === "") {
+          // exit list instead of creating a new empty bullet
+          e.preventDefault();
+          // Insert paragraph after list
+          document.execCommand("insertParagraph");
+          document.execCommand("outdent");
+          handleInput();
+          return;
+        }
+      }
+    }
+
+    // Cmd/Ctrl + B/I/U
+    const meta = e.metaKey || e.ctrlKey;
+    if (meta) {
+      const key = e.key.toLowerCase();
+      if (key === "b") {
+        e.preventDefault();
+        document.execCommand("bold");
+        handleInput();
+        return;
+      }
+      if (key === "i") {
+        e.preventDefault();
+        document.execCommand("italic");
+        handleInput();
+        return;
+      }
+      if (key === "u") {
+        e.preventDefault();
+        document.execCommand("underline");
+        handleInput();
+        return;
+      }
+    }
+  };
+
+  /* -------------------------------------------------
+   * AUTO LIST DETECTION (e.g., "- " or "1. ")
+   * ------------------------------------------------- */
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== " ") return; // only care when space is pressed
+
+    const el = editorRef.current;
+    if (!el) return;
+
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return;
+
+    const anchorNode = sel.anchorNode;
+    const parent = anchorNode.parentElement;
+    if (!parent) return;
+
+    // Already inside a list? bail.
+    if (parent.closest("ul, ol")) return;
+
+    const text = anchorNode.textContent || "";
+
+    // Patterns: "- ", "* ", "+ " or "1. ", "1) ", "2) " etc.
+    const bulletMatch = text.match(/^(\-|\*|\+)\s$/);
+    const orderedMatch = text.match(/^(\d+)([.)])\s$/);
+
+    if (!bulletMatch && !orderedMatch) return;
+
+    const prefixLength = bulletMatch
+      ? 2 // "- "
+      : orderedMatch
+      ? orderedMatch[0].length
+      : 0;
+
+    if (!prefixLength) return;
+
+    // Delete the typed prefix from the text node
+    const range = document.createRange();
+    range.setStart(anchorNode, 0);
+    range.setEnd(anchorNode, prefixLength);
+    range.deleteContents();
+
+    // Convert to list
+    if (bulletMatch) {
+      document.execCommand("insertUnorderedList");
+    } else if (orderedMatch) {
+      document.execCommand("insertOrderedList");
+    }
+
+    handleInput();
+  };
+
+  /* -------------------------------------------------
    * START RECORDING (real)
    * ------------------------------------------------- */
   const startRecording = async () => {
@@ -178,6 +315,8 @@ export const WysiwygEditor: React.FC<WysiwygEditorProps> = ({
         tabIndex={0}
         suppressContentEditableWarning
         onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onClick={(e) => e.stopPropagation()}

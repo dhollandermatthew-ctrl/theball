@@ -67,9 +67,17 @@ const customCollisionDetection: CollisionDetection = (args) =>
   pointerWithin(args);
 
 /* --------------------------------------------------------
- * Side push zones
+ * Side push zones (DROP to move week)
+ * - Keep as the outer-most rails (furthest left/right)
+ * - Hover can optionally advance view after dwell time (NO task mutation)
  * ------------------------------------------------------ */
-const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean }) => {
+const PushZone = ({
+  side,
+  active,
+}: {
+  side: "left" | "right";
+  active: boolean;
+}) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `side-zone-${side}`,
     data: { type: "SideZone", side },
@@ -81,8 +89,14 @@ const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean })
       className={cn(
         "fixed top-0 bottom-0 w-[80px] z-[50] flex items-center justify-center transition-all duration-300 border-dashed border-slate-300 bg-slate-50/50 backdrop-blur-sm",
         side === "left" ? "left-0 border-r-2" : "right-0 border-l-2",
-        active ? "translate-x-0" : side === "left" ? "-translate-x-full" : "translate-x-full",
-        isOver ? "bg-blue-100/95 border-blue-500 shadow-xl" : "hover:bg-slate-100/80"
+        active
+          ? "translate-x-0 opacity-100"
+          : side === "left"
+          ? "-translate-x-full opacity-0"
+          : "translate-x-full opacity-0",
+        isOver
+          ? "bg-blue-100/95 border-blue-500 shadow-xl"
+          : "hover:bg-slate-100/80"
       )}
     >
       <div
@@ -93,7 +107,10 @@ const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean })
       >
         {side === "left" ? <ArrowLeft size={32} /> : <ArrowRight size={32} />}
         <span className="text-xs uppercase whitespace-pre">
-          {side === "left" ? "Move to\nPrev Week" : "Move to\nNext Week"}
+          {side === "left" ? "Drop →\nPrev Week" : "Drop →\nNext Week"}
+        </span>
+        <span className="text-[10px] font-semibold uppercase text-slate-400 whitespace-pre">
+          Hold to preview
         </span>
       </div>
     </div>
@@ -101,9 +118,16 @@ const PushZone = ({ side, active }: { side: "left" | "right"; active: boolean })
 };
 
 /* --------------------------------------------------------
- * Scroll zones
+ * Scroll zones (HOLD to scroll within week)
+ * - Positioned just inside PushZones
  * ------------------------------------------------------ */
-const ScrollZone = ({ side, active }: { side: "left" | "right"; active: boolean }) => {
+const ScrollZone = ({
+  side,
+  active,
+}: {
+  side: "left" | "right";
+  active: boolean;
+}) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `scroll-zone-${side}`,
     data: { type: "ScrollZone", side },
@@ -113,7 +137,7 @@ const ScrollZone = ({ side, active }: { side: "left" | "right"; active: boolean 
     <div
       ref={setNodeRef}
       className={cn(
-        "fixed top-0 bottom-0 w-[48px] z-[40] flex items-center justify-center transition-opacity",
+        "fixed top-0 bottom-0 w-[56px] z-[40] flex items-center justify-center transition-opacity",
         side === "left" ? "left-[80px]" : "right-[80px]",
         active ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
@@ -126,6 +150,8 @@ const ScrollZone = ({ side, active }: { side: "left" | "right"; active: boolean 
       >
         <MoveHorizontal size={18} className="text-slate-500" />
         <span className="text-[9px] font-semibold uppercase text-slate-500 text-center leading-tight">
+          Hold
+          <br />
           Scroll
         </span>
       </div>
@@ -213,13 +239,18 @@ const InboxDrawer = ({
 
 /* --------------------------------------------------------
  * DnD Monitor Bridge
+ * - Tracks which rail is being hovered
  * ------------------------------------------------------ */
 const DndMonitorBridge = ({
   setSidePushDirection,
   setScrollDirection,
 }: {
-  setSidePushDirection: React.Dispatch<React.SetStateAction<"left" | "right" | null>>;
-  setScrollDirection: React.Dispatch<React.SetStateAction<"left" | "right" | null>>;
+  setSidePushDirection: React.Dispatch<
+    React.SetStateAction<"left" | "right" | null>
+  >;
+  setScrollDirection: React.Dispatch<
+    React.SetStateAction<"left" | "right" | null>
+  >;
 }) => {
   useDndMonitor({
     onDragOver({ over }) {
@@ -269,8 +300,12 @@ export const Board: React.FC = () => {
   const [showInbox, setShowInbox] = useState(false);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [sidePushDirection, setSidePushDirection] = useState<"left" | "right" | null>(null);
-  const [scrollDirection, setScrollDirection] = useState<"left" | "right" | null>(null);
+  const [sidePushDirection, setSidePushDirection] = useState<
+    "left" | "right" | null
+  >(null);
+  const [scrollDirection, setScrollDirection] = useState<
+    "left" | "right" | null
+  >(null);
 
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
@@ -300,7 +335,10 @@ export const Board: React.FC = () => {
     [weekStart]
   );
 
-  const weekKeys = useMemo(() => weekDays.map((d) => formatDateKey(d)), [weekDays]);
+  const weekKeys = useMemo(
+    () => weekDays.map((d) => formatDateKey(d)),
+    [weekDays]
+  );
 
   /* ------------------------------------------------------
    * Weekly stats (FIXED: must return { total, done })
@@ -328,35 +366,47 @@ export const Board: React.FC = () => {
 
   const inboxTasks = useMemo(
     () =>
-      sortTasks(tasks.filter((t) => t.date === "inbox" && t.category === category)),
+      sortTasks(
+        tasks.filter((t) => t.date === "inbox" && t.category === category)
+      ),
     [tasks, category]
   );
 
   /* ------------------------------------------------------
-   * Continuous side push
+   * HOLD on SideZone → Preview week (NO task mutation)
+   * This replaces the old interval that was changing task.date
+   * and causing the "skipping ahead" bug.
    * ------------------------------------------------------ */
-  useEffect(() => {
-    if (!activeTask || !sidePushDirection) return;
+  const holdNavTimerRef = useRef<number | null>(null);
 
-    const interval = setInterval(() => {
+  useEffect(() => {
+    if (!activeTask || !sidePushDirection) {
+      if (holdNavTimerRef.current) {
+        window.clearTimeout(holdNavTimerRef.current);
+        holdNavTimerRef.current = null;
+      }
+      return;
+    }
+
+    // dwell time before switching the visible week while dragging
+    const DWELL_MS = 550;
+
+    if (holdNavTimerRef.current) window.clearTimeout(holdNavTimerRef.current);
+
+    holdNavTimerRef.current = window.setTimeout(() => {
       setCurrentDate((prev) =>
         addWeeks(prev, sidePushDirection === "left" ? -1 : 1)
       );
+      holdNavTimerRef.current = null;
+    }, DWELL_MS);
 
-      const live = tasks.find((t) => t.id === activeTask.id);
-      if (!live) return;
-
-      if (/^\d{4}-\d{2}-\d{2}$/.test(live.date)) {
-        const shifted = addWeeks(
-          new Date(live.date),
-          sidePushDirection === "left" ? -1 : 1
-        );
-        updateTask(live.id, { date: formatDateKey(shifted) });
+    return () => {
+      if (holdNavTimerRef.current) {
+        window.clearTimeout(holdNavTimerRef.current);
+        holdNavTimerRef.current = null;
       }
-    }, 600);
-
-    return () => clearInterval(interval);
-  }, [activeTask, sidePushDirection, tasks, updateTask]);
+    };
+  }, [activeTask, sidePushDirection]);
 
   /* ------------------------------------------------------
    * Continuous scroll rails
@@ -405,8 +455,7 @@ export const Board: React.FC = () => {
   const updateContent = (id: string, c: string) =>
     updateTask(id, { content: c });
 
-  const updateTitle = (id: string, t: string) =>
-    updateTask(id, { title: t });
+  const updateTitle = (id: string, t: string) => updateTask(id, { title: t });
 
   /* ------------------------------------------------------
    * Navigation
@@ -435,6 +484,9 @@ export const Board: React.FC = () => {
     const { active, over } = e;
     const task = activeTask;
     setActiveTask(null);
+    setSidePushDirection(null);
+    setScrollDirection(null);
+
     if (!over || !task) return;
 
     const activeId = active.id as string;
@@ -445,8 +497,22 @@ export const Board: React.FC = () => {
 
     const move = (dateStr: string) => updateTask(activeId, { date: dateStr });
 
-    if (overId === "side-zone-left" || overId === "side-zone-right") return;
+    // DROP → prev/next week (Sunday of target week)
+    if (overId === "side-zone-left" || overId === "side-zone-right") {
+      const direction = overId === "side-zone-left" ? -1 : 1;
+    
+      // move task to same weekday, next/prev week
+      const fromDate = new Date(task.date);
+      const target = addWeeks(fromDate, direction);
+    
+      updateTask(activeId, { date: formatDateKey(target) });
+    
+      return; // 🔥 critically: do NOT setCurrentDate
+    }
+
+    // Scroll zones are HOLD ONLY (no drop action)
     if (overId === "scroll-zone-left" || overId === "scroll-zone-right") return;
+
     if (overId === "inbox-zone") {
       move("inbox");
       return;
@@ -469,39 +535,38 @@ export const Board: React.FC = () => {
     }
   };
 
-/* ------------------------------------------------------
- * Auto-scroll to new task (fixed)
- * ------------------------------------------------------ */
-useEffect(() => {
-  if (!newTaskId) return;
-  if (viewMode !== "week") return;
+  /* ------------------------------------------------------
+   * Auto-scroll to new task (fixed)
+   * ------------------------------------------------------ */
+  useEffect(() => {
+    if (!newTaskId) return;
+    if (viewMode !== "week") return;
 
-  const newTask = tasks.find((t) => t.id === newTaskId);
-  if (!newTask) return;
-  if (newTask.date === "inbox") return;
+    const newTask = tasks.find((t) => t.id === newTaskId);
+    if (!newTask) return;
+    if (newTask.date === "inbox") return;
 
-  const container = scrollContainerRef.current;
-  if (!container) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
 
-  const colIndex = weekKeys.indexOf(newTask.date);
-  if (colIndex === -1) return;
+    const colIndex = weekKeys.indexOf(newTask.date);
+    if (colIndex === -1) return;
 
-  const inner = container.firstElementChild as HTMLElement | null;
-  if (!inner) return;
+    const inner = container.firstElementChild as HTMLElement | null;
+    if (!inner) return;
 
-  const columnEl = inner.children[colIndex] as HTMLElement | null;
-  if (!columnEl) return;
+    const columnEl = inner.children[colIndex] as HTMLElement | null;
+    if (!columnEl) return;
 
-  const targetLeft = Math.max(columnEl.offsetLeft - 40, 0);
+    const targetLeft = Math.max(columnEl.offsetLeft - 40, 0);
 
-  container.scrollTo({
-    left: targetLeft,
-    behavior: "smooth",
-  });
+    container.scrollTo({
+      left: targetLeft,
+      behavior: "smooth",
+    });
 
-  // 🔥 Prevent this effect from running again on updates
-  setNewTaskId(null);
-}, [newTaskId, viewMode, weekKeys]);
+    setNewTaskId(null);
+  }, [newTaskId, viewMode, weekKeys, tasks]);
 
   /* ------------------------------------------------------
    * RENDER
@@ -548,11 +613,13 @@ useEffect(() => {
               setScrollDirection={setScrollDirection}
             />
 
-            <PushZone side="left" active={!!activeTask} />
-            <PushZone side="right" active={!!activeTask} />
-
+            {/* INNER = hold-to-scroll */}
             <ScrollZone side="left" active={!!activeTask} />
             <ScrollZone side="right" active={!!activeTask} />
+
+            {/* OUTER = drop-to-next/prev week */}
+            <PushZone side="left" active={!!activeTask} />
+            <PushZone side="right" active={!!activeTask} />
 
             <div
               ref={scrollContainerRef}
@@ -562,9 +629,7 @@ useEffect(() => {
                 {weekDays.map((day) => {
                   const key = formatDateKey(day);
                   const dayTasks = sortTasks(
-                    tasks.filter(
-                      (t) => t.date === key && t.category === category
-                    )
+                    tasks.filter((t) => t.date === key && t.category === category)
                   );
 
                   return (
