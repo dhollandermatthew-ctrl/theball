@@ -136,6 +136,7 @@ export const Column: React.FC<ColumnProps> = ({
 
                 <TaskCard
                   task={task}
+                  density="dense"
                   isNewTask={task.id === newTaskId}
                   onUpdateStatus={onUpdateTaskStatus}
                   onUpdatePriority={onUpdateTaskPriority}

@@ -203,9 +203,13 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
 /* --------------------------------------------------
  * TASK CARD — START
  * -------------------------------------------------- */
+type Density = "comfortable" | "dense";
+
 
 interface TaskCardProps {
   task: Task;
+  density?: Density;
+
   onUpdateStatus: (id: string, s: TaskStatus) => void;
   onUpdatePriority: (id: string, p: TaskPriority) => void;
   onUpdateContent: (id: string, c: string) => void;
@@ -222,6 +226,7 @@ interface TaskCardProps {
 
 export const TaskCard: React.FC<TaskCardProps> = ({
   task,
+  density = "comfortable",
   onUpdateStatus,
   onUpdatePriority,
   onUpdateContent,
@@ -342,6 +347,28 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     }
   
     const isCompleted = normalizedStatus !== "todo";
+
+
+    const densityStyles = {
+      comfortable: {
+        cardGap: "mb-2",
+        headerPadding: "p-2 pb-0",
+        bodyPadding: "p-2 pt-1 pl-10",
+        title: "text-sm leading-snug",
+        body: "text-sm leading-relaxed",
+        placeholder: "text-sm",
+      },
+      dense: {
+        cardGap: "mb-1",
+        headerPadding: "p-1 pb-0",
+        bodyPadding: "p-1 pt-0.5 pl-9",
+        title: "text-[13px] leading-tight",
+        body: "text-[12px] leading-snug",
+        placeholder: "text-[12px]",
+      },
+    };
+    
+    const styles = densityStyles[density];
   
     return (
       <div
@@ -351,8 +378,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         }}
         style={style}
         className={cn(
-          "group relative flex flex-col rounded-lg border shadow-sm mb-2 transition-all duration-200",
+          "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
           "hover:shadow-md hover:-translate-y-[1px]",
+          styles.cardGap,
           task.status === "done"
             ? "bg-slate-50/60 border-slate-200"
             : task.priority === "p1"
@@ -375,7 +403,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         )}
   
         {/* HEADER */}
-        <div className="flex items-center gap-2 p-2 pb-0">
+        <div className={cn("flex items-center gap-2", styles.headerPadding)}>
           <div
             {...listeners}
             {...attributes}
@@ -398,7 +426,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           {editMode === "title" ? (
             <input
               ref={finalTitleRef}
-              className="flex-1 font-bold bg-transparent text-sm outline-none border-b border-transparent focus:border-blue-300"
+              className={cn(
+                "flex-1 font-bold bg-transparent outline-none border-b border-transparent focus:border-blue-300",
+                styles.title
+              )}
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
               onBlur={handleTitleBlur}
@@ -411,7 +442,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             />
           ) : (
             <div
-              className="flex-1 font-bold text-sm truncate cursor-text"
+            className={cn(
+              "flex-1 font-bold truncate cursor-text",
+              styles.title
+            )}
               onClick={() => setEditMode("title")}
             >
               {titleValue}
@@ -422,10 +456,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         {/* BODY SECTION */}
         <div
   className={cn(
-    "p-2 pt-1 pl-10 relative",
+    styles.bodyPadding,
+    "relative",
     editMode !== "body" && "max-h-[220px] overflow-y-auto"
   )}
 >
+  
   <div
     className="pr-1"
     ref={finalBodyRef}
@@ -446,15 +482,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         onClick={() => setEditMode("body")}
       >
         {task.content ? (
-          <RichTextRenderer text={task.content} isCompleted={isCompleted} />
+          <RichTextRenderer
+          text={task.content}
+          isCompleted={isCompleted}
+          className="text-[12px] leading-[1.25]"
+        />
         ) : (
-          <span className="italic text-slate-400 text-sm">Add details...</span>
+          <span className={cn("italic text-slate-400", styles.placeholder)}>
+  Add details...
+</span>
         )}
       </div>
     )}
   </div>
 
-  <div className="pointer-events-none absolute bottom-2 left-10 right-2 h-6 bg-gradient-to-t from-white to-transparent" />
 </div>
   
         {/* ACTIONS TOP RIGHT */}
