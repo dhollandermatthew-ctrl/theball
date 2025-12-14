@@ -1,10 +1,7 @@
 // FILE: src/domain/storage.ts
 import { invoke } from "@tauri-apps/api/core";
-import {
-  AppState,
-  defaultState,
-  CURRENT_STATE_VERSION,
-} from "./state";
+import type { AppState } from "./state";
+import { CURRENT_STATE_VERSION } from "./state";
 
 const FILENAME = "state.json";
 
@@ -12,10 +9,11 @@ const FILENAME = "state.json";
    MIGRATION → returns an AppState-shaped object
    (Zustand will override all function fields)
 ---------------------------------------------- */
-function migrateState(data: any): AppState {
+function migrateState(data: any): Partial<AppState> {
   return {
     version: CURRENT_STATE_VERSION,
 
+    // ------------------ DATA ------------------
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
     people: Array.isArray(data.people) ? data.people : [],
     oneOnOnes:
@@ -24,6 +22,7 @@ function migrateState(data: any): AppState {
       !Array.isArray(data.oneOnOnes)
         ? data.oneOnOnes
         : {},
+    goals: Array.isArray(data.goals) ? data.goals : [],
 
     settings: {
       zoom: Number(data.settings?.zoom) || 1,
@@ -37,26 +36,38 @@ function migrateState(data: any): AppState {
           : 260,
     },
 
-    // REQUIRED FIELD
     hydrated: false,
 
-    // Zustand will replace all these functions at runtime
+    // ------------------ ZUSTAND FUNCTIONS (NO-OPS) ------------------
+    // These are REQUIRED by AppState but replaced at runtime by Zustand
+
     set: () => {},
     setHydrated: () => {},
 
+    // Goals
+    loadGoals: () => {},
+    addGoal: () => {},
+    updateGoal: () => {},
+    deleteGoal: () => {},
+    reorderGoals: () => {},
+
+    // Tasks
     addTask: () => {},
     updateTask: () => {},
     deleteTask: () => {},
 
+    // People
     addPerson: () => {},
     editPerson: () => {},
     reorderPeople: () => {},
     deletePerson: () => {},
 
+    // 1:1 Notes
     addOneOnOneItem: () => {},
     updateOneOnOneItem: () => {},
     deleteOneOnOneItem: () => {},
 
+    // Helpers
     getNoteCount: () => 0,
   };
 }
@@ -64,7 +75,7 @@ function migrateState(data: any): AppState {
 /* ----------------------------------------------
    LOAD (Tauri → Zustand hydration)
 ---------------------------------------------- */
-export async function loadState(): Promise<AppState | null> {
+export async function loadState(): Promise<Partial<AppState> | null> {
   try {
     const raw = await invoke<string>("read_data_file", { file: FILENAME });
 

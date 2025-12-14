@@ -61,3 +61,19 @@ export const aiLogs = sqliteTable("ai_logs", {
   aiMessage: text("aiMessage").notNull(),
   metadata: text("metadata"),
 });
+
+// -----------------------------------------------------
+// GOALS TABLE
+// -----------------------------------------------------
+export const goals = sqliteTable("goals", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  color: text("color").notNull(),
+  progress: integer("progress").notNull(),
+  startDate: text("startDate").notNull(),
+  endDate: text("endDate").notNull(),
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+  sort_order: integer("sort_order").notNull(),
+});

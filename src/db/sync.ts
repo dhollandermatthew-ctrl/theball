@@ -6,6 +6,7 @@ import {
   oneOnOnePeople,
   prompts,
   aiLogs,
+  goals,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -14,6 +15,10 @@ type Change =
   | { type: "insert"; table: "tasks"; data: any }
   | { type: "update"; table: "tasks"; id: string; data: any }
   | { type: "delete"; table: "tasks"; id: string }
+  // GOALS
+  | { type: "insert"; table: "goals"; data: any }
+  | { type: "update"; table: "goals"; id: string; data: any }
+  | { type: "delete"; table: "goals"; id: string }
   // 1:1 NOTES
   | { type: "insert"; table: "oneOnOnes"; data: any }
   | { type: "update"; table: "oneOnOnes"; id: string; data: any }
@@ -74,6 +79,23 @@ async function apply(change: Change) {
         return db.delete(tasks).where(eq(tasks.id, change.id));
       }
       break;
+
+
+        // ---------------- GOALS ----------------
+        case "goals":
+          if (change.type === "insert") {
+            return db.insert(goals).values(change.data);
+          }
+          if (change.type === "update") {
+            return db
+              .update(goals)
+              .set(change.data)
+              .where(eq(goals.id, change.id));
+          }
+          if (change.type === "delete") {
+            return db.delete(goals).where(eq(goals.id, change.id));
+          }
+          break;
 
     // ---------------- 1:1 NOTES ----------------
     case "oneOnOnes":

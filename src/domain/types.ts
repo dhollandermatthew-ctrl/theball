@@ -10,29 +10,60 @@ import type {
   OneOnOnePerson as StoreOneOnOnePerson,
 } from "./state";
 
+// --------------------------------------------------
+// TASKS
+// --------------------------------------------------
+
 // Extend the store's Task type by adding title + content
 export interface Task extends StoreTask {
-  title: string;       // NEW
-  content: string;     // NEW (previously your only field)
+  title: string;
+  content: string;
 }
 
 // Extract enums directly from Task
-export type TaskStatus = Task["status"];     
-export type TaskPriority = Task["priority"]; 
-export type TaskCategory = Task["category"]; 
+export type TaskStatus = Task["status"];
+export type TaskPriority = Task["priority"];
+export type TaskCategory = Task["category"];
 
-// One-on-one items & people
+// --------------------------------------------------
+// GOALS  ✅ NEW
+// --------------------------------------------------
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string; // HTML
+  color: string;
+  progress: number; // 0–100
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+  sort_order: number; // ✅ REQUIRED (DB + DnD + ordering)
+
+}
+
+// --------------------------------------------------
+// ONE-ON-ONES
+// --------------------------------------------------
+
 export type OneOnOneItem = StoreOneOnOneItem;
 export type OneOnOnePerson = StoreOneOnOnePerson;
 
-// Used by calendar/month views
+// --------------------------------------------------
+// CALENDAR / MONTH VIEW
+// --------------------------------------------------
+
 export interface DayColumnData {
   date: Date;
   tasks: Task[];
   isToday: boolean;
 }
 
-// Web Speech API
+// --------------------------------------------------
+// WEB SPEECH API
+// --------------------------------------------------
+
 declare global {
   interface Window {
     SpeechRecognition: any;

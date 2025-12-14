@@ -420,10 +420,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
               )}
             >
-              <Calendar size={18} className="text-slate-400" />
+              <Calendar
+  size={18}
+  className={cn(
+    "transition-colors",
+    currentView === "calendar" ? "text-blue-600" : "text-slate-400"
+  )}
+/>
               Calendar
             </button>
           </div>
+
+          {/* Goals */}
+<div className="px-2 mt-1">
+  <button
+    onClick={() => onNavigate("goals")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "goals"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+<span
+  className={cn(
+    "w-[18px] h-[18px] flex items-center justify-center font-bold transition-colors",
+    currentView === "goals" ? "text-red-500" : "text-slate-400"
+  )}
+>
+  ◎
+</span>
+    Goals
+  </button>
+</div>
 
           {/* Section Title */}
           <div className="mt-4 px-3 flex items-center justify-between">

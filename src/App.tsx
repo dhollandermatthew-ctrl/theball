@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 
 import { Board } from "./components/Board";
 import { Sidebar } from "./components/Sidebar";
+import { GoalView } from "./components/GoalView";
 import { OneOnOneView } from "./components/OneOnOneView";
 import { SearchModal } from "./components/SearchModal";
 
@@ -20,6 +21,11 @@ function App() {
     tasks,
     people,
     oneOnOnes,
+    goals,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    reorderGoals,
     settings,
     hydrated,
     set,
@@ -36,14 +42,23 @@ function App() {
     getNoteCount,
   } = useAppStore();
 
+  // ✅ SINGLE SOURCE OF TRUTH FOR GOAL ORDER
+  const sortedGoals = React.useMemo(() => {
+    return [...goals].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
+  }, [goals]);
+
   // -------------------------------------------
   // Local UI State
   // -------------------------------------------
-  const [currentView, setCurrentView] = useState("calendar");
+  const [currentView, setCurrentView] = useState<
+    "calendar" | "goals" | string
+  >("calendar");
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
-  // Sidebar state derived from settings
   const sidebarOpen = settings.sidebarOpen;
   const sidebarWidth = settings.sidebarWidth ?? 260;
   const zoomLevel = settings.zoom;
@@ -74,9 +89,7 @@ function App() {
       });
     };
 
-    const stop = () => {
-      if (isResizingSidebar) setIsResizingSidebar(false);
-    };
+    const stop = () => setIsResizingSidebar(false);
 
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", stop);
@@ -111,18 +124,12 @@ function App() {
     : [];
 
   const handleToggleOneOnOneItem = (id: string) => {
-    let current: OneOnOneItem | undefined;
-
     for (const list of Object.values(oneOnOnes)) {
       const found = list.find((i) => i.id === id);
       if (found) {
-        current = found;
+        updateOneOnOneItem(id, { isCompleted: !found.isCompleted });
         break;
       }
-    }
-
-    if (current) {
-      updateOneOnOneItem(id, { isCompleted: !current.isCompleted });
     }
   };
 
@@ -134,26 +141,19 @@ function App() {
       className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden"
       style={{ zoom: zoomLevel }}
     >
-      {/* SIDEBAR */}
       <Sidebar
         currentView={currentView}
         people={sortedPeople}
         onNavigate={setCurrentView}
-        onAddPerson={(name) => {
-          const newPerson: OneOnOnePerson = {
+        onAddPerson={(name) =>
+          addPerson({
             id: generateId(),
             name,
             avatarColor: getRandomColor(),
             sortOrder: people.length,
-          };
-          console.log("➕ APP → adding person:", newPerson);
-          addPerson(newPerson);
-        }}
-        onDeletePerson={(id) => {
-          console.log("🔥 APP.onDeletePerson called with id:", id);
-          deletePerson(id);
-          console.log("🔥 APP.onDeletePerson finished for id:", id);
-        }}
+          })
+        }
+        onDeletePerson={deletePerson}
         onEditPerson={editPerson}
         onReorderPeople={reorderPeople}
         getNoteCount={getNoteCount}
@@ -166,7 +166,6 @@ function App() {
         onZoomChange={setZoomLevel}
       />
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 h-full overflow-hidden bg-white relative border-l border-slate-200">
         {!sidebarOpen && (
           <button
@@ -179,6 +178,28 @@ function App() {
 
         {currentView === "calendar" ? (
           <Board />
+        ) : currentView === "goals" ? (
+          <GoalView
+            goals={sortedGoals}   
+            onAddGoal={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              addGoal({
+                id: generateId(),
+                title: "New Goal",
+                description: "",
+                color: getRandomColor(),
+                progress: 0,
+                startDate: today,
+                endDate: today,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                sort_order: goals.length,
+              });
+            }}
+            onUpdateGoal={updateGoal}
+            onDeleteGoal={deleteGoal}
+            onReorderGoals={reorderGoals}
+          />
         ) : activePerson ? (
           <OneOnOneView
             person={activePerson}
@@ -206,7 +227,6 @@ function App() {
         )}
       </main>
 
-      {/* SEARCH MODAL */}
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
