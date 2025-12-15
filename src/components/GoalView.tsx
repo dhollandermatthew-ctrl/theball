@@ -1,7 +1,8 @@
 // FILE: src/components/GoalView.tsx
 import React, { useState, useMemo } from "react";
 import type { Goal } from "@/domain/types";
-import { Plus } from "lucide-react";
+import { Plus, Archive, ChevronDown, ChevronRight } from "lucide-react";
+import { cn } from "@/domain/utils";
 
 import {
   DndContext,
@@ -74,7 +75,9 @@ export const GoalView: React.FC<GoalViewProps> = ({
   onDeleteGoal,
   onReorderGoals,
 }) => {
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+    const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+    const [showCompleted, setShowCompleted] = useState(false);
+    const [isRoadmapExpanded, setIsRoadmapExpanded] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -82,18 +85,29 @@ export const GoalView: React.FC<GoalViewProps> = ({
 
   const selectedGoal = goals.find((g) => g.id === selectedGoalId) ?? null;
 
+  /* ---------------------------- */
   /* Split goals */
+  /* ---------------------------- */
   const activeGoals = useMemo(
     () => goals.filter((g) => g.progress < 100),
     [goals]
   );
 
   const completedGoals = useMemo(
-    () => goals.filter((g) => g.progress === 100),
+    () =>
+      goals
+        .filter((g) => g.progress === 100)
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() -
+            new Date(a.updatedAt).getTime()
+        ),
     [goals]
   );
 
+  /* ---------------------------- */
   /* Drag reorder (active only) */
+  /* ---------------------------- */
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -112,20 +126,45 @@ export const GoalView: React.FC<GoalViewProps> = ({
       <div className="flex items-center justify-between px-6 py-4 border-b">
         <h1 className="text-xl font-semibold">Long-term Goals</h1>
         <button
-          onClick={onAddGoal}
-          className="flex items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded text-sm"
-        >
-          <Plus size={14} />
-          New Goal
-        </button>
+  onClick={onAddGoal}
+  className={cn(
+    "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium",
+    "border border-slate-200 bg-white text-slate-700",
+    "hover:bg-slate-50 hover:border-slate-300 transition-colors"
+  )}
+>
+  <Plus size={14} className="text-slate-500" />
+  New Goal
+</button>
       </div>
 
-      {/* Timeline */}
-      {activeGoals.length > 0 && (
-        <div className="border-b px-6 py-4">
-          <GoalTimeline goals={activeGoals} />
-        </div>
-      )}
+{/* Roadmap / Timeline */}
+{activeGoals.length > 0 && (
+  <div className="border-b bg-white">
+    {/* Header */}
+    <button
+      onClick={() => setIsRoadmapExpanded((v) => !v)}
+      className="w-full flex items-center gap-2 px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+    >
+      <span
+        className={cn(
+          "transition-transform",
+          isRoadmapExpanded ? "rotate-180" : ""
+        )}
+      >
+        <ChevronDown size={14} />
+      </span>
+      Timeline Visualization
+    </button>
+
+    {/* Body */}
+    {isRoadmapExpanded && (
+      <div className="px-6 py-4 animate-in slide-in-from-top-2">
+        <GoalTimeline goals={activeGoals} />
+      </div>
+    )}
+  </div>
+)}
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden">
@@ -163,6 +202,43 @@ export const GoalView: React.FC<GoalViewProps> = ({
               </div>
             </SortableContext>
           </DndContext>
+
+          {/* Completed Archive */}
+          {completedGoals.length > 0 && (
+            <div className="mt-10 max-w-3xl mx-auto">
+              <button
+                onClick={() => setShowCompleted(!showCompleted)}
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600"
+              >
+                <Archive size={14} />
+                Completed Archive ({completedGoals.length})
+                {showCompleted ? (
+                  <ChevronDown size={14} />
+                ) : (
+                  <ChevronRight size={14} />
+                )}
+              </button>
+
+              {showCompleted && (
+                <div className="mt-4 space-y-3 opacity-70">
+                  {completedGoals.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      isSelected={goal.id === selectedGoalId}
+                      onClick={() => setSelectedGoalId(goal.id)}
+                      onDelete={() => {
+                        if (selectedGoalId === goal.id) {
+                          setSelectedGoalId(null);
+                        }
+                        onDeleteGoal(goal.id);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Detail Panel */}

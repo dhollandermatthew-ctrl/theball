@@ -10,6 +10,7 @@ import {
   ZoomOut,
   GripVertical,
   Pencil,
+  Target,
 } from "lucide-react";
 
 import { OneOnOnePerson } from "@/domain/state";
@@ -442,14 +443,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
     )}
   >
-<span
+<Target
+  size={18}
   className={cn(
-    "w-[18px] h-[18px] flex items-center justify-center font-bold transition-colors",
-    currentView === "goals" ? "text-red-500" : "text-slate-400"
+    "transition-colors",
+    currentView === "goals"
+      ? "text-red-500"
+      : "text-slate-400"
   )}
->
-  ◎
-</span>
+/>
     Goals
   </button>
 </div>

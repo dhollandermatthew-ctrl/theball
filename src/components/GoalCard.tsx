@@ -5,7 +5,7 @@ import { cn } from "@/domain/utils";
 
 interface GoalCardProps {
   goal: Goal;
-  rank: number;
+  rank?: number; 
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;

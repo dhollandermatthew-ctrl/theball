@@ -324,7 +324,8 @@
           onMouseDown={(e) => e.stopPropagation()}
           className="
           w-full min-h-[20px] outline-none
-          text-[12px] leading-[1.25]
+          text-[11px] leading-[1.35] text-slate-700
+          font-sans
           empty:before:content-[attr(data-placeholder)]
           empty:before:text-slate-400
           p-0.5

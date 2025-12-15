@@ -483,10 +483,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       >
         {task.content ? (
           <RichTextRenderer
-          text={task.content}
-          isCompleted={isCompleted}
-          className="text-[12px] leading-[1.25]"
-        />
+  text={task.content}
+  isCompleted={isCompleted}
+  className="text-[12px] leading-[1.25] prose prose-sm max-w-none ml-[-24px]"
+/>
         ) : (
           <span className={cn("italic text-slate-400", styles.placeholder)}>
   Add details...
