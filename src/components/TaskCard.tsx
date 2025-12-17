@@ -315,22 +315,28 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       }
     };
   
-    /* TITLE BLUR */
-    const handleTitleBlur = () => {
-      const trimmed = titleValue.trim();
-      if (trimmed !== (task.title ?? "New Task")) {
-        onUpdateTitle(task.id, trimmed);
-      }
-      setEditMode("none");
-    };
+/* TITLE COMMIT (do not rely on blur timing) */
+const commitTitle = () => {
+  const trimmed = titleValue.trim() || "New Task";
+  if (trimmed !== (task.title ?? "New Task")) {
+    onUpdateTitle(task.id, trimmed);
+  }
+};
+
+/* TITLE BLUR */
+const handleTitleBlur = () => {
+  commitTitle();
+  setEditMode("none");
+};
   
-    /* BODY BLUR */
-    const handleContentBlur = () => {
-      if (editValue !== task.content) {
-        onUpdateContent(task.id, editValue);
-      }
-      setEditMode("none");
-    };
+/* BODY BLUR */
+const handleContentBlur = () => {
+  commitTitle(); // 🔑 catch cases where title blur didn't fire
+  if (editValue !== task.content) {
+    onUpdateContent(task.id, editValue);
+  }
+  setEditMode("none");
+};
   
     /* DRAG PLACEHOLDER WHILE DRAGGING */
     if (isDragging) {
@@ -436,6 +442,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               onKeyDown={(e) => {
                 if (e.key === "Tab") {
                   e.preventDefault();
+                  commitTitle();     // 🔑 force-save before switching modes
                   setEditMode("body");
                 }
               }}

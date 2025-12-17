@@ -127,6 +127,7 @@ export const GoalDetailPanel: React.FC<GoalDetailPanelProps> = ({
             </label>
             <div className="bg-white border rounded p-3 min-h-[250px]">
             <WysiwygEditor
+              key={goal.id} // 🔑 CRITICAL
   initialContent={goal.description}
   onChange={(html) => onUpdate({ description: html })}
   onBlur={() => {}}

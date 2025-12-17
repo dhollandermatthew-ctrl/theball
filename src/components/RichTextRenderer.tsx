@@ -16,127 +16,81 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
 }) => {
   if (!text) return null;
 
-  // Convert legacy markdown → HTML (no-op if already HTML)
   const htmlContent = markdownToHtml(text);
 
   return (
-    <div
-      className={cn(
-        "break-words",
-        isCompleted && "opacity-60",
-        className
-      )}
-    >
+    <div className={cn("break-words", isCompleted && "opacity-60", className)}>
       <div
-        dangerouslySetInnerHTML={{ __html: htmlContent }}
         className={cn(
-          "rich-text",
-          isCompleted && "rich-text--completed"
+          // ✅ escapes Tailwind typography (.prose) rules if parent uses it
+          "rich-text-content not-prose",
+          isCompleted && "line-through-elements"
         )}
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
       />
 
       <style>{`
-/* ----------------------------------------
-   BASE
----------------------------------------- */
-.rich-text {
-  font-size: 13px;
-  line-height: 1.45;
-  color: #0f172a; /* slate-900 */
-}
+        .rich-text-content {
+          font-size: 12px;
+          line-height: 1.25;
+          color: #0f172a; /* slate-900 */
+        }
 
-/* Reset weird pasted margins */
-.rich-text > * {
-  margin-top: 0;
-  margin-bottom: 6px;
-}
+        /* Normalize pasted junk without nuking list behavior */
+        .rich-text-content * {
+          font-family: inherit;
+          font-size: inherit;
+          line-height: inherit;
+          color: inherit;
+        }
 
-/* ----------------------------------------
-   PARAGRAPHS
----------------------------------------- */
-.rich-text p {
-  margin: 0 0 6px 0;
-}
+        .rich-text-content p {
+          margin: 0.25em 0;
+        }
 
-/* ----------------------------------------
-   HEADINGS (INTENTIONALLY SUBTLE)
----------------------------------------- */
-.rich-text h1 {
-  font-size: 14px;
-  font-weight: 700;
-  margin: 8px 0 4px;
-}
+        /* ✅ Force lists + markers to exist */
+        .rich-text-content ul {
+          list-style-type: disc !important;
+        }
+        .rich-text-content ol {
+          list-style-type: decimal !important;
+        }
+        .rich-text-content ul,
+        .rich-text-content ol {
+          list-style-position: outside;
+          padding-left: 1.25em;
+          margin: 0.25em 0;
+        }
 
-.rich-text h2 {
-  font-size: 13px;
-  font-weight: 700;
-  margin: 8px 0 4px;
-}
+        .rich-text-content li {
+          display: list-item !important;
+          margin: 0.15em 0;
+        }
 
-.rich-text h3 {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 6px 0 4px;
-}
+        /* ✅ Force marker rendering even if upstream styles mess with it */
+        .rich-text-content li::marker {
+          color: currentColor !important;
+          font-size: 12px !important;
+        }
 
-/* ----------------------------------------
-   LISTS
----------------------------------------- */
-.rich-text ul,
-.rich-text ol {
-  padding-left: 1.1em;
-  margin: 4px 0;
-}
+        .rich-text-content h1,
+        .rich-text-content h2,
+        .rich-text-content h3 {
+          font-size: 12px;
+          font-weight: 600;
+          margin: 0.35em 0 0.2em;
+        }
 
-.rich-text li {
-  margin: 2px 0;
-}
+        .rich-text-content a {
+          color: #2563eb;
+          text-decoration: underline;
+          word-break: break-word;
+        }
 
-/* ----------------------------------------
-   LINKS
----------------------------------------- */
-.rich-text a {
-  color: #2563eb; /* blue-600 */
-  text-decoration: underline;
-  word-break: break-all;
-}
-
-.rich-text a:hover {
-  color: #1d4ed8;
-}
-
-/* ----------------------------------------
-   CODE (INLINE)
----------------------------------------- */
-.rich-text code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  background: #f1f5f9;
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-/* ----------------------------------------
-   BLOCKQUOTES
----------------------------------------- */
-.rich-text blockquote {
-  border-left: 2px solid #e2e8f0;
-  padding-left: 8px;
-  color: #475569;
-  margin: 6px 0;
-}
-
-/* ----------------------------------------
-   COMPLETED STATE
----------------------------------------- */
-.rich-text--completed {
-  color: #64748b; /* slate-500 */
-}
-
-.rich-text--completed * {
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
-}
+        .line-through-elements * {
+          text-decoration: line-through;
+          color: #94a3b8;
+        }
       `}</style>
     </div>
   );

@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Check, Square, Trash2, Calendar, GripVertical, Plus } from "lucide-react";
+import {
+  Check,
+  Square,
+  Trash2,
+  Calendar,
+  GripVertical,
+  Plus,
+} from "lucide-react";
 
 import {
   DndContext,
@@ -22,6 +29,13 @@ import { cn, DEFAULT_TASK_BODY } from "@/domain/utils";
 import { RichTextRenderer } from "./RichTextRenderer";
 import { WysiwygEditor } from "./WysiwygEditor";
 
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+
+/* ------------------------------------------------------------------ */
+/* TYPES */
+/* ------------------------------------------------------------------ */
+
 interface OneOnOneViewProps {
   person: OneOnOnePerson;
   items: OneOnOneItem[];
@@ -31,6 +45,10 @@ interface OneOnOneViewProps {
   onDeleteItem: (id: string) => void;
   onEditPerson: (id: string, updates: Partial<OneOnOnePerson>) => void;
 }
+
+/* ------------------------------------------------------------------ */
+/* VIEW */
+/* ------------------------------------------------------------------ */
 
 export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
   person,
@@ -49,18 +67,26 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
 
   const [orderedItems, setOrderedItems] = useState<OneOnOneItem[]>(items);
 
+  /**
+   * 🔑 CRITICAL FIX:
+   * Only reset order when the PERSON changes,
+   * not on every items update (which breaks drag).
+   */
   useEffect(() => {
     setOrderedItems(items);
-  }, [items, person.id]);
+  }, [person.id]);
 
   const activeItems = orderedItems.filter((i) => !i.isCompleted);
   const completedItems = orderedItems.filter((i) => i.isCompleted);
 
   const handleSubmitNewItem = () => {
-    if (newItemContent.trim() && newItemContent !== DEFAULT_TASK_BODY) {
+    if (
+      newItemContent.trim() &&
+      newItemContent !== DEFAULT_TASK_BODY
+    ) {
       onAddItem(person.id, newItemContent);
       setNewItemContent(DEFAULT_TASK_BODY);
-      setEditorKey((prev) => prev + 1);
+      setEditorKey((k) => k + 1);
     }
   };
 
@@ -78,7 +104,6 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
-
       {/* ---------------- HEADER ---------------- */}
       <div className="px-4 md:px-12 py-8 pb-4 max-w-4xl mx-auto w-full pt-16 md:pt-8">
         <div className="flex items-center gap-4 mb-6 group">
@@ -91,7 +116,6 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
             {person.name.charAt(0).toUpperCase()}
           </div>
 
-          {/* Editable Name */}
           <div>
             {isEditingName ? (
               <input
@@ -145,7 +169,6 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
       {/* ---------------- CONTENT ---------------- */}
       <div className="flex-1 overflow-y-auto px-4 md:px-12 pb-12">
         <div className="max-w-4xl mx-auto w-full space-y-8">
-
           {/* ACTIVE ITEMS */}
           <section>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -155,8 +178,14 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
               </span>
             </h2>
 
-            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={activeItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={activeItems.map((i) => i.id)}
+                strategy={verticalListSortingStrategy}
+              >
                 <div className="space-y-1">
                   {activeItems.map((item) => (
                     <SortableEditableItem
@@ -171,7 +200,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
                   {/* Add new item */}
                   <div className="flex items-start gap-3 py-2 px-2 text-slate-400 group focus-within:text-slate-800 transition-colors relative">
                     <Plus size={18} className="mt-1" />
-                    <div className="flex-1 relative">
+                    <div className="flex-1">
                       <WysiwygEditor
                         key={editorKey}
                         initialContent={newItemContent}
@@ -193,6 +222,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
                 <span>Discussed / Done</span>
                 <div className="h-px bg-slate-200 flex-1" />
               </h2>
+
               <div className="space-y-1 opacity-60 hover:opacity-100 transition-opacity">
                 {completedItems.map((item) => (
                   <EditableItem
@@ -212,7 +242,9 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
   );
 };
 
-/* -------------------- SORTABLE WRAPPER -------------------- */
+/* ------------------------------------------------------------------ */
+/* SORTABLE WRAPPER */
+/* ------------------------------------------------------------------ */
 
 const SortableEditableItem: React.FC<EditableItemProps> = (props) => {
   const { item } = props;
@@ -220,23 +252,34 @@ const SortableEditableItem: React.FC<EditableItemProps> = (props) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: item.id });
 
-  const style = { transform: CSS.Transform.toString(transform), transition };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <div ref={setNodeRef} style={style}>
-      <EditableItem {...props} dragHandleProps={{ attributes, listeners }} />
+      <EditableItem
+        {...props}
+        dragHandleProps={{ attributes, listeners }}
+      />
     </div>
   );
 };
 
-/* -------------------- SINGLE ITEM COMPONENT -------------------- */
+/* ------------------------------------------------------------------ */
+/* SINGLE ITEM */
+/* ------------------------------------------------------------------ */
 
 interface EditableItemProps {
   item: OneOnOneItem;
   onUpdate: (id: string, c: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
-  dragHandleProps?: any;
+  dragHandleProps?: {
+    attributes: DraggableAttributes;
+    listeners: SyntheticListenerMap | undefined;
+  };
 }
 
 const EditableItem: React.FC<EditableItemProps> = ({
@@ -258,24 +301,30 @@ const EditableItem: React.FC<EditableItemProps> = ({
 
   return (
     <div className="group flex items-start gap-3 py-1 px-2 rounded hover:bg-slate-50 relative -ml-2">
-
       {/* Drag Handle */}
       <div
-        {...dragHandleProps}
-        className="absolute left-[-16px] top-1.5 p-1 text-slate-300 opacity-0 group-hover:opacity-100 cursor-grab hover:text-slate-500 hidden md:block"
+        {...dragHandleProps?.attributes}
+        {...dragHandleProps?.listeners}
+        className="absolute left-[-16px] top-1.5 p-1 text-slate-300 opacity-0 group-hover:opacity-100 cursor-grab hover:text-slate-500"
       >
         <GripVertical size={14} />
       </div>
 
-      {/* Check / Toggle */}
+      {/* Toggle */}
       <button
         onClick={() => onToggle(item.id)}
         className={cn(
           "mt-1 shrink-0 transition-colors",
-          item.isCompleted ? "text-blue-500" : "text-slate-300 hover:text-blue-400"
+          item.isCompleted
+            ? "text-blue-500"
+            : "text-slate-300 hover:text-blue-400"
         )}
       >
-        {item.isCompleted ? <Check size={18} strokeWidth={3} /> : <Square size={18} />}
+        {item.isCompleted ? (
+          <Check size={18} strokeWidth={3} />
+        ) : (
+          <Square size={18} />
+        )}
       </button>
 
       {/* Content */}
@@ -288,15 +337,23 @@ const EditableItem: React.FC<EditableItemProps> = ({
             autoFocus
           />
         ) : (
-          <div onClick={() => setIsEditing(true)} className="cursor-text py-[1px]">
-            <RichTextRenderer text={item.content} isCompleted={item.isCompleted} />
+          <div
+            onClick={() => setIsEditing(true)}
+            className="cursor-text py-[1px]"
+          >
+            <RichTextRenderer
+              text={item.content}
+              isCompleted={item.isCompleted}
+            />
           </div>
         )}
       </div>
 
       {/* Date */}
       <div className="text-[10px] text-slate-300 font-medium pt-1.5 select-none whitespace-nowrap hidden sm:block">
-        {item.createdAt ? format(new Date(item.createdAt), "MMM d, h:mm a") : ""}
+        {item.createdAt
+          ? format(new Date(item.createdAt), "MMM d, h:mm a")
+          : ""}
       </div>
 
       {/* Delete */}
