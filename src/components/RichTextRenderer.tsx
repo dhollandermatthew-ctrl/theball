@@ -22,8 +22,7 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
     <div className={cn("break-words", isCompleted && "opacity-60", className)}>
       <div
         className={cn(
-          // ✅ escapes Tailwind typography (.prose) rules if parent uses it
-          "rich-text-content not-prose",
+          "rich-text-content",
           isCompleted && "line-through-elements"
         )}
         dangerouslySetInnerHTML={{ __html: htmlContent }}
@@ -33,10 +32,10 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
         .rich-text-content {
           font-size: 12px;
           line-height: 1.25;
-          color: #0f172a; /* slate-900 */
+          color: #0f172a;
         }
 
-        /* Normalize pasted junk without nuking list behavior */
+        /* Normalize pasted text safely */
         .rich-text-content * {
           font-family: inherit;
           font-size: inherit;
@@ -48,31 +47,26 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
           margin: 0.25em 0;
         }
 
-        /* ✅ Force lists + markers to exist */
+        /* ✅ Lists (SAFE) */
         .rich-text-content ul {
-          list-style-type: disc !important;
+          list-style-type: disc;
         }
+
         .rich-text-content ol {
-          list-style-type: decimal !important;
+          list-style-type: decimal;
         }
+
         .rich-text-content ul,
         .rich-text-content ol {
-          list-style-position: outside;
           padding-left: 1.25em;
           margin: 0.25em 0;
         }
 
         .rich-text-content li {
-          display: list-item !important;
           margin: 0.15em 0;
         }
 
-        /* ✅ Force marker rendering even if upstream styles mess with it */
-        .rich-text-content li::marker {
-          color: currentColor !important;
-          font-size: 12px !important;
-        }
-
+        /* Headings collapse to body size */
         .rich-text-content h1,
         .rich-text-content h2,
         .rich-text-content h3 {
@@ -84,7 +78,6 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
         .rich-text-content a {
           color: #2563eb;
           text-decoration: underline;
-          word-break: break-word;
         }
 
         .line-through-elements * {

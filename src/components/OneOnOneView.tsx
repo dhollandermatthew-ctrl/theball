@@ -62,19 +62,16 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
   const [newItemContent, setNewItemContent] = useState(DEFAULT_TASK_BODY);
   const [editorKey, setEditorKey] = useState(0);
 
+  const [showCompleted, setShowCompleted] = useState(false); // ✅ ADD THIS
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(person.name);
 
   const [orderedItems, setOrderedItems] = useState<OneOnOneItem[]>(items);
 
-  /**
-   * 🔑 CRITICAL FIX:
-   * Only reset order when the PERSON changes,
-   * not on every items update (which breaks drag).
-   */
   useEffect(() => {
     setOrderedItems(items);
-  }, [person.id]);
+  }, [person.id, items.length]);
 
   const activeItems = orderedItems.filter((i) => !i.isCompleted);
   const completedItems = orderedItems.filter((i) => i.isCompleted);
@@ -215,27 +212,36 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
             </DndContext>
           </section>
 
-          {/* COMPLETED ITEMS */}
           {completedItems.length > 0 && (
-            <section className="pt-8">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span>Discussed / Done</span>
-                <div className="h-px bg-slate-200 flex-1" />
-              </h2>
+  <section className="pt-8">
+    <button
+      onClick={() => setShowCompleted((v) => !v)}
+      className="w-full flex items-center gap-2 text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-600 transition"
+    >
+      <span>
+        {showCompleted ? "Hide Discussed / Done" : "Show Discussed / Done"}
+      </span>
+      <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">
+        {completedItems.length}
+      </span>
+      <div className="h-px bg-slate-200 flex-1" />
+    </button>
 
-              <div className="space-y-1 opacity-60 hover:opacity-100 transition-opacity">
-                {completedItems.map((item) => (
-                  <EditableItem
-                    key={item.id}
-                    item={item}
-                    onUpdate={onUpdateItem}
-                    onToggle={onToggleItem}
-                    onDelete={onDeleteItem}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+    {showCompleted && (
+      <div className="space-y-1 opacity-60 hover:opacity-100 transition-opacity">
+        {completedItems.map((item) => (
+          <EditableItem
+            key={item.id}
+            item={item}
+            onUpdate={onUpdateItem}
+            onToggle={onToggleItem}
+            onDelete={onDeleteItem}
+          />
+        ))}
+      </div>
+    )}
+  </section>
+)}
         </div>
       </div>
     </div>
