@@ -299,8 +299,9 @@
     const [viewMode, setViewMode] = useState<ViewMode>("week");
     const [category, setCategory] = useState<TaskCategory>("work");
     const [showInbox, setShowInbox] = useState(false);
+
     type Density = "comfortable" | "dense";
-const [density, setDensity] = useState<Density>("comfortable");
+    const [density, setDensity] = useState<Density>("comfortable");
 
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [sidePushDirection, setSidePushDirection] = useState<

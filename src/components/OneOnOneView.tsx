@@ -71,7 +71,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
 
   useEffect(() => {
     setOrderedItems(items);
-  }, [person.id, items.length]);
+  }, [items]);
 
   const activeItems = orderedItems.filter((i) => !i.isCompleted);
   const completedItems = orderedItems.filter((i) => i.isCompleted);
@@ -297,9 +297,16 @@ const EditableItem: React.FC<EditableItemProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(item.content);
+  const ignoreBlurRef = React.useRef(false);
 
   const handleBlur = () => {
+    if (ignoreBlurRef.current) {
+      ignoreBlurRef.current = false;
+      return;
+    }
+
     setIsEditing(false);
+
     if (value.trim() !== item.content) {
       onUpdate(item.id, value);
     }
@@ -318,6 +325,7 @@ const EditableItem: React.FC<EditableItemProps> = ({
 
       {/* Toggle */}
       <button
+        onMouseDown={() => (ignoreBlurRef.current = true)}
         onClick={() => onToggle(item.id)}
         className={cn(
           "mt-1 shrink-0 transition-colors",
@@ -364,6 +372,7 @@ const EditableItem: React.FC<EditableItemProps> = ({
 
       {/* Delete */}
       <button
+        onMouseDown={() => (ignoreBlurRef.current = true)}
         onClick={() => onDelete(item.id)}
         className="opacity-100 md:opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
       >

@@ -95,7 +95,7 @@ export const GoalTimeline: React.FC<GoalTimelineProps> = ({ goals }) => {
                   />
                 </div>
               </div>
-            );
+            );  
           })}
         </div>
       </div>
