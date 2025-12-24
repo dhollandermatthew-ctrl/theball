@@ -52,6 +52,27 @@
     DEFAULT_TASK_BODY,
   } from "@/domain/utils";
 
+  // Category accent colors
+const CATEGORY_STYLES: Record<
+TaskCategory,
+{
+  accent: string;
+  softBg: string;
+  border: string;
+}
+> = {
+work: {
+  accent: "text-blue-600",
+  softBg: "bg-blue-50/40",
+  border: "border-blue-200",
+},
+personal: {
+  accent: "text-violet-600",
+  softBg: "bg-violet-50/40",
+  border: "border-violet-200",
+},
+};
+
   /* --------------------------------------------------------
   * Drag overlay animation
   * ------------------------------------------------------ */
@@ -650,6 +671,7 @@ if (overId === "side-zone-left" || overId === "side-zone-right") {
                         key={key}
                         date={day}
                         tasks={dayTasks}
+                        category={category} // ✅ ADD THIS
                         newTaskId={newTaskId}
                         onAddTask={addNewTask}
                         onUpdateTaskStatus={updateStatus}

@@ -61,8 +61,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
 }) => {
   const [newItemContent, setNewItemContent] = useState(DEFAULT_TASK_BODY);
   const [editorKey, setEditorKey] = useState(0);
-
-  const [showCompleted, setShowCompleted] = useState(false); // ✅ ADD THIS
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(person.name);
@@ -195,7 +194,7 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
                   ))}
 
                   {/* Add new item */}
-                  <div className="flex items-start gap-3 py-2 px-2 text-slate-400 group focus-within:text-slate-800 transition-colors relative">
+                  <div className="flex items-start gap-3 py-2 px-2 text-slate-400 group focus-within:text-slate-800 transition-colors">
                     <Plus size={18} className="mt-1" />
                     <div className="flex-1">
                       <WysiwygEditor
@@ -213,35 +212,35 @@ export const OneOnOneView: React.FC<OneOnOneViewProps> = ({
           </section>
 
           {completedItems.length > 0 && (
-  <section className="pt-8">
-    <button
-      onClick={() => setShowCompleted((v) => !v)}
-      className="w-full flex items-center gap-2 text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-600 transition"
-    >
-      <span>
-        {showCompleted ? "Hide Discussed / Done" : "Show Discussed / Done"}
-      </span>
-      <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">
-        {completedItems.length}
-      </span>
-      <div className="h-px bg-slate-200 flex-1" />
-    </button>
+            <section className="pt-8">
+              <button
+                onClick={() => setShowCompleted((v) => !v)}
+                className="w-full flex items-center gap-2 text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-600 transition"
+              >
+                <span>
+                  {showCompleted ? "Hide Discussed / Done" : "Show Discussed / Done"}
+                </span>
+                <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">
+                  {completedItems.length}
+                </span>
+                <div className="h-px bg-slate-200 flex-1" />
+              </button>
 
-    {showCompleted && (
-      <div className="space-y-1 opacity-60 hover:opacity-100 transition-opacity">
-        {completedItems.map((item) => (
-          <EditableItem
-            key={item.id}
-            item={item}
-            onUpdate={onUpdateItem}
-            onToggle={onToggleItem}
-            onDelete={onDeleteItem}
-          />
-        ))}
-      </div>
-    )}
-  </section>
-)}
+              {showCompleted && (
+                <div className="space-y-1 opacity-60 hover:opacity-100 transition-opacity">
+                  {completedItems.map((item) => (
+                    <EditableItem
+                      key={item.id}
+                      item={item}
+                      onUpdate={onUpdateItem}
+                      onToggle={onToggleItem}
+                      onDelete={onDeleteItem}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -313,27 +312,42 @@ const EditableItem: React.FC<EditableItemProps> = ({
   };
 
   return (
-    <div className="group flex items-start gap-3 py-1 px-2 rounded hover:bg-slate-50 relative -ml-2">
-      {/* Drag Handle */}
-      <div
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
-        className="absolute left-[-16px] top-1.5 p-1 text-slate-300 opacity-0 group-hover:opacity-100 cursor-grab hover:text-slate-500"
-      >
-        <GripVertical size={14} />
-      </div>
+    <div className="group flex items-stretch gap-2 py-1 px-2 rounded hover:bg-slate-50">
+<div
+  {...dragHandleProps?.attributes}
+  {...dragHandleProps?.listeners}
+  className={cn(
+    "flex items-center justify-center w-8 shrink-0 cursor-grab",
+    "opacity-0 group-hover:opacity-100",
+    "transition-all duration-150",
+    "hover:bg-slate-100 rounded-md"
+  )}
+>
+  <div className="grid grid-cols-2 gap-x-[3px] gap-y-[3px] py-1">
+    {Array.from({ length: 10 }).map((_, i) => (
+      <span
+        key={i}
+        className={cn(
+          "w-[3px] h-[3px] rounded-full",
+          "bg-slate-300",
+          "group-hover:bg-slate-400 transition-colors"
+        )}
+      />
+    ))}
+  </div>
+</div>
 
       {/* Toggle */}
       <button
-        onMouseDown={() => (ignoreBlurRef.current = true)}
-        onClick={() => onToggle(item.id)}
-        className={cn(
-          "mt-1 shrink-0 transition-colors",
-          item.isCompleted
-            ? "text-blue-500"
-            : "text-slate-300 hover:text-blue-400"
-        )}
-      >
+  onMouseDown={() => (ignoreBlurRef.current = true)}
+  onClick={() => onToggle(item.id)}
+  className={cn(
+    "shrink-0 transition-colors self-start pt-[2px]",
+    item.isCompleted
+      ? "text-blue-500"
+      : "text-slate-300 hover:text-blue-400"
+  )}
+>
         {item.isCompleted ? (
           <Check size={18} strokeWidth={3} />
         ) : (
@@ -372,12 +386,12 @@ const EditableItem: React.FC<EditableItemProps> = ({
 
       {/* Delete */}
       <button
-        onMouseDown={() => (ignoreBlurRef.current = true)}
-        onClick={() => onDelete(item.id)}
-        className="opacity-100 md:opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
-      >
-        <Trash2 size={16} />
-      </button>
+  onMouseDown={() => (ignoreBlurRef.current = true)}
+  onClick={() => onDelete(item.id)}
+  className="self-start mt-[2px] opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition"
+>
+  <Trash2 size={16} />
+</button>
     </div>
   );
 };

@@ -114,27 +114,42 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-6">
         {/* Category Toggle */}
         <div className="flex bg-slate-100 p-1 rounded-lg">
-            <button
-                onClick={() => onCategoryChange('work')}
-                className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all uppercase tracking-wide",
-                    category === 'work' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-            >
-                <Briefcase size={14} />
-                Work
-            </button>
-            <button
-                onClick={() => onCategoryChange('personal')}
-                className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all uppercase tracking-wide",
-                    category === 'personal' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-            >
-                <User size={14} />
-                Personal
-            </button>
-        </div>
+  <button
+    onClick={() => onCategoryChange('work')}
+    className={cn(
+      "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all tracking-wide",
+      category === 'work'
+        ? "bg-white text-slate-900 shadow-sm"
+        : "text-slate-500 hover:text-slate-700"
+    )}
+  >
+    <Briefcase
+      size={14}
+      className={cn(
+        category === 'work' ? "text-blue-600" : "text-slate-400"
+      )}
+    />
+    <span>Work</span>
+  </button>
+
+  <button
+    onClick={() => onCategoryChange('personal')}
+    className={cn(
+      "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all uppercase tracking-wide",
+      category === 'personal'
+        ? "bg-white text-slate-900 shadow-sm"
+        : "text-slate-500 hover:text-slate-700"
+    )}
+  >
+    <User
+      size={14}
+      className={cn(
+        category === 'personal' ? "text-indigo-500" : "text-slate-400"
+      )}
+    />
+    <span>Personal</span>
+  </button>
+</div>
 
         {/* Center: Completed Counter */}
         <div className="hidden lg:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
