@@ -48,6 +48,19 @@ interface ColumnProps {
   onDeleteTask: (id: string) => void;
 }
 
+/* -----------------------------------------------
+ * Section Divider
+ * --------------------------------------------- */
+const SectionDivider = ({ label }: { label: string }) => (
+  <div className="flex items-center gap-2 py-2 px-1 opacity-60">
+    <div className="h-px bg-slate-200 flex-1" />
+    <span className="text-[10px] uppercase font-bold text-slate-300">
+      {label}
+    </span>
+    <div className="h-px bg-slate-200 flex-1" />
+  </div>
+);
+
 export const Column: React.FC<ColumnProps> = ({
   date,
   tasks,
@@ -70,10 +83,17 @@ export const Column: React.FC<ColumnProps> = ({
   });
 
   /* -----------------------------------------------
+   * Explicit task grouping (NO adjacency logic)
+   * --------------------------------------------- */
+  const activeTasks = tasks.filter((t) => t.status === 'todo');
+  const doneTasks = tasks.filter((t) => t.status === 'done');
+  const missedTasks = tasks.filter((t) => t.status === 'missed');
+
+  /* -----------------------------------------------
    * Header metrics (missed excluded)
    * --------------------------------------------- */
-  const completed = tasks.filter((t) => t.status === 'done').length;
-  const active = tasks.filter((t) => t.status === 'todo').length;
+  const completed = doneTasks.length;
+  const active = activeTasks.length;
   const total = completed + active;
 
   return (
@@ -145,37 +165,58 @@ export const Column: React.FC<ColumnProps> = ({
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          {tasks.map((task, index) => {
-            const isCompleted = task.status === 'done';
-            const prev = tasks[index - 1];
-            const showSeparator =
-              isCompleted && (!prev || prev.status !== 'done');
+          {/* ACTIVE (TODO) */}
+          {activeTasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              density="dense"
+              isNewTask={task.id === newTaskId}
+              onUpdateStatus={onUpdateTaskStatus}
+              onUpdatePriority={onUpdateTaskPriority}
+              onUpdateContent={onUpdateTaskContent}
+              onUpdateTitle={onUpdateTaskTitle}
+              onDelete={onDeleteTask}
+            />
+          ))}
 
-            return (
-              <React.Fragment key={task.id}>
-                {showSeparator && (
-                  <div className="flex items-center gap-2 py-2 px-1 opacity-60">
-                    <div className="h-px bg-slate-200 flex-1" />
-                    <span className="text-[10px] uppercase font-bold text-slate-300">
-                      Done
-                    </span>
-                    <div className="h-px bg-slate-200 flex-1" />
-                  </div>
-                )}
-
+          {/* DONE */}
+          {doneTasks.length > 0 && (
+            <>
+              <SectionDivider label="Done" />
+              {doneTasks.map((task) => (
                 <TaskCard
+                  key={task.id}
                   task={task}
                   density="dense"
-                  isNewTask={task.id === newTaskId}
                   onUpdateStatus={onUpdateTaskStatus}
                   onUpdatePriority={onUpdateTaskPriority}
                   onUpdateContent={onUpdateTaskContent}
                   onUpdateTitle={onUpdateTaskTitle}
                   onDelete={onDeleteTask}
                 />
-              </React.Fragment>
-            );
-          })}
+              ))}
+            </>
+          )}
+
+          {/* NOT GOING TO DO */}
+          {missedTasks.length > 0 && (
+            <>
+              <SectionDivider label="Won't Do" />
+              {missedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  density="dense"
+                  onUpdateStatus={onUpdateTaskStatus}
+                  onUpdatePriority={onUpdateTaskPriority}
+                  onUpdateContent={onUpdateTaskContent}
+                  onUpdateTitle={onUpdateTaskTitle}
+                  onDelete={onDeleteTask}
+                />
+              ))}
+            </>
+          )}
         </SortableContext>
 
         {/* Add Task */}

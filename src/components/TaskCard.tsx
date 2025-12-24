@@ -389,10 +389,10 @@ const handleContentBlur = () => {
           styles.cardGap,
           task.status === "done"
             ? "bg-slate-50/60 border-slate-200"
-            : task.priority === "p1"
-            ? "bg-red-50/70 border-red-100"
-            : task.priority === "p2"
-            ? "bg-amber-50/70 border-amber-100"
+: task.priority === "p1"
+? "bg-red-50 border-red-200 ring-1 ring-red-100"
+: task.priority === "p2"
+? "bg-amber-50 border-amber-200 ring-1 ring-amber-100"
             : "bg-white border-slate-200"
         )}
       >
