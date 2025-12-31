@@ -220,6 +220,18 @@ export const Board: React.FC = () => {
     [weekDays]
   );
 
+  const weeklyTasks = tasks.filter(
+    (t) =>
+      t.category === category &&
+      weekKeys.includes(t.date)
+  );
+  
+  const completedCount = weeklyTasks.filter(
+    (t) => t.status === "done"
+  ).length;
+  
+  const totalCount = weeklyTasks.length;
+
   /* ---------------- Sorting ---------------- */
 
   const sortTasks = (items: Task[]) => {
@@ -276,7 +288,10 @@ export const Board: React.FC = () => {
         currentDate={currentDate}
         viewMode={viewMode}
         category={category}
-        weeklyStats={{ done: 0, total: 0 }}
+        weeklyStats={{
+          done: completedCount,
+          total: totalCount,
+        }}
         isInboxOpen={showInbox}
         inboxCount={0}
         onPrev={() => setCurrentDate((d) => addWeeks(d, -1))}
