@@ -77,32 +77,27 @@ export const Column: React.FC<ColumnProps> = ({
   const isCurrentDay = isToday(date);
   const categoryStyles = CATEGORY_STYLES[category];
 
+  /* -----------------------------------------------
+   * DROPPABLE: attach to TASK AREA (not header)
+   * --------------------------------------------- */
   const { setNodeRef, isOver } = useDroppable({
     id: dateStr,
     data: { type: 'Column', dateStr },
   });
 
-  /* -----------------------------------------------
-   * Explicit task grouping (NO adjacency logic)
-   * --------------------------------------------- */
   const activeTasks = tasks.filter((t) => t.status === 'todo');
   const doneTasks = tasks.filter((t) => t.status === 'done');
   const missedTasks = tasks.filter((t) => t.status === 'missed');
 
-  /* -----------------------------------------------
-   * Header metrics (missed excluded)
-   * --------------------------------------------- */
   const completed = doneTasks.length;
   const active = activeTasks.length;
   const total = completed + active;
 
   return (
     <div
-      ref={setNodeRef}
       className={cn(
-        'flex flex-col h-full min-w-[320px] max-w-[380px] w-full border-r last:border-r-0 transition-all duration-200 shrink-0 bg-white',
-        isCurrentDay && categoryStyles.softBg,
-        isOver && cn(categoryStyles.softBg, 'ring-2 ring-inset', categoryStyles.border)
+        'flex flex-col h-full min-w-[320px] max-w-[380px] w-full border-r last:border-r-0 shrink-0 bg-white transition-colors',
+        isCurrentDay && categoryStyles.softBg
       )}
     >
       {/* -------------------------------- Header -------------------------------- */}
@@ -110,8 +105,7 @@ export const Column: React.FC<ColumnProps> = ({
         className={cn(
           'p-3 flex flex-col gap-1 border-b sticky top-0 z-10 backdrop-blur-sm bg-white/80',
           categoryStyles.border,
-          isCurrentDay && categoryStyles.softBg,
-          isOver && categoryStyles.softBg
+          isCurrentDay && categoryStyles.softBg
         )}
       >
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -119,7 +113,6 @@ export const Column: React.FC<ColumnProps> = ({
         </span>
 
         <div className="flex items-center justify-between">
-          {/* Date bubble */}
           <div className="flex items-center gap-2">
             <span
               className={cn(
@@ -139,18 +132,15 @@ export const Column: React.FC<ColumnProps> = ({
             )}
           </div>
 
-          {/* Counters */}
           <div className="flex items-center gap-3 text-xs font-medium text-slate-600">
             <span className="flex items-center gap-1">
               <span className="text-green-600">✓</span>
               {completed}
             </span>
-
             <span className="flex items-center gap-1">
               <span className="text-slate-400">•</span>
               {active}
             </span>
-
             <span className="flex items-center gap-1">
               <span className="text-slate-400">|</span>
               {total}
@@ -159,13 +149,22 @@ export const Column: React.FC<ColumnProps> = ({
         </div>
       </div>
 
-      {/* -------------------------------- Tasks -------------------------------- */}
-      <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2">
+      {/* -------------------------------- Tasks (DROPPABLE AREA) -------------------------------- */}
+      <div
+        ref={setNodeRef}
+        className={cn(
+          'flex-1 p-3 overflow-y-auto flex flex-col gap-2 transition-colors',
+          isOver && cn(
+            categoryStyles.softBg,
+            'ring-2 ring-inset',
+            categoryStyles.border
+          )
+        )}
+      >
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          {/* ACTIVE (TODO) */}
           {activeTasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -180,7 +179,6 @@ export const Column: React.FC<ColumnProps> = ({
             />
           ))}
 
-          {/* DONE */}
           {doneTasks.length > 0 && (
             <>
               <SectionDivider label="Done" />
@@ -199,7 +197,6 @@ export const Column: React.FC<ColumnProps> = ({
             </>
           )}
 
-          {/* NOT GOING TO DO */}
           {missedTasks.length > 0 && (
             <>
               <SectionDivider label="Won't Do" />

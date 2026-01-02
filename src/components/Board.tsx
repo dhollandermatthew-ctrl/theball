@@ -13,7 +13,7 @@ import {
   DragEndEvent,
   defaultDropAnimationSideEffects,
   DropAnimation,
-  pointerWithin,
+  rectIntersection,
   useDndMonitor,
   useDroppable,
 } from "@dnd-kit/core";
@@ -96,8 +96,34 @@ const ScrollMonitor = ({
   const velocityRef = useRef(0);
   const lastTsRef = useRef<number | null>(null);
 
+  // NEW: direction + deadzone refs
+  const startXRef = useRef<number | null>(null);
+  const lastXRef = useRef<number | null>(null);
+  const armedRef = useRef(false);
+
+  const ARM_AFTER_MS = 120;   // prevent “pickup jump”
+  const MIN_MOVE_PX = 6;      // must actually move before edge scroll engages
+  const armTimeoutRef = useRef<number | null>(null);
+
   useDndMonitor({
-    onDragStart() {
+    onDragStart({ activatorEvent }) {
+      velocityRef.current = 0;
+      lastTsRef.current = null;
+
+      armedRef.current = false;
+      startXRef.current = null;
+      lastXRef.current = null;
+
+      if (armTimeoutRef.current) window.clearTimeout(armTimeoutRef.current);
+      armTimeoutRef.current = window.setTimeout(() => {
+        armedRef.current = true;
+      }, ARM_AFTER_MS);
+
+      if (activatorEvent instanceof PointerEvent) {
+        startXRef.current = activatorEvent.clientX;
+        lastXRef.current = activatorEvent.clientX;
+      }
+
       if (rafRef.current !== null) return;
 
       const tick = (ts: number) => {
@@ -107,9 +133,7 @@ const ScrollMonitor = ({
           return;
         }
 
-        if (lastTsRef.current == null) {
-          lastTsRef.current = ts;
-        }
+        if (lastTsRef.current == null) lastTsRef.current = ts;
 
         const deltaMs = ts - lastTsRef.current;
         lastTsRef.current = ts;
@@ -118,11 +142,7 @@ const ScrollMonitor = ({
 
         if (delta !== 0) {
           const maxScroll = el.scrollWidth - el.clientWidth;
-          const next = Math.max(
-            0,
-            Math.min(maxScroll, el.scrollLeft + delta)
-          );
-          el.scrollLeft = next;
+          el.scrollLeft = Math.max(0, Math.min(maxScroll, el.scrollLeft + delta));
         }
 
         rafRef.current = requestAnimationFrame(tick);
@@ -138,15 +158,30 @@ const ScrollMonitor = ({
       const { clientX } = activatorEvent;
       const rect = el.getBoundingClientRect();
 
+      // Initialize if needed
+      if (lastXRef.current == null) lastXRef.current = clientX;
+      if (startXRef.current == null) startXRef.current = clientX;
+
+      const dx = clientX - lastXRef.current;
+      lastXRef.current = clientX;
+
+      // Deadzone: don’t autoscroll immediately on pickup
+      const moved = Math.abs(clientX - startXRef.current) >= MIN_MOVE_PX;
+      if (!armedRef.current || !moved) {
+        velocityRef.current = 0;
+        return;
+      }
+
       let v = 0;
 
-      if (clientX < rect.left + EDGE_THRESHOLD) {
-        const ratio =
-          (rect.left + EDGE_THRESHOLD - clientX) / EDGE_THRESHOLD;
+      // Only scroll LEFT if you’re moving LEFT
+      if (clientX < rect.left + EDGE_THRESHOLD && dx < 0) {
+        const ratio = (rect.left + EDGE_THRESHOLD - clientX) / EDGE_THRESHOLD;
         v = -MAX_SCROLL_SPEED * Math.min(1, ratio);
-      } else if (clientX > rect.right - EDGE_THRESHOLD) {
-        const ratio =
-          (clientX - (rect.right - EDGE_THRESHOLD)) / EDGE_THRESHOLD;
+      }
+      // Only scroll RIGHT if you’re moving RIGHT
+      else if (clientX > rect.right - EDGE_THRESHOLD && dx > 0) {
+        const ratio = (clientX - (rect.right - EDGE_THRESHOLD)) / EDGE_THRESHOLD;
         v = MAX_SCROLL_SPEED * Math.min(1, ratio);
       }
 
@@ -156,15 +191,31 @@ const ScrollMonitor = ({
     onDragEnd() {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+
       velocityRef.current = 0;
       lastTsRef.current = null;
+
+      if (armTimeoutRef.current) window.clearTimeout(armTimeoutRef.current);
+      armTimeoutRef.current = null;
+
+      armedRef.current = false;
+      startXRef.current = null;
+      lastXRef.current = null;
     },
 
     onDragCancel() {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+
       velocityRef.current = 0;
       lastTsRef.current = null;
+
+      if (armTimeoutRef.current) window.clearTimeout(armTimeoutRef.current);
+      armTimeoutRef.current = null;
+
+      armedRef.current = false;
+      startXRef.current = null;
+      lastXRef.current = null;
     },
   });
 
@@ -249,34 +300,43 @@ export const Board: React.FC = () => {
   const onDragStart = (e: DragStartEvent) => {
     const t = tasks.find((x) => x.id === e.active.id);
     if (t) setActiveTask(t);
+  
   };
 
   const onDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
+    const { over } = e;
     const task = activeTask;
-
+  
     setActiveTask(null);
-
+  
+  
     if (!over || !task) return;
-
-    const overId = over.id as string;
-
+  
+    const overId = String(over.id);
+  
+    // Drop on next week zone
     if (overId === "move-next-week-zone") {
       const today = new Date(`${task.date}T12:00:00`);
-    
-      // Start of THIS week (Sunday)
+  
       const startOfThisWeek = new Date(today);
       startOfThisWeek.setDate(today.getDate() - today.getDay());
-    
-      // Sunday of NEXT week
+  
       const nextSunday = addWeeks(startOfThisWeek, 1);
-    
+  
       updateTask(task.id, { date: formatDateKey(nextSunday) });
       return;
     }
-
+  
+    // Dropped directly on a column
     if (weekKeys.includes(overId)) {
       updateTask(task.id, { date: overId });
+      return;
+    }
+  
+    // Dropped on top of another task → infer its column
+    const overTask = tasks.find((t) => t.id === overId);
+    if (overTask && weekKeys.includes(overTask.date)) {
+      updateTask(task.id, { date: overTask.date });
     }
   };
 
@@ -315,19 +375,19 @@ export const Board: React.FC = () => {
         />
       ) : (
         <DndContext
-          sensors={sensors}
-          collisionDetection={pointerWithin}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          autoScroll={false}
+        sensors={sensors}
+        collisionDetection={rectIntersection}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        autoScroll={false}
         >
           <ScrollMonitor scrollRef={scrollRef} />
           <MoveToNextWeekDropZone active={!!activeTask} />
 
           <div
-            ref={scrollRef}
-            className="flex-1 overflow-x-auto overflow-y-hidden"
-          >
+  ref={scrollRef}
+  className="flex-1 overflow-x-auto overflow-y-hidden touch-pan-y"
+>
             <div className="flex min-w-max gap-4 px-6 pb-4 h-full items-stretch">
               <SortableContext
                 items={tasks.map((t) => t.id)}

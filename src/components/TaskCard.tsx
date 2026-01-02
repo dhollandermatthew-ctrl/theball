@@ -377,25 +377,24 @@ const handleContentBlur = () => {
     const styles = densityStyles[density];
   
     return (
-      <div
-        ref={(el) => {
-          setNodeRef(el);
-          if (cardRef) cardRef.current = el;
-        }}
-        style={style}
-        className={cn(
-          "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
-          "hover:shadow-md hover:-translate-y-[1px]",
-          styles.cardGap,
-          task.status === "done"
-            ? "bg-slate-50/60 border-slate-200"
-: task.priority === "p1"
-? "bg-red-50 border-red-200 ring-1 ring-red-100"
-: task.priority === "p2"
-? "bg-amber-50 border-amber-200 ring-1 ring-amber-100"
-            : "bg-white border-slate-200"
-        )}
-      >
+<div
+  ref={(el) => {
+    setNodeRef(el);
+    if (cardRef) cardRef.current = el;
+  }}
+  className={cn(
+    "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
+    "hover:shadow-md hover:-translate-y-[1px]",
+    styles.cardGap,
+    task.status === "done"
+      ? "bg-slate-50/60 border-slate-200"
+      : task.priority === "p1"
+      ? "bg-red-50 border-red-200 ring-1 ring-red-100"
+      : task.priority === "p2"
+      ? "bg-amber-50 border-amber-200 ring-1 ring-amber-100"
+      : "bg-white border-slate-200"
+  )}
+>
         {/* AI overlay */}
         {isAiLoading && (
           <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
@@ -410,13 +409,14 @@ const handleContentBlur = () => {
   
         {/* HEADER */}
         <div className={cn("flex items-center gap-2", styles.headerPadding)}>
-          <div
-            {...listeners}
-            {...attributes}
-            className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
-          >
-            <GripVertical size={14} className="text-slate-400" />
-          </div>
+        <div
+  {...listeners}
+  {...attributes}
+  style={{ touchAction: "none" }}
+  className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
+>
+  <GripVertical size={14} className="text-slate-400" />
+</div>
   
           <StatusAccordion
             status={normalizedStatus}
