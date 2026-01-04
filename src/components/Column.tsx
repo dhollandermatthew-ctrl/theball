@@ -1,17 +1,17 @@
 // FILE: src/components/Column.tsx
+
 import React from 'react';
 import { format, isToday } from 'date-fns';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-
 import { TaskCard } from '@/components/TaskCard';
 import { Task, TaskStatus, TaskPriority, TaskCategory } from '@/domain/types';
 import { cn, formatDateKey } from '@/domain/utils';
 
 /* -----------------------------------------------
- * Category styles (local, no theme dependency)
- * --------------------------------------------- */
+* Category styles (local, no theme dependency)
+* --------------------------------------------- */
 const CATEGORY_STYLES: Record<
   TaskCategory,
   {
@@ -23,7 +23,7 @@ const CATEGORY_STYLES: Record<
 > = {
   work: {
     accent: 'text-blue-600',
-    softBg: 'bg-blue-50/40',
+    softBg: 'bg-blue-50/40', // Blue tint for background
     border: 'border-blue-200',
     accentBg: 'bg-blue-600',
   },
@@ -49,8 +49,8 @@ interface ColumnProps {
 }
 
 /* -----------------------------------------------
- * Section Divider
- * --------------------------------------------- */
+* Section Divider
+* --------------------------------------------- */
 const SectionDivider = ({ label }: { label: string }) => (
   <div className="flex items-center gap-2 py-2 px-1 opacity-60">
     <div className="h-px bg-slate-200 flex-1" />
@@ -88,7 +88,6 @@ export const Column: React.FC<ColumnProps> = ({
   const activeTasks = tasks.filter((t) => t.status === 'todo');
   const doneTasks = tasks.filter((t) => t.status === 'done');
   const missedTasks = tasks.filter((t) => t.status === 'missed');
-
   const completed = doneTasks.length;
   const active = activeTasks.length;
   const total = completed + active;
@@ -97,7 +96,7 @@ export const Column: React.FC<ColumnProps> = ({
     <div
       className={cn(
         'flex flex-col h-full min-w-[320px] max-w-[380px] w-full border-r last:border-r-0 shrink-0 bg-white transition-colors',
-        isCurrentDay && categoryStyles.softBg
+        isCurrentDay && categoryStyles.softBg // Apply blue tinge for current day
       )}
     >
       {/* -------------------------------- Header -------------------------------- */}
@@ -105,13 +104,12 @@ export const Column: React.FC<ColumnProps> = ({
         className={cn(
           'p-3 flex flex-col gap-1 border-b sticky top-0 z-10 backdrop-blur-sm bg-white/80',
           categoryStyles.border,
-          isCurrentDay && categoryStyles.softBg
+          isCurrentDay && categoryStyles.softBg // Apply blue tinge for current day header
         )}
       >
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
           {format(date, 'EEE')}
         </span>
-
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span
@@ -124,14 +122,12 @@ export const Column: React.FC<ColumnProps> = ({
             >
               {format(date, 'd')}
             </span>
-
             {isCurrentDay && (
               <span className={cn('text-xs font-medium', categoryStyles.accent)}>
                 Today
               </span>
             )}
           </div>
-
           <div className="flex items-center gap-3 text-xs font-medium text-slate-600">
             <span className="flex items-center gap-1">
               <span className="text-green-600">✓</span>
@@ -154,11 +150,7 @@ export const Column: React.FC<ColumnProps> = ({
         ref={setNodeRef}
         className={cn(
           'flex-1 p-3 overflow-y-auto flex flex-col gap-2 transition-colors',
-          isOver && cn(
-            categoryStyles.softBg,
-            'ring-2 ring-inset',
-            categoryStyles.border
-          )
+          isOver && cn(categoryStyles.softBg, 'ring-2 ring-inset', categoryStyles.border)
         )}
       >
         <SortableContext
@@ -178,7 +170,6 @@ export const Column: React.FC<ColumnProps> = ({
               onDelete={onDeleteTask}
             />
           ))}
-
           {doneTasks.length > 0 && (
             <>
               <SectionDivider label="Done" />
@@ -196,7 +187,6 @@ export const Column: React.FC<ColumnProps> = ({
               ))}
             </>
           )}
-
           {missedTasks.length > 0 && (
             <>
               <SectionDivider label="Won't Do" />
