@@ -300,16 +300,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     /* AI APPLY */
     const applyAI = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!editValue) return;
-  
+    
       setIsAiLoading(true);
       try {
-        const result = await runAI(editValue);
-        if (result) {
-          setEditValue(result);
-          onUpdateContent(task.id, result);
-          setEditorKey((k) => k + 1);
-        }
+        const result = await runAI({
+          title: titleValue,
+          content: editValue,
+        });
+    
+        // Update local state
+        setTitleValue(result.title);
+        setEditValue(result.content);
+    
+        // Persist to store
+        onUpdateTitle(task.id, result.title);
+        onUpdateContent(task.id, result.content);
+    
+        setEditorKey((k) => k + 1);
       } finally {
         setIsAiLoading(false);
       }

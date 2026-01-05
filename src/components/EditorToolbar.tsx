@@ -52,8 +52,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
     try {
       const prompt = `Rewrite this text to be clearer, more concise, and more polished:\n\n${currentContent}`;
-      const cleaned = await runAI(prompt);
-      if (cleaned) onAiComplete(cleaned);
+      const cleaned = await runAI({
+        title: "",
+        content: prompt,
+      });
+      if (cleaned) onAiComplete(cleaned.content);
     } finally {
       setIsAiLoading(false);
     }

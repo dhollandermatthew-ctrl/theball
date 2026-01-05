@@ -304,7 +304,7 @@ loadGoals: (goals) =>
 
         deletePerson: (id) =>
           set((state) => {
-            console.log("🗑 STATE → deleting person:", id);
+      
         
             // Remove all 1:1 notes for this person
             if (state.oneOnOnes[id]) {
@@ -314,16 +314,12 @@ loadGoals: (goals) =>
             // Remove the person
             state.people = state.people.filter((p) => p.id !== id);
         
-            console.log("✅ STATE → person removed from memory");
-        
             // DB delete
             enqueue({
               type: "delete",
               table: "oneOnOnePeople",
               id,
             });
-        
-            console.log("📡 DB delete enqueued:", id);
           }),
 
       getNoteCount: (id) => {
@@ -393,9 +389,6 @@ loadGoals: (goals) =>
   export async function initializeAppState() {
     const store = useAppStore.getState();
     if (store.hydrated) return;
-
-    console.log("🔄 Hydrating from Turso database…");
-
     try {
       const [taskRows, oneOnOneRows, peopleRows, goalRows] = await Promise.all([
         db.select().from(tasksTable),
@@ -420,10 +413,7 @@ loadGoals: (goals) =>
         s.oneOnOnes = grouped;
         s.hydrated = true;
       });
-
-      console.log("✅ DB hydration complete");
     } catch (err) {
-      console.error("❌ Failed to hydrate from DB:", err);
     }
   }
 

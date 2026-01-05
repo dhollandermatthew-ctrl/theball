@@ -35,7 +35,6 @@ const queue: Change[] = [];
 let flushing = false;
 
 export function enqueue(change: Change) {
-  console.log("🟪 ENQUEUE:", change);
   queue.push(change);
   flush();
 }
@@ -48,11 +47,8 @@ async function flush() {
   while (queue.length > 0) {
     const change = queue.shift()!;
     try {
-      console.log("🟥 APPLY:", change);
       await apply(change);
-      console.log("✅ APPLY SUCCESS");
     } catch (err) {
-      console.error("❌ Sync error:", err);
       // put it back and bail, so we don't spin forever
       queue.push(change);
       break;

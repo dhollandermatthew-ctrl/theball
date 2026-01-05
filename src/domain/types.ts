@@ -70,3 +70,14 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
+
+
+export interface AITaskInput {
+  title: string;
+  content: string;
+}
+
+export interface AITaskOutput {
+  title: string;
+  content: string;
+}

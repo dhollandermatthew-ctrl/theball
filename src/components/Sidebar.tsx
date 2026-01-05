@@ -218,7 +218,6 @@ const SortablePersonRow: React.FC<SortablePersonProps> = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            console.log("🧷 SortableRow → delete clicked for:", person.id);
             onDelete();
           }}
           className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded"
@@ -291,30 +290,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   /* ---------------------- Delete Logic ---------------------- */
   const handleDeletePerson = (person: OneOnOnePerson) => {
     const notes = getNoteCount(person.id);
-    console.log("🧨 handleDeletePerson:", person.id, "notes:", notes);
-
     if (notes === 0) {
-      console.log("🟩 No notes — deleting immediately", person.id);
       onDeletePerson(person.id);
       return;
     }
-
-    console.log("⚠️ Has notes — opening confirmation modal");
     setPendingDelete(person);
     setModalOpen(true);
   };
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    console.log("🔥 Confirmed delete:", pendingDelete.id);
-
     onDeletePerson(pendingDelete.id);
     setPendingDelete(null);
     setModalOpen(false);
   };
 
   const cancelDelete = () => {
-    console.log("🛑 User cancelled delete");
     setPendingDelete(null);
     setModalOpen(false);
   };
