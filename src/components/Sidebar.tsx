@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import {
   Calendar,
+  CalendarClock,
   Plus,
   Trash2,
   Search,
@@ -401,29 +402,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* Calendar */}
-          <div className="px-2">
-            <button
-              onClick={() => onNavigate("calendar")}
-              className={cn(
-                "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-                currentView === "calendar"
-                  ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-                  : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-              )}
-            >
-              <Calendar
-  size={18}
-  className={cn(
-    "transition-colors",
-    currentView === "calendar" ? "text-blue-600" : "text-slate-400"
-  )}
-/>
-              Calendar
-            </button>
-          </div>
+{/* Calendar */}
+<div className="px-2">
+  <button
+    onClick={() => onNavigate("calendar")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "calendar"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <Calendar
+      size={18}
+      className={cn(
+        "transition-colors",
+        currentView === "calendar" ? "text-blue-600" : "text-slate-400"
+      )}
+    />
+    Calendar
+  </button>
+</div>
 
-          {/* Goals */}
+{/* Goals */}
 <div className="px-2 mt-1">
   <button
     onClick={() => onNavigate("goals")}
@@ -434,16 +435,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
     )}
   >
-<Target
-  size={18}
-  className={cn(
-    "transition-colors",
-    currentView === "goals"
-      ? "text-red-500"
-      : "text-slate-400"
-  )}
-/>
+    <Target
+      size={18}
+      className={cn(
+        "transition-colors",
+        currentView === "goals"
+          ? "text-red-500"
+          : "text-slate-400"
+      )}
+    />
     Goals
+  </button>
+</div>
+
+{/* Meetings */}
+<div className="px-2 mt-1">
+  <button
+    onClick={() => onNavigate("meetings")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "meetings"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <CalendarClock
+      size={18}
+      className={cn(
+        "transition-colors",
+        currentView === "meetings"
+          ? "text-indigo-600"
+          : "text-slate-400"
+      )}
+    />
+    Meetings
   </button>
 </div>
 

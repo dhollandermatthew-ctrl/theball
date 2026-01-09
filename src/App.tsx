@@ -7,14 +7,15 @@ import { Sidebar } from "./components/Sidebar";
 import { GoalView } from "./components/GoalView";
 import { OneOnOneView } from "./components/OneOnOneView";
 import { SearchModal } from "./components/SearchModal";
+import { MeetingHub } from "./components/MeetingHub";
 
 import {
   useAppStore,
   OneOnOneItem,
-  OneOnOnePerson,
 } from "./domain/state";
 
 import { generateId, getRandomColor } from "./domain/utils";
+import { MeetingSpace } from "@/domain/types";
 
 function App() {
   const {
@@ -48,6 +49,16 @@ function App() {
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
     );
   }, [goals]);
+
+
+  const [meetingSpaces, setMeetingSpaces] = useState<MeetingSpace[]>(() => {
+    const saved = localStorage.getItem("theball-meetings");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("theball-meetings", JSON.stringify(meetingSpaces));
+  }, [meetingSpaces]);
 
   // -------------------------------------------
   // Local UI State
@@ -199,6 +210,11 @@ function App() {
             onUpdateGoal={updateGoal}
             onDeleteGoal={deleteGoal}
             onReorderGoals={reorderGoals}
+          />
+        ) : currentView === "meetings" ? (
+          <MeetingHub
+            spaces={meetingSpaces}
+            onUpdateSpaces={setMeetingSpaces}
           />
         ) : activePerson ? (
           <OneOnOneView

@@ -32,6 +32,11 @@ export const getRandomColor = () => {
 export const DEFAULT_TASK_TITLE = "New Task";
 export const DEFAULT_TASK_BODY = "";
 
+export const DEFAULT_MEETING_SPACE_DESCRIPTION =
+  "Persistent space for important recurring meetings";
+
+export const DEFAULT_MEETING_TITLE = "New Meeting";
+
 /**
  * Proper Markdown → HTML conversion using `marked`
  * Handles:

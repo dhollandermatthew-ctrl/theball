@@ -19,6 +19,7 @@ Rules:
 8. Preserve all important meaning, nuance, uncertainty, and intent.
 9. Remove filler, repetition, and rambling.
 10. IMPORTANT: All newline characters inside strings MUST be escaped as \\n
+11. Do NOT sound fancy. This is about readability and digestability. 
 
 Formatting rules for "content":
 - Use markdown bullets starting with "- "

@@ -113,3 +113,32 @@ ${JSON.stringify(input, null, 2)}
     };
   }
 }
+
+/* -----------------------------------------
+ * GENERIC AI CALL (LOW LEVEL)
+ * ----------------------------------------- */
+
+export async function callAI(params: {
+  system: string;
+  user: string;
+  temperature?: number;
+}): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: modelName });
+
+  const prompt = `
+${params.system}
+
+---
+INPUT:
+${params.user}
+`;
+
+  aiLog("PROMPT", prompt);
+
+  const result = await model.generateContent(prompt);
+  const raw = result.response.text().trim();
+
+  aiLog("RAW OUTPUT", raw);
+
+  return raw;
+}

@@ -81,3 +81,33 @@ export interface AITaskOutput {
   title: string;
   content: string;
 }
+
+// --------------------------------------------------
+// MEETINGS (SINGLE SOURCE OF TRUTH)
+// --------------------------------------------------
+
+export interface MeetingInsight {
+  summary: string;
+  keyLearnings: string[];
+  followUps: string[];
+  openQuestions: string[];
+}
+
+export interface MeetingRecord {
+  id: string;
+  title: string;
+  date: string;
+  transcript: string;
+  notes?: string;
+  insight?: MeetingInsight;
+  createdAt: string;
+}
+
+export interface MeetingSpace {
+  id: string;
+  name: string;
+  description: string;
+  category: "tech" | "architecture" | "leadership" | "client";
+  color: string;
+  records: MeetingRecord[];
+}
