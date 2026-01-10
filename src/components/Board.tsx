@@ -24,6 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { createPortal } from "react-dom";
 import { ArrowRight } from "lucide-react";
+import { useEffect } from "react";
 
 import { Column } from "@/components/Column";
 import { Header, ViewMode } from "@/components/Header";
@@ -32,7 +33,8 @@ import { TaskCard } from "@/components/TaskCard";
 
 import { useAppStore } from "@/domain/state";
 import type { AppState } from "@/domain/state";
-import { Task, TaskStatus, TaskCategory, TaskPriority } from "@/domain/types";
+import type { Task } from "@/domain/state";
+import { TaskStatus, TaskCategory, TaskPriority } from "@/domain/types";
 import {
   generateId,
   formatDateKey,
@@ -238,10 +240,19 @@ export const Board: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [category, setCategory] = useState<TaskCategory>("work");
   const [showInbox, setShowInbox] = useState(false);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeTask, setActiveTask] = useState<import("@/domain/state").Task | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (newTaskId) {
+      const t = setTimeout(() => {
+        setNewTaskId(null);
+      }, 0);
+  
+      return () => clearTimeout(t);
+    }
+  }, [newTaskId]);
 
   /* ---------------- Sensors ---------------- */
 
@@ -273,6 +284,8 @@ export const Board: React.FC = () => {
 
   const weeklyTasks = tasks.filter(
     (t) =>
+      t.taskType !== "oneonone" &&
+      typeof t.date === "string" &&
       t.category === category &&
       weekKeys.includes(t.date)
   );
@@ -335,7 +348,7 @@ export const Board: React.FC = () => {
   
     // Dropped on top of another task → infer its column
     const overTask = tasks.find((t) => t.id === overId);
-    if (overTask && weekKeys.includes(overTask.date)) {
+    if (overTask?.date && weekKeys.includes(overTask.date)) {
       updateTask(task.id, { date: overTask.date });
     }
   };
@@ -364,15 +377,15 @@ export const Board: React.FC = () => {
 
       {viewMode === "month" ? (
         <MonthView
-          currentDate={currentDate}
-          tasks={tasks}
-          category={category}
-          onUpdateTask={(id, updates) => updateTask(id, updates)}
-          onDateClick={(d) => {
-            setCurrentDate(d);
-            setViewMode("week");
-          }}
-        />
+  currentDate={currentDate}
+  tasks={tasks.filter((t) => t.taskType !== "oneonone")}
+  category={category}
+  onUpdateTask={(id, updates) => updateTask(id, updates)}
+  onDateClick={(d) => {
+    setCurrentDate(d);
+    setViewMode("week");
+  }}
+/>
       ) : (
         <DndContext
         sensors={sensors}
@@ -389,53 +402,50 @@ export const Board: React.FC = () => {
   className="flex-1 overflow-x-auto overflow-y-hidden touch-pan-y"
 >
             <div className="flex min-w-max gap-4 px-6 pb-4 h-full items-stretch">
-              <SortableContext
-                items={tasks.map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
+            <SortableContext
+  items={weeklyTasks.map((t) => t.id)}
+  strategy={verticalListSortingStrategy}
+>
                 {weekDays.map((day) => {
                   const key = formatDateKey(day);
                   const dayTasks = sortTasks(
                     tasks.filter(
-                      (t) => t.date === key && t.category === category
+                      (t) =>
+                        t.taskType !== "oneonone" &&
+                        typeof t.date === "string" &&
+                        t.date === key &&
+                        t.category === category
                     )
                   );
 
                   return (
-                    <Column
-                      key={key}
-                      date={day}
-                      tasks={dayTasks}
-                      category={category}
-                      newTaskId={newTaskId}
-                      onAddTask={(date) => {
-                        const id = generateId();
-                        addTask({
-                          id,
-                          title: "New Task",
-                          content: DEFAULT_TASK_BODY,
-                          date,
-                          status: "todo",
-                          priority: "p3",
-                          category,
-                          createdAt: new Date().toISOString(),
-                        });
-                        setNewTaskId(id);
-                      }}
-                      onUpdateTaskStatus={(id, s) =>
-                        updateTask(id, { status: s })
-                      }
-                      onUpdateTaskPriority={(id, p) =>
-                        updateTask(id, { priority: p })
-                      }
-                      onUpdateTaskContent={(id, c) =>
-                        updateTask(id, { content: c })
-                      }
-                      onUpdateTaskTitle={(id, t) =>
-                        updateTask(id, { title: t })
-                      }
-                      onDeleteTask={deleteTask}
-                    />
+<Column
+  key={key}
+  date={day}
+  tasks={dayTasks}
+  category={category}
+  newTaskId={newTaskId}   // ✅ ADD THIS
+  onAddTask={(date) => {
+    const id = generateId();
+    addTask({
+      id,
+      title: "New Task",
+      content: DEFAULT_TASK_BODY,
+      date,
+      taskType: "calendar",
+      status: "todo",
+      priority: "p3",
+      category,
+      createdAt: new Date().toISOString(),
+    });
+    setNewTaskId(id);
+  }}
+  onUpdateTaskStatus={(id, s) => updateTask(id, { status: s })}
+  onUpdateTaskPriority={(id, p) => updateTask(id, { priority: p })}
+  onUpdateTaskContent={(id, c) => updateTask(id, { content: c })}
+  onUpdateTaskTitle={(id, t) => updateTask(id, { title: t })}
+  onDeleteTask={deleteTask}
+/>
                   );
                 })}
               </SortableContext>

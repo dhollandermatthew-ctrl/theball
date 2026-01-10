@@ -13,7 +13,7 @@
     goals as goalsTable,
   } from "@/db/schema";
 
-  export const CURRENT_STATE_VERSION = 3;
+  export const CURRENT_STATE_VERSION = 5;
 
 
 
@@ -22,14 +22,20 @@
   // -----------------------------------------------------
   export interface Task {
     id: string;
-    title: string; // ← ADD THIS
+    title: string;
     content: string;
-    date: string;
-
+  
+    // ✅ calendar only
+    date?: string | null;
+  
+    // ✅ task routing (so 1:1 tasks persist + reload correctly)
+    taskType: "calendar" | "oneonone";
+    conversationWith?: string; // OneOnOnePerson.id
+  
     status: "todo" | "in_progress" | "done" | "missed";
     priority: "p1" | "p2" | "p3";
     category: "work" | "personal";
-
+  
     createdAt: string;
   }
 
@@ -147,31 +153,27 @@ export const defaultState: Pick<
         }),
 
       // ---------------------- TASKS ----------------------
-      addTask: (task) =>
-        set((state) => {
+      addTask: async (task) => {
+        useAppStore.setState((state) => {
           state.tasks.push(task);
+        });
+      
+        db.insert(tasksTable).values(task).catch(console.error);
+      },
 
-          enqueue({
-            type: "insert",
-            table: "tasks",
-            data: task,
-          });
-        }),
-
-      updateTask: (id, updates) =>
-        set((state) => {
-          const t = state.tasks.find((t) => t.id === id);
-          if (!t) return;
-
-          Object.assign(t, updates);
-
-          enqueue({
-            type: "update",
-            table: "tasks",
-            id,
-            data: updates,
-          });
-        }),
+        updateTask: (id, updates) =>
+          set((state) => {
+            state.tasks = state.tasks.map((t) =>
+              t.id === id ? { ...t, ...updates } : t
+            );
+        
+            enqueue({
+              type: "update",
+              table: "tasks",
+              id,
+              data: updates,
+            });
+          }),
 
       deleteTask: (id) =>
         set((state) => {
@@ -389,6 +391,9 @@ loadGoals: (goals) =>
   export async function initializeAppState() {
     const store = useAppStore.getState();
     if (store.hydrated) return;
+  
+    store.setHydrated(); // 🔒 LOCK hydration immediately
+  
     try {
       const [taskRows, oneOnOneRows, peopleRows, goalRows] = await Promise.all([
         db.select().from(tasksTable),

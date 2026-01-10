@@ -35,6 +35,7 @@ const queue: Change[] = [];
 let flushing = false;
 
 export function enqueue(change: Change) {
+  console.log("ENQUEUE", change); // ← add this
   queue.push(change);
   flush();
 }
@@ -44,18 +45,14 @@ async function flush() {
 
   flushing = true;
 
-  while (queue.length > 0) {
-    const change = queue.shift()!;
-    try {
+  try {
+    while (queue.length > 0) {
+      const change = queue.shift()!;
       await apply(change);
-    } catch (err) {
-      // put it back and bail, so we don't spin forever
-      queue.push(change);
-      break;
     }
+  } finally {
+    flushing = false;
   }
-
-  flushing = false;
 }
 
 async function apply(change: Change) {
@@ -63,7 +60,18 @@ async function apply(change: Change) {
     // ---------------- TASKS ----------------
     case "tasks":
       if (change.type === "insert") {
-        return db.insert(tasks).values(change.data);
+        console.log("DB INSERT TASK", change.data);
+      
+        await db.insert(tasks).values(change.data);
+      
+        const readback = await db
+          .select()
+          .from(tasks)
+          .where(eq(tasks.id, change.data.id));
+      
+        console.log("DB READBACK TASK", readback);
+      
+        return readback;
       }
       if (change.type === "update") {
         return db

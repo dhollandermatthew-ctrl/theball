@@ -158,7 +158,10 @@ export const MonthView: React.FC<MonthViewProps> = ({
   // Group tasks by date
   const tasksByDate: Record<string, Task[]> = {};
   for (const t of tasks) {
+    if (t.taskType === "oneonone") continue; // 🔥 HARD BLOCK 1:1
+    if (!t.date) continue;                   // 🔥 HARD GUARD
     if (t.category !== category) continue;
+  
     if (!tasksByDate[t.date]) tasksByDate[t.date] = [];
     tasksByDate[t.date].push(t);
   }
@@ -184,7 +187,9 @@ export const MonthView: React.FC<MonthViewProps> = ({
     setActiveTaskId(null);
     if (!over) return;
 
-    const activeTask = tasks.find((t) => t.id === active.id);
+    const activeTask = tasks.find(
+      (t) => t.id === active.id && t.taskType !== "oneonone"
+    );
     if (!activeTask) return;
 
     let targetDateKey: string | null = null;
@@ -192,7 +197,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
       targetDateKey = over.data.current.dateKey;
     } else if (typeof over.id === "string") {
       const overTask = tasks.find((t) => t.id === over.id);
-      if (overTask) targetDateKey = overTask.date;
+      if (overTask?.date) targetDateKey = overTask.date;
     }
 
     if (!targetDateKey || targetDateKey === activeTask.date) return;
@@ -200,13 +205,20 @@ export const MonthView: React.FC<MonthViewProps> = ({
   };
 
   const activeTask =
-    activeTaskId ? tasks.find((t) => t.id === activeTaskId) : null;
+  activeTaskId
+    ? tasks.find(
+        (t) => t.id === activeTaskId && t.taskType !== "oneonone"
+      )
+    : null;
 
   // Drag overlay component
   const dragOverlay = (
     <div className="pointer-events-none">
-      {activeTask && (
-        <MonthTaskPill task={activeTask} dateKey={activeTask.date} />
+      {activeTask && activeTask.date && (
+        <MonthTaskPill
+          task={activeTask}
+          dateKey={activeTask.date}
+        />
       )}
     </div>
   );

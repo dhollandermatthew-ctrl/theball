@@ -8,7 +8,11 @@ export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
   title: text("title").notNull().default("New Task"),
   content: text("content").notNull(),
-  date: text("date").notNull(),
+  date: text("date"),
+
+  // ✅ ADD THESE
+  taskType: text("taskType"),
+  conversationWith: text("conversationWith"),
 
   status: text("status").notNull(),
   priority: text("priority").notNull(),

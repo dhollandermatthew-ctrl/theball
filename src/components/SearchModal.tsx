@@ -128,8 +128,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                           {task.content}
                         </p>
                         <p className="text-xs text-slate-400">
-                          {task.date === 'inbox' ? 'Inbox' : format(new Date(task.date), 'MMM d, yyyy')} • {task.category}
-                        </p>
+  {task.date === 'inbox'
+    ? 'Inbox'
+    : task.date
+      ? format(new Date(task.date), 'MMM d, yyyy')
+      : 'No date'} • {task.category}
+</p>
                       </div>
                       <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
                     </button>

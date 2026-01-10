@@ -14,10 +14,17 @@ import type {
 // TASKS
 // --------------------------------------------------
 
+export type TaskType = "calendar" | "oneonone";
+
 // Extend the store's Task type by adding title + content
 export interface Task extends StoreTask {
   title: string;
   content: string;
+
+  taskType: TaskType; // 🔑 REQUIRED — calendar vs 1:1
+
+  // 1:1 association
+  conversationWith?: string; // OneOnOnePerson.id
 }
 
 // Extract enums directly from Task

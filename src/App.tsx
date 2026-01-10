@@ -1,70 +1,71 @@
 // FILE: src/App.tsx
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useMemo } from "react";
 import { Menu } from "lucide-react";
 
 import { Board } from "./components/Board";
 import { Sidebar } from "./components/Sidebar";
 import { GoalView } from "./components/GoalView";
-import { OneOnOneView } from "./components/OneOnOneView";
+import { OneOnOneTaskView } from "./components/OneOnOneTaskView";
 import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
 
-import {
-  useAppStore,
-  OneOnOneItem,
-} from "./domain/state";
-
 import { generateId, getRandomColor } from "./domain/utils";
-import { MeetingSpace } from "@/domain/types";
+import { MeetingSpace, Task } from "@/domain/types";
+import { useAppStore, initializeAppState } from "./domain/state";
 
 function App() {
   const {
     tasks,
     people,
-    oneOnOnes,
     goals,
+
+    addTask,
+    updateTask,
+    deleteTask,
+
     addGoal,
     updateGoal,
     deleteGoal,
     reorderGoals,
-    settings,
-    hydrated,
-    set,
 
     addPerson,
     editPerson,
     reorderPeople,
     deletePerson,
 
-    addOneOnOneItem,
-    updateOneOnOneItem,
-    deleteOneOnOneItem,
+    settings,
+    hydrated,
+    set,
 
     getNoteCount,
   } = useAppStore();
 
-  // ✅ SINGLE SOURCE OF TRUTH FOR GOAL ORDER
-  const sortedGoals = React.useMemo(() => {
-    return [...goals].sort(
-      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
-    );
-  }, [goals]);
-
-
-  const [meetingSpaces, setMeetingSpaces] = useState<MeetingSpace[]>(() => {
-    const saved = localStorage.getItem("theball-meetings");
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  // ✅ REQUIRED: hydrate from Turso on app start
   useEffect(() => {
-    localStorage.setItem("theball-meetings", JSON.stringify(meetingSpaces));
-  }, [meetingSpaces]);
+    initializeAppState();
+  }, []);
 
-  // -------------------------------------------
-  // Local UI State
-  // -------------------------------------------
+  /* -------------------------------------------------- */
+  /* Derived Data                                       */
+  /* -------------------------------------------------- */
+
+  const sortedGoals = useMemo(
+    () => [...goals].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    [goals]
+  );
+
+  const sortedPeople = useMemo(
+    () => [...people].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    [people]
+  );
+
+  /* -------------------------------------------------- */
+  /* Local UI State                                     */
+  /* -------------------------------------------------- */
+
   const [currentView, setCurrentView] = useState<
-    "calendar" | "goals" | string
+    "calendar" | "goals" | "meetings" | string
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -84,11 +85,23 @@ function App() {
       draft.settings.zoom = v;
     });
 
-  const startSidebarResize = () => setIsResizingSidebar(true);
+  /* -------------------------------------------------- */
+  /* Meetings (local storage)                           */
+  /* -------------------------------------------------- */
 
-  // -------------------------------------------
-  // Sidebar resizing handler
-  // -------------------------------------------
+  const [meetingSpaces, setMeetingSpaces] = useState<MeetingSpace[]>(() => {
+    const saved = localStorage.getItem("theball-meetings");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("theball-meetings", JSON.stringify(meetingSpaces));
+  }, [meetingSpaces]);
+
+  /* -------------------------------------------------- */
+  /* Sidebar resize                                     */
+  /* -------------------------------------------------- */
+
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (!isResizingSidebar) return;
@@ -111,9 +124,10 @@ function App() {
     };
   }, [isResizingSidebar, set]);
 
-  // -------------------------------------------
-  // Loading screen
-  // -------------------------------------------
+  /* -------------------------------------------------- */
+  /* Loading                                            */
+  /* -------------------------------------------------- */
+
   if (!hydrated) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50 text-slate-500">
@@ -122,31 +136,37 @@ function App() {
     );
   }
 
-  // -------------------------------------------
-  // Helpers
-  // -------------------------------------------
-  const sortedPeople = [...people].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-  );
+  /* -------------------------------------------------- */
+  /* Active Person                                      */
+  /* -------------------------------------------------- */
 
   const activePerson = sortedPeople.find((p) => p.id === currentView);
-  const activeItems: OneOnOneItem[] = activePerson
-    ? oneOnOnes[activePerson.id] || []
-    : [];
 
-  const handleToggleOneOnOneItem = (id: string) => {
-    for (const list of Object.values(oneOnOnes)) {
-      const found = list.find((i) => i.id === id);
-      if (found) {
-        updateOneOnOneItem(id, { isCompleted: !found.isCompleted });
-        break;
-      }
-    }
+  /* -------------------------------------------------- */
+  /* Task creation from 1:1                             */
+  /* -------------------------------------------------- */
+
+  const handleCreateTaskForPerson = (personId: string, content: string) => {
+    const title = content.replace(/<[^>]+>/g, "").slice(0, 60) || "Follow-up";
+  
+    addTask({
+      id: generateId(),
+      title,
+      content,
+      taskType: "oneonone",
+      conversationWith: personId,
+      date: new Date().toISOString().slice(0, 10),
+      status: "todo",
+      priority: "p3",
+      category: "work",
+      createdAt: new Date().toISOString(),
+    });
   };
 
-  // -------------------------------------------
-  // Render
-  // -------------------------------------------
+  /* -------------------------------------------------- */
+  /* Render                                             */
+  /* -------------------------------------------------- */
+
   return (
     <div
       className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden"
@@ -172,7 +192,7 @@ function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         width={sidebarWidth}
-        onResizeStart={startSidebarResize}
+        onResizeStart={() => setIsResizingSidebar(true)}
         zoomLevel={zoomLevel}
         onZoomChange={setZoomLevel}
       />
@@ -191,7 +211,7 @@ function App() {
           <Board />
         ) : currentView === "goals" ? (
           <GoalView
-            goals={sortedGoals}   
+            goals={sortedGoals}
             onAddGoal={() => {
               const today = new Date().toISOString().slice(0, 10);
               addGoal({
@@ -212,29 +232,21 @@ function App() {
             onReorderGoals={reorderGoals}
           />
         ) : currentView === "meetings" ? (
-          <MeetingHub
-            spaces={meetingSpaces}
-            onUpdateSpaces={setMeetingSpaces}
-          />
+          <MeetingHub spaces={meetingSpaces} onUpdateSpaces={setMeetingSpaces} />
         ) : activePerson ? (
-          <OneOnOneView
+          <OneOnOneTaskView
             person={activePerson}
-            items={activeItems}
-            onAddItem={(personId, content) =>
-              addOneOnOneItem({
-                id: generateId(),
-                personId,
-                content,
-                isCompleted: false,
-                createdAt: new Date().toISOString(),
-              })
-            }
-            onUpdateItem={(id, content) =>
-              updateOneOnOneItem(id, { content })
-            }
-            onToggleItem={handleToggleOneOnOneItem}
-            onDeleteItem={deleteOneOnOneItem}
-            onEditPerson={editPerson}
+            tasks={tasks.filter(
+              (t: Task) =>
+                t.taskType === "oneonone" &&
+                t.conversationWith === activePerson.id
+            )}
+            onCreateTask={handleCreateTaskForPerson}
+            onUpdateTaskStatus={(id, status) => updateTask(id, { status })}
+            onUpdateTaskPriority={(id, priority) => updateTask(id, { priority })}
+            onUpdateTaskContent={(id, content) => updateTask(id, { content })}
+            onUpdateTaskTitle={(id, title) => updateTask(id, { title })}
+            onDeleteTask={deleteTask}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-slate-400">
@@ -247,7 +259,7 @@ function App() {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         tasks={tasks}
-        items={Object.values(oneOnOnes).flat()}
+        items={[]}
         people={sortedPeople}
         onNavigate={setCurrentView}
       />

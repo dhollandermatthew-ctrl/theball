@@ -30,16 +30,45 @@ const normalizeStatus = (status: TaskStatus): TaskStatus =>
 interface StatusAccordionProps {
   status: TaskStatus;
   onSelect: (s: TaskStatus) => void;
+  showMissed?: boolean;
+  mode?: "accordion" | "checkbox";
 }
 
 const StatusAccordion: React.FC<StatusAccordionProps> = ({
   status,
   onSelect,
+  showMissed = true,
+  mode = "accordion",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-  const normalizedStatus = normalizeStatus(status);
+  const normalizedStatus =
+  mode === "checkbox" && status === "missed"
+    ? "todo"
+    : normalizeStatus(status);
+  // ✅ SIMPLE CHECKBOX MODE (1:1)
+  if (mode === "checkbox") {
+    const isDone = normalizedStatus === "done";
 
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(isDone ? "todo" : "done");
+        }}
+        className={cn(
+          "w-6 h-6 flex items-center justify-center rounded-md transition",
+          isDone
+            ? "bg-green-500 text-white"
+            : "border-2 border-slate-300 hover:bg-slate-100"
+        )}
+      >
+        {isDone && <Check className="w-3.5 h-3.5" />}
+      </button>
+    );
+  }
+
+  // ⬇️ CALENDAR MODE (accordion)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -73,7 +102,6 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
     >
       {isOpen ? (
         <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg ring-1 ring-slate-200 rounded-full p-0.5">
-
           <button
             className="p-1 hover:bg-slate-100 rounded-full"
             onClick={(e) => {
@@ -87,18 +115,20 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
             </div>
           </button>
 
-          <button
-            className="p-1 hover:bg-slate-100 rounded-full"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect("missed");
-              setIsOpen(false);
-            }}
-          >
-            <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-              <X className="text-white w-3 h-3" />
-            </div>
-          </button>
+          {showMissed && (
+            <button
+              className="p-1 hover:bg-slate-100 rounded-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect("missed");
+                setIsOpen(false);
+              }}
+            >
+              <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                <X className="text-white w-3 h-3" />
+              </div>
+            </button>
+          )}
 
           <button
             className="p-1 hover:bg-slate-100 rounded-full"
@@ -222,6 +252,7 @@ interface TaskCardProps {
   cardRef?: React.RefObject<HTMLDivElement | null>;
 
   disableDrag?: boolean;
+  showMissedStatus?: boolean; // ✅ ADD THIS
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -237,6 +268,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   bodyRef,
   cardRef,
   disableDrag = false,
+  showMissedStatus = true, // ✅ default
 }) => {
   const normalizedStatus = normalizeStatus(task.status);
 
@@ -245,8 +277,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       ? DEFAULT_TASK_BODY
       : task.content;
 
-  const [editMode, setEditMode] =
-    useState<"none" | "title" | "body">(isNewTask ? "title" : "none");
+      const [editMode, setEditMode] =
+      useState<"none" | "title" | "body">("none");
 
   const [editValue, setEditValue] = useState(initialBody);
   const [titleValue, setTitleValue] = useState(task.title ?? "New Task");
@@ -285,12 +317,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   }, [task.content]);
 
     /* Auto-focus title */
-    useEffect(() => {
-      if (editMode === "title" && finalTitleRef.current) {
-        finalTitleRef.current.focus();
-        finalTitleRef.current.select();
-      }
-    }, [editMode, finalTitleRef]);
+// 🔑 react to isNewTask AFTER mount
+useEffect(() => {
+  if (isNewTask) {
+    setEditMode("title");
+  }
+}, [isNewTask]);
+
+/* Auto-focus title */
+useEffect(() => {
+  if (editMode === "title" && finalTitleRef.current) {
+    finalTitleRef.current.focus();
+    finalTitleRef.current.select();
+  }
+}, [editMode]);
   
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
@@ -416,19 +456,23 @@ const handleContentBlur = () => {
   
         {/* HEADER */}
         <div className={cn("flex items-center gap-2", styles.headerPadding)}>
-        <div
-  {...listeners}
-  {...attributes}
-  style={{ touchAction: "none" }}
-  className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
->
-  <GripVertical size={14} className="text-slate-400" />
-</div>
+        {!disableDrag && (
+  <div
+    {...listeners}
+    {...attributes}
+    style={{ touchAction: "none" }}
+    className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100"
+  >
+    <GripVertical size={14} className="text-slate-400" />
+  </div>
+)}
   
-          <StatusAccordion
-            status={normalizedStatus}
-            onSelect={(s) => onUpdateStatus(task.id, s)}
-          />
+<StatusAccordion
+  status={normalizedStatus}
+  onSelect={(s) => onUpdateStatus(task.id, s)}
+  showMissed={showMissedStatus}
+  mode={showMissedStatus ? "accordion" : "checkbox"}
+/>
   
           <PriorityAccordion
             priority={task.priority}
@@ -455,15 +499,16 @@ const handleContentBlur = () => {
               }}
             />
           ) : (
-            <div
-            className={cn(
-              "flex-1 font-bold truncate cursor-text",
-              styles.title
-            )}
-              onClick={() => setEditMode("title")}
-            >
-              {titleValue}
-            </div>
+<div
+  className={cn(
+    "flex-1 font-bold cursor-text line-clamp-2",
+    styles.title
+  )}
+  title={titleValue} // native tooltip for full title
+  onClick={() => setEditMode("title")}
+>
+  {titleValue}
+</div>
           )}
         </div>
   
