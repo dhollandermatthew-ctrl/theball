@@ -37,11 +37,11 @@ const PRIORITY_ORDER: Record<Task["priority"], number> = {
 };
 
 const sortByRelevance = (a: Task, b: Task) => {
-    const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-    if (priorityDiff !== 0) return priorityDiff;
-  
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  };
+  const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+  if (priorityDiff !== 0) return priorityDiff;
+
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+};
 
 const getTaskSignals = (task: Task) => {
   const created = new Date(task.createdAt).getTime();
@@ -61,8 +61,8 @@ const SectionHeader = ({
   count: number;
   action?: React.ReactNode;
 }) => (
-  <div className="flex items-center justify-between mb-2">
-    <h2 className="text-xs font-semibold uppercase text-slate-500 tracking-wide">
+  <div className="flex items-center justify-between mb-3">
+    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
       {label} · {count}
     </h2>
     {action}
@@ -108,7 +108,10 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
 
   const waitingTasks = useMemo(
     () =>
-      tasks.filter((t) => t.status === "in_progress").slice().sort(sortByRelevance),
+      tasks
+        .filter((t) => t.status === "in_progress")
+        .slice()
+        .sort(sortByRelevance),
     [tasks]
   );
 
@@ -125,9 +128,9 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
     [tasks]
   );
 
-  /* Create empty task → title auto-selects via TaskCard isNewTask */
+  /* Create new task → title auto-focused via TaskCard */
   const handleCreate = useCallback(() => {
-    onCreateTask(person.id, "title");
+    onCreateTask(person.id, "__new__");
   }, [onCreateTask, person.id]);
 
   const renderCard = useCallback(
@@ -138,7 +141,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
         disableDrag
         showMissedStatus={false}
         density="comfortable"
-        isNewTask={task.title === "title"}
+        isNewTask={task.title === "__new__"}
         onUpdateStatus={onUpdateTaskStatus}
         onUpdatePriority={onUpdateTaskPriority}
         onUpdateContent={onUpdateTaskContent}
@@ -158,7 +161,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
       {/* HEADER */}
-      <div className="px-4 md:px-12 pt-16 md:pt-8 pb-4 max-w-4xl mx-auto w-full">
+      <div className="px-4 md:px-12 pt-16 md:pt-8 pb-4 max-w-5xl mx-auto w-full">
         <div className="flex items-center gap-4 mb-6">
           <div
             className={cn(
@@ -203,7 +206,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
 
       {/* CONTENT */}
       <div className="flex-1 overflow-y-auto px-4 md:px-12 pb-12">
-        <div className="max-w-4xl mx-auto space-y-10 pt-6">
+        <div className="max-w-5xl mx-auto space-y-12 pt-6">
           {/* OPEN */}
           {openTasks.length > 0 && (
             <section>
@@ -213,7 +216,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
                 action={<AddButton onClick={handleCreate} />}
               />
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {openTasks.map((task) => {
                   const { isAging } = getTaskSignals(task);
                   return (
@@ -239,18 +242,19 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
                 count={waitingTasks.length}
                 action={<AddButton onClick={handleCreate} />}
               />
-              <div className="space-y-3">{waitingTasks.map(renderCard)}</div>
+              <div className="space-y-4">{waitingTasks.map(renderCard)}</div>
             </section>
           )}
 
-          {/* ADD TASK (ABOVE DONE) */}
-          <div className="pt-2">
+          {/* ADD TASK */}
+          <div className="pt-4">
             <button
               onClick={handleCreate}
               className={cn(
                 "w-full flex items-center justify-center gap-2",
                 "py-3 rounded-xl border border-dashed border-slate-200",
-                "text-sm font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition"
+                "text-sm font-medium text-slate-400",
+                "hover:text-slate-600 hover:bg-slate-50 transition"
               )}
             >
               <Plus size={18} />
@@ -265,7 +269,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
                 onClick={() => setShowDone((v) => !v)}
                 className={cn(
                   "flex items-center gap-2 text-xs font-semibold uppercase",
-                  "text-slate-400 hover:text-slate-600 transition mb-2"
+                  "text-slate-400 hover:text-slate-600 transition mb-3"
                 )}
               >
                 <ChevronDown
@@ -276,7 +280,7 @@ export const OneOnOneTaskView: React.FC<OneOnOneTaskViewProps> = ({
               </button>
 
               {showDone && (
-                <div className="space-y-3 opacity-60">
+                <div className="space-y-4 opacity-60">
                   {doneTasks.map(renderCard)}
                 </div>
               )}

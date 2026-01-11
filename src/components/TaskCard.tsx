@@ -68,16 +68,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
     );
   }
 
-  // ⬇️ CALENDAR MODE (accordion)
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+
 
   const baseIcon = () => {
     switch (normalizedStatus) {
@@ -281,9 +272,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       useState<"none" | "title" | "body">("none");
 
   const [editValue, setEditValue] = useState(initialBody);
-  const [titleValue, setTitleValue] = useState(task.title ?? "New Task");
+  const [titleValue, setTitleValue] = useState(
+    task.title === "__new__" ? "" : task.title ?? ""
+  );  
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
+  
+  useEffect(() => {
+    if (isNewTask) {
+      setEditMode("title");
+    }
+  }, [isNewTask]);
 
   const {
     setNodeRef,
@@ -305,7 +304,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const finalBodyRef = bodyRef ?? internalBodyRef;
 
   useEffect(() => {
-    setTitleValue(task.title ?? "New Task");
+    setTitleValue(task.title === "__new__" ? "" : task.title ?? "");
   }, [task.title]);
 
   useEffect(() => {
@@ -316,13 +315,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setEditValue(body);
   }, [task.content]);
 
-    /* Auto-focus title */
-// 🔑 react to isNewTask AFTER mount
-useEffect(() => {
-  if (isNewTask) {
-    setEditMode("title");
-  }
-}, [isNewTask]);
+
 
 /* Auto-focus title */
 useEffect(() => {
@@ -482,33 +475,34 @@ const handleContentBlur = () => {
           {/* TITLE INPUT */}
           {editMode === "title" ? (
             <input
-              ref={finalTitleRef}
-              className={cn(
-                "flex-1 font-bold bg-transparent outline-none border-b border-transparent focus:border-blue-300",
-                styles.title
-              )}
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={handleTitleBlur}
-              onKeyDown={(e) => {
-                if (e.key === "Tab") {
-                  e.preventDefault();
-                  commitTitle();     // 🔑 force-save before switching modes
-                  setEditMode("body");
-                }
-              }}
-            />
+  ref={finalTitleRef}
+  placeholder="Title"
+  className={cn(
+    "flex-1 font-bold bg-transparent outline-none border-b border-transparent focus:border-blue-300 placeholder:text-slate-400",
+    styles.title
+  )}
+  value={titleValue}
+  onChange={(e) => setTitleValue(e.target.value)}
+  onBlur={handleTitleBlur}
+  onKeyDown={(e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      commitTitle();
+      setEditMode("body");
+    }
+  }}
+/>
           ) : (
 <div
   className={cn(
     "flex-1 font-bold cursor-text line-clamp-2",
-    styles.title
+    styles.title,
+    !titleValue && "italic text-slate-400"
   )}
-  title={titleValue} // native tooltip for full title
+  title={titleValue}
   onClick={() => setEditMode("title")}
 >
-  {titleValue}
-</div>
+{titleValue ? titleValue : "Title"}</div>
           )}
         </div>
   
@@ -540,21 +534,24 @@ const handleContentBlur = () => {
         className="cursor-text min-h-[1.5em]"
         onClick={() => setEditMode("body")}
       >
-        {task.content ? (
-          <RichTextRenderer
-  text={task.content}
-  isCompleted={isCompleted}
-  className="text-[12px] leading-[1.25] prose prose-sm max-w-none ml-[-24px]"
-/>
-        ) : (
-          <span className={cn("italic text-slate-400", styles.placeholder)}>
-  Add details...
-</span>
-        )}
+{task.content ? (
+  <RichTextRenderer
+    text={task.content}
+    isCompleted={isCompleted}
+    className="text-[12px] leading-[1.25] prose prose-sm max-w-none ml-[-24px]"
+  />
+) : showMissedStatus ? (
+  // Calendar → keep placeholder
+  <span className={cn("italic text-slate-400", styles.placeholder)}>
+    Add details...
+  </span>
+) : (
+  // 1:1 → quiet empty space
+  <span className="block h-[1.25em]" />
+)}
       </div>
     )}
   </div>
-
 </div>
   
         {/* ACTIONS TOP RIGHT */}
