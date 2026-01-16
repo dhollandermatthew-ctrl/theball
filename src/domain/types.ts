@@ -117,4 +117,11 @@ export interface MeetingSpace {
   category: "tech" | "architecture" | "leadership" | "client";
   color: string;
   records: MeetingRecord[];
+  spaceNotes?: string;
+}
+
+export interface SpaceNotes {
+  spaceId: string;
+  content: string; // same format as your WYSIWYG editor
+  updatedAt: number;
 }

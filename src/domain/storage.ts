@@ -24,6 +24,8 @@ function migrateState(data: any): Partial<AppState> {
         : {},
     goals: Array.isArray(data.goals) ? data.goals : [],
 
+
+
     settings: {
       zoom: Number(data.settings?.zoom) || 1,
       sidebarOpen:
@@ -69,6 +71,7 @@ function migrateState(data: any): Partial<AppState> {
 
     // Helpers
     getNoteCount: () => 0,
+
   };
 }
 

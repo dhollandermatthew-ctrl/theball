@@ -9,7 +9,7 @@ Your goal is to compress the meeting into what matters.
 Rules:
 - Do NOT invent information
 - Do NOT speculate
-- Be concise, concrete, and ranked
+- Be concise, concrete, and explicitly ranked
 - Output MUST be valid JSON
 - Do NOT include markdown or commentary
 
@@ -31,10 +31,14 @@ SUMMARY:
 - This will be collapsed by default in the UI
 
 KEY LEARNINGS:
-- Maximum 3 items
-- Ordered by importance (most important first)
+- EXACTLY 3 items (unless the meeting truly contains fewer)
+- Each item MUST be prefixed with its rank:
+  "1. ", "2. ", "3. "
+- Item 1 = most important insight from the meeting
+- Item 2 = second most important
+- Item 3 = third most important
 - Each item should express a durable insight, constraint, or risk
-- These are long-term memory items
+- These are long-term memory items that should remain relevant weeks later
 
 FOLLOW-UPS:
 - Maximum 3 items

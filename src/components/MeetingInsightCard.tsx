@@ -27,16 +27,28 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
               Key Learnings
             </h3>
 
-            <ul className="space-y-3">
+            <div className="space-y-3">
               {keyLearnings.map((item, i) => (
-                <li
-                  key={i}
-                  className="pl-4 border-l-2 border-indigo-200 text-slate-800 text-[15px] leading-relaxed"
-                >
-                  {item}
-                </li>
+                <div key={i} className="flex gap-3 items-start">
+                  <div
+                    className={
+                      "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold " +
+                      (i === 0
+                        ? "bg-indigo-600 text-white"
+                        : i === 1
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-slate-200 text-slate-700")
+                    }
+                  >
+                    {i + 1}
+                  </div>
+
+                  <div className="text-[15px] text-slate-800 leading-relaxed">
+                    {item}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         )}
 
