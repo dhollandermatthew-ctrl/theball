@@ -1,6 +1,7 @@
 // FILE: src/components/MeetingInsightCard.tsx
 
-import React from "react";
+import React, { useState } from "react";
+import { Copy } from "lucide-react";
 import { MeetingRecord } from "@/domain/types";
 
 interface MeetingInsightCardProps {
@@ -13,14 +14,23 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
   if (!record.insight) return null;
 
   const { keyLearnings, followUps, openQuestions, summary } = record.insight;
+  const [copied, setCopied] = useState(false);
+
+  const copyTranscript = async () => {
+    if (!record.transcript) return;
+    await navigator.clipboard.writeText(record.transcript);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
-<div className="mt-3 rounded-2xl border bg-white shadow-sm">
+    <div className="mt-3 rounded-2xl border bg-white shadow-sm">
       <div className="p-6 space-y-6">
-      <div className="text-xs uppercase tracking-wide text-slate-400">
-  Meeting Insights
-</div>
-        {/* KEY LEARNINGS — PRIMARY */}
+        <div className="text-xs uppercase tracking-wide text-slate-400">
+          Meeting Insights
+        </div>
+
+        {/* ================= KEY LEARNINGS ================= */}
         {keyLearnings?.length > 0 && (
           <section>
             <h3 className="text-sm font-semibold text-indigo-700 mb-3">
@@ -28,31 +38,27 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
             </h3>
 
             <div className="space-y-3">
-              {keyLearnings.map((item, i) => (
-                <div key={i} className="flex gap-3 items-start">
-                  <div
-                    className={
-                      "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold " +
-                      (i === 0
-                        ? "bg-indigo-600 text-white"
-                        : i === 1
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-slate-200 text-slate-700")
-                    }
-                  >
-                    {i + 1}
-                  </div>
+              {keyLearnings.map((rawItem, i) => {
+                // Strip any leading numbering from model output
+                const item = rawItem.replace(/^\s*\d+[\.\)]\s*/, "");
 
-                  <div className="text-[15px] text-slate-800 leading-relaxed">
-                    {item}
+                return (
+                  <div key={i} className="flex gap-3 items-start">
+                    <div className="w-5 text-sm font-semibold text-indigo-600 pt-[3px]">
+                      {i + 1}.
+                    </div>
+
+                    <div className="text-[15px] text-slate-800 leading-relaxed">
+                      {item}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
 
-        {/* FOLLOW-UPS + OPEN QUESTIONS */}
+        {/* ================= FOLLOW-UPS + OPEN QUESTIONS ================= */}
         {(followUps?.length > 0 || openQuestions?.length > 0) && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* FOLLOW-UPS */}
@@ -97,7 +103,7 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
           </section>
         )}
 
-        {/* SUMMARY — COLLAPSED */}
+        {/* ================= SUMMARY (COLLAPSED) ================= */}
         {summary && (
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-slate-500 hover:text-slate-700">
@@ -107,6 +113,27 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
             <p className="mt-2 text-sm text-slate-700 leading-relaxed">
               {summary}
             </p>
+          </details>
+        )}
+
+        {/* ================= TRANSCRIPT (COLLAPSED + COPY) ================= */}
+        {record.transcript && (
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-slate-500 hover:text-slate-700">
+              Transcript
+            </summary>
+
+            <div className="mt-3 relative rounded-lg border bg-slate-50 p-4 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto">
+              <button
+                onClick={copyTranscript}
+                className="absolute top-3 right-3 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+              >
+                <Copy size={14} />
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+
+              {record.transcript}
+            </div>
           </details>
         )}
       </div>
