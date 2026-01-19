@@ -28,12 +28,36 @@
     const [notes, setNotes] = useState("");
 
       /* ---------------- Space Notes Pages ---------------- */
-      const pages = Array.isArray(space.spaceNotes)
-      ? space.spaceNotes
-      : [];
-    
-    const [activePageId, setActivePageId] = useState<string | null>(null);
-    
+      const pages = Array.isArray(space.spaceNotes) ? space.spaceNotes : [];
+
+      // Ensure there is always a default "Notes 1" page
+      React.useEffect(() => {
+        if (pages.length === 0) {
+          const firstPage = {
+            id: generateId(),
+            title: "Notes 1",
+            content: "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+      
+          onUpdateSpace({
+            ...space,
+            spaceNotes: [firstPage],
+          });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [pages.length]);
+      
+      const [activePageId, setActivePageId] = useState<string | null>(null);
+      
+      React.useEffect(() => {
+        if (pages.length > 0 && !activePageId) {
+          setActivePageId(pages[0].id);
+        }
+      }, [pages, activePageId]);
+            
+
     const activePage =
       pages.find((p) => p.id === activePageId) ?? pages[0];
 
