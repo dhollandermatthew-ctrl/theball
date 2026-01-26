@@ -22,18 +22,16 @@ async function start() {
 
   // 2) Debug env vars in dev
   if (import.meta.env.DEV) {
-    console.log("VITE_TURSO_DB_URL:", import.meta.env.VITE_TURSO_DB_URL);
-    console.log("VITE_TURSO_DB_TOKEN:", import.meta.env.VITE_TURSO_DB_TOKEN);
 
-    // 3) Quick DB connectivity check (dev only)
     db.select()
-      .from(tasks)
-      .then((rows) => {
-        console.log("🔥 DB connected! tasks table rows:", rows);
-      })
-      .catch((err) => {
-        console.error("❌ DB connection FAILED:", err);
-      });
+    .from(tasks)
+    .then((rows) => {
+      console.log("DB test OK, rows:", rows.length);
+    })
+    .catch((err) => {
+      console.error("DB test failed", err);
+    });
+
   }
 
   // 4) Render React app AFTER hydration
