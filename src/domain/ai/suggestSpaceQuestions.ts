@@ -1,9 +1,11 @@
+// FILE: src/domain/ai/suggestSpaceQuestions.ts
+
 import { buildSpaceContext } from "./buildSpaceContext";
 import { callAI } from "@/domain/ai/ai";
 import { MeetingSpace } from "@/domain/types";
 
 /**
- * Suggests high-value questions based ONLY on the space context.
+ * Suggests short, high-signal questions based ONLY on the space context.
  * This does NOT answer questions — it only proposes them.
  */
 export async function suggestSpaceQuestions(
@@ -20,12 +22,12 @@ export async function suggestSpaceQuestions(
   const response = await callAI({
     system: SPACE_QUESTION_SUGGESTION_PROMPT,
     user: `
-  SPACE CONTEXT:
-  ${serializedContext}
-  
-  TASK:
-  Suggest 3–5 high-value questions a user could ask about this space.
-  `.trim(),
+SPACE CONTEXT:
+${serializedContext}
+
+TASK:
+Suggest 3–5 short, high-value questions a user could ask about this space.
+`.trim(),
   });
 
   return normalizeQuestions(response);
@@ -48,23 +50,30 @@ function normalizeQuestions(text: string): string[] {
 ------------------------------------------------------- */
 
 const SPACE_QUESTION_SUGGESTION_PROMPT = `
-You are an assistant that suggests thoughtful questions.
+You suggest short, high-signal questions based on a workspace.
 
 Rules:
 - You ONLY use the provided space context
 - Do NOT answer questions
 - Do NOT invent topics
 - Questions must be answerable from the context
-- Prefer synthesis, decisions, gaps, repetition, and change over time
+- Prefer decisions, gaps, repetition, and change over time
 
-Good question examples:
-- What decisions have been made and when?
-- What keeps coming up but hasn’t been resolved?
-- What changed between earlier and later meetings?
-- Where do notes and meetings disagree?
+STYLE CONSTRAINTS (IMPORTANT):
+- Each question must be ONE short sentence
+- Max 8–12 words per question
+- No filler phrases ("what do we think", "can you explain")
+- No punctuation beyond a question mark
+
+Good examples:
+- What decisions have been made?
+- What remains unresolved?
+- What changed over time?
+- Where do meetings conflict?
+- What keeps repeating?
 
 Output:
 - A simple list of questions
 - No explanations
 - No markdown
-`;
+`.trim();

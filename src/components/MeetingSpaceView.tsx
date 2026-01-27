@@ -74,6 +74,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isAsking, setIsAsking] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
   const hasContext =
     space.records.length > 0 &&
@@ -84,10 +85,15 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   useEffect(() => {
     if (!hasContext) {
       setSuggestedQuestions([]);
+      setIsLoadingSuggestions(false);
       return;
     }
-
-    suggestSpaceQuestions(space).then(setSuggestedQuestions);
+  
+    setIsLoadingSuggestions(true);
+  
+    suggestSpaceQuestions(space)
+      .then((qs) => setSuggestedQuestions(qs))
+      .finally(() => setIsLoadingSuggestions(false));
   }, [space.records, hasContext]);
 
   useEffect(() => {
@@ -313,19 +319,25 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
 
               {/* Input */}
               <div className="border-t p-4 space-y-2">
-                {suggestedQuestions.length > 0 && (
-                  <div className="space-y-1">
-                    {suggestedQuestions.map((q, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setQuestion(q)}
-                        className="block w-full text-left text-xs text-indigo-600 hover:underline"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {isLoadingSuggestions && (
+  <div className="text-xs text-slate-400 italic">
+    Analyzing space…
+  </div>
+)}
+
+{!isLoadingSuggestions && suggestedQuestions.length > 0 && (
+  <div className="space-y-1">
+    {suggestedQuestions.map((q, i) => (
+      <button
+        key={i}
+        onClick={() => setQuestion(q)}
+        className="block w-full text-left text-xs text-indigo-600 hover:underline"
+      >
+        {q}
+      </button>
+    ))}
+  </div>
+)}
 
                 <textarea
                   value={question}
