@@ -242,15 +242,61 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
       <div className="flex flex-1 overflow-hidden">
         {/* -------- MAIN COLUMN -------- */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === "meetings" ? (
-            <div className="space-y-8">
-              {space.records.map((r) => (
-                <div key={r.id}>
-                  <MeetingInsightCard record={r} />
-                </div>
-              ))}
-            </div>
-          ) : (
+        {activeTab === "meetings" ? (
+  <div className="space-y-8">
+{isAddingMeeting && (
+  <div className="border rounded-2xl p-5 bg-white shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2">
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-semibold text-slate-700">
+        New Meeting
+      </h3>
+      <button
+        onClick={() => setIsAddingMeeting(false)}
+        className="text-xs text-slate-500 hover:text-slate-700"
+      >
+        Cancel
+      </button>
+    </div>
+
+    <input
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      placeholder="Meeting title"
+      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+    />
+
+    <textarea
+      value={transcript}
+      onChange={(e) => setTranscript(e.target.value)}
+      placeholder="Paste meeting transcript…"
+      className="w-full h-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+    />
+
+    <div className="flex justify-end gap-2 pt-2">
+      <button
+        onClick={addRecord}
+        disabled={isSaving}
+        className="
+          bg-indigo-600 text-white
+          px-5 py-2 rounded-lg
+          text-sm font-semibold
+          disabled:opacity-50
+          transition
+        "
+      >
+        {isSaving ? "Saving meeting…" : "Save meeting"}
+      </button>
+    </div>
+  </div>
+)}
+
+    {space.records.map((r) => (
+      <div key={r.id}>
+        <MeetingInsightCard record={r} />
+      </div>
+    ))}
+  </div>
+) : (
             <div className="max-w-4xl mx-auto h-full">
               <WysiwygEditor
                 key={activePage?.id}
@@ -300,10 +346,10 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                   <div
                     key={i}
                     className={cn(
-                      "rounded-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%]",
+                      "rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap max-w-[85%]",
                       m.role === "user"
                         ? "bg-indigo-100 text-indigo-900 ml-auto"
-                        : "bg-white border"
+                        : "bg-white border shadow-sm"
                     )}
                   >
                     {m.content}
@@ -318,20 +364,32 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
               </div>
 
               {/* Input */}
-              <div className="border-t p-4 space-y-2">
+              <div className="border-t p-4 space-y-2 bg-white sticky bottom-0">
               {isLoadingSuggestions && (
-  <div className="text-xs text-slate-400 italic">
-    Analyzing space…
+  <div className="flex flex-wrap gap-2 animate-pulse">
+    {[1, 2, 3].map((i) => (
+      <div
+        key={i}
+        className="h-7 w-28 rounded-full bg-slate-200"
+      />
+    ))}
   </div>
 )}
 
 {!isLoadingSuggestions && suggestedQuestions.length > 0 && (
-  <div className="space-y-1">
+  <div className="flex flex-wrap gap-2">
     {suggestedQuestions.map((q, i) => (
       <button
         key={i}
         onClick={() => setQuestion(q)}
-        className="block w-full text-left text-xs text-indigo-600 hover:underline"
+        className="
+          px-3 py-1.5
+          text-xs font-medium
+          bg-white border rounded-full
+          text-slate-700
+          hover:bg-indigo-50 hover:border-indigo-300
+          transition
+        "
       >
         {q}
       </button>
@@ -347,13 +405,16 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                   disabled={isAsking}
                 />
 
-                <button
-                  onClick={askSpaceAgent}
-                  disabled={isAsking}
-                  className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-                >
-                  {isAsking ? "Thinking…" : "Ask Space"}
-                </button>
+<button
+  onClick={askSpaceAgent}
+  disabled={isAsking || !question.trim()}
+  className="
+    w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-semibold
+    disabled:opacity-40 disabled:cursor-not-allowed
+  "
+>
+  {isAsking ? "Thinking…" : "Ask Space"}
+</button>
               </div>
             </>
           )}

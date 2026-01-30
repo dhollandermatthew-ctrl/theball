@@ -17,7 +17,8 @@
         "title": "The Ball",
         "width": 1280,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "devtools": true
       }
     ],
     "security": {

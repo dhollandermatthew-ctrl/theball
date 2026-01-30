@@ -3,8 +3,7 @@
 
 use reqwest::Client;
 use serde::Deserialize;
-use tauri::command;
-use tauri::Manager;
+use tauri::{command, Manager};
 
 // For reading/writing JSON state
 use std::fs;
@@ -60,7 +59,6 @@ async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, Str
 // -------------------------------------------------------------
 // File-based persistence for Zustand (read/write state.json)
 // -------------------------------------------------------------
-
 fn state_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -75,10 +73,10 @@ async fn read_data_file(app: tauri::AppHandle) -> Result<String, String> {
     let path = state_file_path(&app)?;
 
     if !path.exists() {
-        return Ok("{}".into()); // return empty JSON
+        return Ok("{}".into());
     }
 
-    fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))
+    fs::read_to_string(path).map_err(|e| format!("Failed to read file: {e}"))
 }
 
 #[command]
@@ -86,10 +84,10 @@ async fn write_data_file(app: tauri::AppHandle, contents: String) -> Result<(), 
     let path = state_file_path(&app)?;
 
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create dirs: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create dirs: {e}"))?;
     }
 
-    fs::write(path, contents).map_err(|e| format!("Failed to write file: {}", e))
+    fs::write(path, contents).map_err(|e| format!("Failed to write file: {e}"))
 }
 
 //
@@ -98,10 +96,15 @@ async fn write_data_file(app: tauri::AppHandle, contents: String) -> Result<(), 
 // -------------------------------------------------------------
 fn main() {
     tauri::Builder::default()
-        // plugins you use
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::default().build())
-        // register all commands
+        .setup(|app| {
+            let window = app.get_webview_window("main").unwrap();
+            window
+                .eval("window.__TAURI_INTERNALS__.openDevTools()")
+                .unwrap();
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             transcribe_audio,
             read_data_file,

@@ -60,10 +60,10 @@ Rules:
 - Prefer decisions, gaps, repetition, and change over time
 
 STYLE CONSTRAINTS (IMPORTANT):
-- Each question must be ONE short sentence
-- Max 8–12 words per question
-- No filler phrases ("what do we think", "can you explain")
-- No punctuation beyond a question mark
+- Max 6 words per question
+- Phrase as short headlines
+- No filler phrases
+- No punctuation
 
 Good examples:
 - What decisions have been made?

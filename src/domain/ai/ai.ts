@@ -14,7 +14,6 @@ const modelName =
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
-
 /* -----------------------------------------
  * AI LOGGING
  * ----------------------------------------- */
@@ -39,7 +38,7 @@ function extractJsonBlock(text: string): string | null {
 }
 
 /* -----------------------------------------
- * MAIN
+ * MAIN (TASK-BASED AI)
  * ----------------------------------------- */
 
 export async function runAI(
@@ -56,17 +55,18 @@ INPUT (JSON):
 ${JSON.stringify(input, null, 2)}
 `;
 
-    aiLog("PROMPT", prompt);
+    aiLog("TASK PROMPT", prompt);
+    aiLog("TASK PROMPT CHARS", prompt.length);
 
     const result = await model.generateContent(prompt);
     const raw = result.response.text().trim();
 
-    aiLog("RAW OUTPUT", raw);
+    aiLog("TASK RAW OUTPUT", raw);
 
     const jsonBlock = extractJsonBlock(raw);
 
     if (!jsonBlock) {
-      aiError("No JSON block found", raw);
+      aiError("TASK ERROR: No JSON block found", raw);
       return {
         title: "[AI returned no JSON]",
         content: input.content,
@@ -75,11 +75,10 @@ ${JSON.stringify(input, null, 2)}
 
     let parsed: any;
     try {
-      // ✅ IMPORTANT: DO NOT sanitize here — JSON is already valid
       parsed = JSON.parse(jsonBlock);
-      aiLog("PARSED JSON", parsed);
+      aiLog("TASK PARSED JSON", parsed);
     } catch (err) {
-      aiError("JSON parse failed", jsonBlock);
+      aiError("TASK ERROR: JSON parse failed", jsonBlock);
       return {
         title: "[AI returned malformed JSON]",
         content: input.content,
@@ -96,7 +95,7 @@ ${JSON.stringify(input, null, 2)}
         ? parsed.content.trim()
         : "";
 
-    aiLog("FINAL OUTPUT", {
+    aiLog("TASK FINAL OUTPUT", {
       title: finalTitle,
       content: finalContent,
     });
@@ -106,7 +105,7 @@ ${JSON.stringify(input, null, 2)}
       content: finalContent,
     };
   } catch (err) {
-    aiError("Unhandled AI error", err);
+    aiError("TASK ERROR: Unhandled AI error", err);
     return {
       title: input.title,
       content: input.content,
@@ -115,7 +114,7 @@ ${JSON.stringify(input, null, 2)}
 }
 
 /* -----------------------------------------
- * GENERIC AI CALL (LOW LEVEL)
+ * GENERIC AI CALL (CHAT / AGENT)
  * ----------------------------------------- */
 
 export async function callAI(params: {
@@ -133,12 +132,13 @@ INPUT:
 ${params.user}
 `;
 
-  aiLog("PROMPT", prompt);
+  aiLog("CHAT PROMPT", prompt);
+  aiLog("CHAT PROMPT CHARS", prompt.length);
 
   const result = await model.generateContent(prompt);
   const raw = result.response.text().trim();
 
-  aiLog("RAW OUTPUT", raw);
+  aiLog("CHAT RAW OUTPUT", raw);
 
   return raw;
 }
