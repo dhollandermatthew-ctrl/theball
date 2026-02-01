@@ -42,9 +42,16 @@ export async function processMeetingTranscript(
     throw new Error("Invalid JSON returned from meeting summarization");
   }
 
-  const normalized = {
+  const normalized: MeetingInsight = {
     summary: parsed.summary ?? "",
-  
+    participants:
+      // Prefer explicit participants array if present
+      (parsed as any).participants ??
+      // Backwards compatibility / loose model naming
+      (parsed as any).attendees ??
+      (parsed as any).people ??
+      [],
+
     keyLearnings:
       (parsed as any).keyLearnings ??
       (parsed as any).key_learnings ??

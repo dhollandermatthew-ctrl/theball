@@ -13,7 +13,13 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
 }) => {
   if (!record.insight) return null;
 
-  const { keyLearnings, followUps, openQuestions, summary } = record.insight;
+  const {
+    keyLearnings,
+    followUps,
+    openQuestions,
+    summary,
+    participants,
+  } = record.insight;
   const [copied, setCopied] = useState(false);
 
   const copyTranscript = async () => {
@@ -23,12 +29,56 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const meetingDateLabel = record.date || "";
+  const uploadedLabel = record.createdAt
+    ? new Date(record.createdAt).toLocaleString()
+    : "";
+
   return (
     <div className="mt-3 rounded-2xl border bg-white shadow-sm">
-      <div className="p-6 space-y-6">
-        <div className="text-xs uppercase tracking-wide text-slate-400">
-          Meeting Insights
+      <div className="p-4 space-y-4">
+        {/* ================= TITLE + METADATA ================= */}
+        <div className="flex flex-col gap-0.5">
+          <div className="text-sm font-semibold text-slate-900">
+            {record.title}
+          </div>
+          <div className="text-[11px] text-slate-400">
+            {meetingDateLabel && (
+              <span>
+                Meeting date:{" "}
+                <span className="font-medium">{meetingDateLabel}</span>
+              </span>
+            )}
+            {meetingDateLabel && uploadedLabel && (
+              <span className="mx-1.5">•</span>
+            )}
+            {uploadedLabel && (
+              <span>
+                Uploaded:{" "}
+                <span className="font-medium">{uploadedLabel}</span>
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* ================= PARTICIPANTS ================= */}
+        {participants && participants.length > 0 && (
+          <section>
+            <h3 className="text-xs font-semibold text-slate-500 mb-1">
+              Participants
+            </h3>
+            <div className="flex flex-wrap gap-1">
+              {participants.map((name, i) => (
+                <span
+                  key={`${name}-${i}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ================= KEY LEARNINGS ================= */}
         {keyLearnings?.length > 0 && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowLeft, Trash2, Plus } from "lucide-react";
 import { MeetingSpace, MeetingRecord } from "@/domain/types";
 import { generateId, cn } from "@/domain/utils";
@@ -81,6 +81,35 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
     space.records.some((r) => r.transcript?.trim());
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  /* ---------------- Aggregated participants ---------------- */
+  const aggregatedParticipants = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const record of space.records) {
+      const raw = record.insight?.participants ?? [];
+      if (!raw || raw.length === 0) continue;
+
+      const uniqueNames = Array.from(
+        new Set(
+          raw
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0),
+        ),
+      );
+
+      for (const name of uniqueNames) {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+    }
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort(
+        (a, b) =>
+          b.count - a.count || a.name.localeCompare(b.name),
+      );
+  }, [space.records]);
 
   useEffect(() => {
     if (!hasContext) {
@@ -195,9 +224,16 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
               }
               className="text-2xl font-bold bg-transparent focus:outline-none border-none p-0 w-full"
             />
-            <p className="text-xs text-slate-400">
-              Persistent Intelligence Space
-            </p>
+            {aggregatedParticipants.length > 0 && (
+              <p className="mt-1 text-xs text-slate-400">
+                People in this space:{" "}
+                {aggregatedParticipants
+                  .map((p) =>
+                    p.count > 1 ? `${p.name} (${p.count})` : p.name,
+                  )
+                  .join(", ")}
+              </p>
+            )}
           </div>
         </div>
 
@@ -245,46 +281,90 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         {activeTab === "meetings" ? (
   <div className="space-y-8">
 {isAddingMeeting && (
-  <div className="border rounded-2xl p-5 bg-white shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2">
-    <div className="flex items-center justify-between">
-      <h3 className="text-sm font-semibold text-slate-700">
-        New Meeting
-      </h3>
+  <div className="rounded-2xl border bg-white shadow-sm">
+    {/* Header */}
+    <div className="px-6 py-4 border-b">
+      <h2 className="text-lg font-semibold">New Meeting</h2>
+      <p className="text-sm text-slate-500">
+        Add a transcript to generate insights and activate space intelligence.
+      </p>
+    </div>
+
+    {/* Content */}
+    <div className="px-6 py-5 space-y-5">
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 mb-1">
+          MEETING TITLE
+        </label>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Architecture Review, Client Sync"
+          className="
+            w-full rounded-lg border px-3 py-2 text-sm
+            focus:outline-none focus:ring-2 focus:ring-indigo-500
+          "
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[180px_minmax(0,1fr)] gap-4 items-end">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">
+            MEETING DATE
+          </label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="
+              w-full rounded-lg border px-3 py-2 text-sm
+              focus:outline-none focus:ring-2 focus:ring-indigo-500
+            "
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            When this conversation actually happened.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 mb-1">
+          TRANSCRIPT
+        </label>
+        <textarea
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          placeholder="Paste the full meeting transcript here…"
+          className="
+            w-full h-56 rounded-lg border px-3 py-2 text-sm
+            focus:outline-none focus:ring-2 focus:ring-indigo-500
+          "
+        />
+        <p className="mt-1 text-xs text-slate-400">
+          This will be analyzed to extract decisions, themes, and follow-ups.
+        </p>
+      </div>
+    </div>
+
+    {/* Actions */}
+    <div className="px-6 py-4 border-t bg-slate-50 flex justify-end gap-2">
       <button
         onClick={() => setIsAddingMeeting(false)}
-        className="text-xs text-slate-500 hover:text-slate-700"
+        className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-200"
       >
         Cancel
       </button>
-    </div>
 
-    <input
-      value={title}
-      onChange={(e) => setTitle(e.target.value)}
-      placeholder="Meeting title"
-      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-    />
-
-    <textarea
-      value={transcript}
-      onChange={(e) => setTranscript(e.target.value)}
-      placeholder="Paste meeting transcript…"
-      className="w-full h-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-    />
-
-    <div className="flex justify-end gap-2 pt-2">
       <button
         onClick={addRecord}
-        disabled={isSaving}
+        disabled={isSaving || !title.trim() || !transcript.trim()}
         className="
-          bg-indigo-600 text-white
-          px-5 py-2 rounded-lg
-          text-sm font-semibold
-          disabled:opacity-50
-          transition
+          px-5 py-2 rounded-lg text-sm font-semibold text-white
+          bg-indigo-600 hover:bg-indigo-700
+          disabled:opacity-40 disabled:cursor-not-allowed
         "
       >
-        {isSaving ? "Saving meeting…" : "Save meeting"}
+        {isSaving ? "Saving…" : "Save Meeting"}
       </button>
     </div>
   </div>

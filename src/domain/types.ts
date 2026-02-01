@@ -95,6 +95,11 @@
 
   export interface MeetingInsight {
     summary: string;
+    /**
+     * Unique human participants detected in the transcript.
+     * Optional for backward compatibility with existing records.
+     */
+    participants?: string[];
     keyLearnings: string[];
     followUps: string[];
     openQuestions: string[];

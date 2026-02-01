@@ -21,16 +21,25 @@ Rules:
 - Output MUST be valid JSON
 - Do NOT include markdown or commentary
 
-OUTPUT SCHEMA (STRICT):
+OUTPUT SCHEMA (STRICT JSON):
 
 {
   "summary": string,
+  "participants": string[],
   "keyLearnings": string[],
   "followUps": string[],
   "openQuestions": string[]
 }
 
-SECTION RULES:
+SECTION RULES
+
+PARTICIPANTS:
+- Unique human names who actively spoke or were explicitly present
+- Use the *name only* (e.g. "Alice Chen"), no roles or titles
+- Do NOT include generic labels like "Interviewer", "Speaker 1", "Customer"
+- If only labels exist, infer likely names from context; if impossible, return an empty array
+- 1–10 items, no duplicates
+- Order does not matter
 
 SUMMARY:
 - 2–3 sentences maximum
