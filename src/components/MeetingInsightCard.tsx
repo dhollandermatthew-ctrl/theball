@@ -30,35 +30,22 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
   };
 
   const meetingDateLabel = record.date || "";
-  const uploadedLabel = record.createdAt
-    ? new Date(record.createdAt).toLocaleString()
-    : "";
 
   return (
     <div className="mt-3 rounded-2xl border bg-white shadow-sm">
       <div className="p-4 space-y-4">
         {/* ================= TITLE + METADATA ================= */}
-        <div className="flex flex-col gap-0.5">
-          <div className="text-sm font-semibold text-slate-900">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="text-sm font-semibold text-slate-900 truncate">
             {record.title}
           </div>
-          <div className="text-[11px] text-slate-400">
-            {meetingDateLabel && (
-              <span>
-                Meeting date:{" "}
-                <span className="font-medium">{meetingDateLabel}</span>
-              </span>
-            )}
-            {meetingDateLabel && uploadedLabel && (
-              <span className="mx-1.5">•</span>
-            )}
-            {uploadedLabel && (
-              <span>
-                Uploaded:{" "}
-                <span className="font-medium">{uploadedLabel}</span>
-              </span>
-            )}
-          </div>
+
+          {meetingDateLabel && (
+            <div className="text-[11px] text-slate-400">
+              Meeting date:{" "}
+              <span className="font-medium">{meetingDateLabel}</span>
+            </div>
+          )}
         </div>
 
         {/* ================= PARTICIPANTS ================= */}
