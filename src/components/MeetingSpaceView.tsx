@@ -39,6 +39,10 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
+  const [meetingType, setMeetingType] = useState<"normal" | "discovery">("normal");
+
+  /* ---------------- Filter State ---------------- */
+  const [meetingFilter, setMeetingFilter] = useState<"all" | "normal" | "discovery">("all");
 
   /* ---------------- Space Notes Pages ---------------- */
   const pages = Array.isArray(space.spaceNotes) ? space.spaceNotes : [];
@@ -112,6 +116,16 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
       );
   }, [space.records]);
 
+  /* ---------------- Filtered records ---------------- */
+  const filteredRecords = useMemo(() => {
+    if (meetingFilter === "all") {
+      return space.records;
+    }
+    return space.records.filter(
+      (r) => (r.meetingType || "normal") === meetingFilter
+    );
+  }, [space.records, meetingFilter]);
+
   useEffect(() => {
     if (!hasContext) {
       setSuggestedQuestions([]);
@@ -175,7 +189,10 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
 
     setIsSaving(true);
     try {
-      const insight = await processMeetingTranscript({ transcript });
+      const insight = await processMeetingTranscript({ 
+        transcript,
+        meetingType 
+      });
 
       const record: MeetingRecord = {
         id: generateId(),
@@ -183,6 +200,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         date,
         transcript,
         notes,
+        meetingType,
         insight,
         createdAt: new Date().toISOString(),
       };
@@ -195,6 +213,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
       setTitle("");
       setTranscript("");
       setNotes("");
+      setMeetingType("normal");
       setIsAddingMeeting(false);
     } finally {
       setIsSaving(false);
@@ -267,7 +286,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
           {activeTab === "meetings" && (
             <button
               onClick={() => setIsAddingMeeting(true)}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
             >
               <Plus size={16} /> New Meeting
             </button>
@@ -309,7 +328,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-[180px_minmax(0,1fr)] gap-4 items-end">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-slate-500 mb-1">
                           MEETING DATE
@@ -325,6 +344,43 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                         />
                         <p className="mt-1 text-[11px] text-slate-400">
                           When this conversation actually happened.
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          MEETING TYPE
+                        </label>
+                        <div className="flex gap-2 w-full">
+                          <button
+                            type="button"
+                            onClick={() => setMeetingType("normal")}
+                            className={cn(
+                              "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
+                              meetingType === "normal"
+                                ? "bg-indigo-600 text-white shadow-sm"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            )}
+                          >
+                            Normal Call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMeetingType("discovery")}
+                            className={cn(
+                              "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
+                              meetingType === "discovery"
+                                ? "bg-purple-600 text-white shadow-sm"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            )}
+                          >
+                            Discovery Call
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {meetingType === "discovery" 
+                            ? "Extracts feature requests and problem signals."
+                            : "Tracks follow-ups and open questions."}
                         </p>
                       </div>
                     </div>
@@ -375,13 +431,72 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                 </div>
               )}
 
-              {space.records.length > 0 && (
+              {/* Filter Bar */}
+              {!isAddingMeeting && space.records.length > 0 && (
+                <div className="flex items-center justify-between py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Filter:</span>
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setMeetingFilter("all")}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
+                          meetingFilter === "all"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setMeetingFilter("normal")}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
+                          meetingFilter === "normal"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        Normal
+                      </button>
+                      <button
+                        onClick={() => setMeetingFilter("discovery")}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap",
+                          meetingFilter === "discovery"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        Discovery
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {filteredRecords.length} {filteredRecords.length === 1 ? 'meeting' : 'meetings'}
+                  </div>
+                </div>
+              )}
+
+              {filteredRecords.length > 0 && (
                 <div className="space-y-3">
-                  {space.records.map((r) => (
+                  {filteredRecords.map((r) => (
                     <div key={r.id}>
                       <MeetingInsightCard record={r} />
                     </div>
                   ))}
+                </div>
+              )}
+
+              {filteredRecords.length === 0 && space.records.length > 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  <p className="text-sm">No {meetingFilter} meetings found.</p>
+                  <button
+                    onClick={() => setMeetingFilter("all")}
+                    className="mt-2 text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                  >
+                    Show all meetings
+                  </button>
                 </div>
               )}
             </div>

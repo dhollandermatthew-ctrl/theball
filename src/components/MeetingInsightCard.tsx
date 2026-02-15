@@ -17,6 +17,8 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
     keyLearnings,
     followUps,
     openQuestions,
+    featureRequests,
+    problemSignals,
     summary,
     participants,
   } = record.insight;
@@ -36,8 +38,15 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
       <div className="p-4 space-y-4">
         {/* ================= TITLE + METADATA ================= */}
         <div className="flex flex-col gap-0.5 min-w-0">
-          <div className="text-sm font-semibold text-slate-900 truncate">
-            {record.title}
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-semibold text-slate-900 truncate">
+              {record.title}
+            </div>
+            {record.meetingType === "discovery" && (
+              <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700 uppercase tracking-wide flex-shrink-0">
+                Discovery
+              </span>
+            )}
           </div>
 
           {meetingDateLabel && (
@@ -95,7 +104,7 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
           </section>
         )}
 
-        {/* ================= FOLLOW-UPS + OPEN QUESTIONS ================= */}
+        {/* ================= NORMAL CALL: FOLLOW-UPS + OPEN QUESTIONS ================= */}
         {(followUps?.length > 0 || openQuestions?.length > 0) && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* FOLLOW-UPS */}
@@ -127,6 +136,51 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
 
                 <ul className="space-y-2 text-sm text-slate-800">
                   {openQuestions.map((q, i) => (
+                    <li
+                      key={i}
+                      className="pl-3 border-l-2 border-amber-300 leading-snug"
+                    >
+                      {q}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ================= DISCOVERY CALL: FEATURE REQUESTS + PROBLEM SIGNALS ================= */}
+        {(featureRequests?.length > 0 || problemSignals?.length > 0) && (
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* FEATURE REQUESTS */}
+            {featureRequests?.length > 0 && (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                <h4 className="text-sm font-semibold text-emerald-700 mb-2">
+                  Feature Requests
+                </h4>
+
+                <ul className="space-y-2 text-sm text-slate-800">
+                  {featureRequests.map((f, i) => (
+                    <li
+                      key={i}
+                      className="pl-3 border-l-2 border-emerald-300 leading-snug"
+                    >
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* PROBLEM SIGNALS */}
+            {problemSignals?.length > 0 && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                <h4 className="text-sm font-semibold text-amber-700 mb-2">
+                  Problem Signals
+                </h4>
+
+                <ul className="space-y-2 text-sm text-slate-800">
+                  {problemSignals.map((q, i) => (
                     <li
                       key={i}
                       className="pl-3 border-l-2 border-amber-300 leading-snug"

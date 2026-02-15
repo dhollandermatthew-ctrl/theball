@@ -101,8 +101,14 @@
      */
     participants?: string[];
     keyLearnings: string[];
-    followUps: string[];
-    openQuestions: string[];
+    
+    // Normal call fields
+    followUps?: string[];
+    openQuestions?: string[];
+    
+    // Discovery call fields
+    featureRequests?: string[];
+    problemSignals?: string[];
   }
 
   export interface MeetingRecord {
@@ -111,6 +117,7 @@
     date: string;
     transcript: string;
     notes?: string;
+    meetingType?: "normal" | "discovery"; // Optional for backwards compatibility
     insight?: MeetingInsight;
     createdAt: string;
   }

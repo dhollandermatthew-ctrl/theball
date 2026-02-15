@@ -1,5 +1,8 @@
 import { callAI } from "@/domain/ai/ai";
-import { SUMMARIZE_MEETING_SYSTEM_PROMPT } from "@/domain/prompts/meetings/summarize.system";
+import { 
+  SUMMARIZE_NORMAL_MEETING_PROMPT, 
+  SUMMARIZE_DISCOVERY_MEETING_PROMPT 
+} from "@/domain/prompts/meetings/summarize.system";
 import { SPACE_QA_SYSTEM_PROMPT } from "@/domain/prompts/meetings/spaceQa.system";
 import type { MeetingSpace, MeetingInsight } from "@/domain/types";
 
@@ -9,6 +12,7 @@ import type { MeetingSpace, MeetingInsight } from "@/domain/types";
 
 interface ProcessMeetingInput {
   transcript: string;
+  meetingType?: "normal" | "discovery";
 }
 
 /* -----------------------------------------
@@ -19,13 +23,19 @@ export async function processMeetingTranscript(
   input: ProcessMeetingInput
 ): Promise<MeetingInsight> {
   const transcript = input.transcript?.trim();
+  const meetingType = input.meetingType || "normal"; // Default to normal
 
   if (!transcript) {
     throw new Error("processMeetingTranscript: transcript is empty");
   }
 
+  // Choose prompt based on meeting type
+  const systemPrompt = meetingType === "discovery" 
+    ? SUMMARIZE_DISCOVERY_MEETING_PROMPT 
+    : SUMMARIZE_NORMAL_MEETING_PROMPT;
+
   const raw = await callAI({
-    system: SUMMARIZE_MEETING_SYSTEM_PROMPT,
+    system: systemPrompt,
     user: transcript,
     temperature: 0.2,
   });
@@ -57,15 +67,27 @@ export async function processMeetingTranscript(
       (parsed as any).key_learnings ??
       [],
   
+    // Normal call fields
     followUps:
       (parsed as any).followUps ??
       (parsed as any).follow_ups ??
-      [],
+      undefined,
   
     openQuestions:
       (parsed as any).openQuestions ??
       (parsed as any).open_questions ??
-      [],
+      undefined,
+    
+    // Discovery call fields
+    featureRequests:
+      (parsed as any).featureRequests ??
+      (parsed as any).feature_requests ??
+      undefined,
+  
+    problemSignals:
+      (parsed as any).problemSignals ??
+      (parsed as any).problem_signals ??
+      undefined,
   };
   
   return normalized;
@@ -79,20 +101,35 @@ function buildSpaceContext(space: MeetingSpace): string {
     return space.records
       .filter((r) => r.insight)
       .map(
-        (r, i) => `
-  MEETING ${i + 1}
-  Title: ${r.title}
-  Date: ${r.date}
-  
-  KEY LEARNINGS:
-  ${r.insight!.keyLearnings.join("\n") || "None"}
-  
-  FOLLOW-UPS:
-  ${r.insight!.followUps.join("\n") || "None"}
-  
-  OPEN QUESTIONS:
-  ${r.insight!.openQuestions.join("\n") || "None"}
-  `.trim()
+        (r, i) => {
+          const insight = r.insight!;
+          const sections = [
+            `MEETING ${i + 1}`,
+            `Title: ${r.title}`,
+            `Date: ${r.date}`,
+            ``,
+            `KEY LEARNINGS:`,
+            insight.keyLearnings.join("\n") || "None"
+          ];
+          
+          // Add normal call fields if present
+          if (insight.followUps && insight.followUps.length > 0) {
+            sections.push(``, `FOLLOW-UPS:`, insight.followUps.join("\n"));
+          }
+          if (insight.openQuestions && insight.openQuestions.length > 0) {
+            sections.push(``, `OPEN QUESTIONS:`, insight.openQuestions.join("\n"));
+          }
+          
+          // Add discovery call fields if present
+          if (insight.featureRequests && insight.featureRequests.length > 0) {
+            sections.push(``, `FEATURE REQUESTS:`, insight.featureRequests.join("\n"));
+          }
+          if (insight.problemSignals && insight.problemSignals.length > 0) {
+            sections.push(``, `PROBLEM SIGNALS:`, insight.problemSignals.join("\n"));
+          }
+          
+          return sections.join("\n");
+        }
       )
       .join("\n\n====================\n\n");
   }

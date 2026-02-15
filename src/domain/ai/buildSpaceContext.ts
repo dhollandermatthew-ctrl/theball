@@ -38,12 +38,14 @@ function normalizeText(text: string): string {
    * without introducing interpretation.
    */
   function stringifyInsight(insight: any): string {
-    return [
+    const items = [
       ...(insight.keyLearnings ?? []),
       ...(insight.followUps ?? []),
       ...(insight.openQuestions ?? []),
+      ...(insight.featureRequests ?? []),
+      ...(insight.problemSignals ?? []),
       insight.summary ?? "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    ];
+    
+    return items.filter(Boolean).join("\n");
   }
