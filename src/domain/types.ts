@@ -140,3 +140,51 @@
     createdAt: string;
     updatedAt: string;
   }
+
+  // --------------------------------------------------
+  // HEALTH
+  // --------------------------------------------------
+
+  export interface LabValue {
+    name: string;
+    value: string;
+    unit: string;
+    referenceRange?: string;
+    flag?: "H" | "L" | "HH" | "LL" | "CRIT"; // High, Low, Very High, Very Low, Critical
+  }
+
+  export interface BloodWorkRecord {
+    id: string;
+    date: string; // Date of blood test
+    labName?: string; // e.g., "LifeLabs"
+    sourceType: "pdf" | "image" | "manual";
+    sourceFileName?: string;
+    labValues: LabValue[];
+    aiAnalysis?: string; // AI-generated insights about the results
+    aiFlags?: string[]; // Specific concerns flagged by AI
+    notes?: string; // User notes
+    createdAt: string;
+  }
+
+  export interface HealthData {
+    bloodWorkRecords: BloodWorkRecord[];
+    workoutRecords: WorkoutRecord[];
+  }
+
+  // --------------------------------------------------
+  // FITNESS
+  // --------------------------------------------------
+
+  export interface WorkoutRecord {
+    id: string;
+    date: string; // Date of workout
+    type: "run" | "treadmill" | "bike" | "walk" | "other";
+    distance?: number; // in km
+    duration?: number; // in minutes
+    pace?: string; // e.g., "6:02 min/km"
+    calories?: number;
+    sourceType: "image" | "manual";
+    sourceFileName?: string;
+    notes?: string;
+    createdAt: string;
+  }

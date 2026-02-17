@@ -9,9 +9,10 @@ import { GoalView } from "./components/GoalView";
 import { OneOnOneTaskView } from "./components/OneOnOneTaskView";
 import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
+import { HealthView } from "./components/HealthView";
 
 import { generateId, getRandomColor } from "./domain/utils";
-import { MeetingSpace, Task } from "@/domain/types";
+import { MeetingSpace, Task, HealthData } from "@/domain/types";
 import { useAppStore, initializeAppState } from "./domain/state";
 
 function App() {
@@ -65,7 +66,7 @@ function App() {
   /* -------------------------------------------------- */
 
   const [currentView, setCurrentView] = useState<
-    "calendar" | "goals" | "meetings" | string
+    "calendar" | "goals" | "meetings" | "health" | string
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -97,6 +98,26 @@ function App() {
   useEffect(() => {
     localStorage.setItem("theball-meetings", JSON.stringify(meetingSpaces));
   }, [meetingSpaces]);
+
+  /* -------------------------------------------------- */
+  /* Health (local storage)                             */
+  /* -------------------------------------------------- */
+
+  const [healthData, setHealthData] = useState<HealthData>(() => {
+    const saved = localStorage.getItem("theball-health");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        bloodWorkRecords: parsed.bloodWorkRecords || [],
+        workoutRecords: parsed.workoutRecords || [],
+      };
+    }
+    return { bloodWorkRecords: [], workoutRecords: [] };
+  });
+
+  useEffect(() => {
+    localStorage.setItem("theball-health", JSON.stringify(healthData));
+  }, [healthData]);
 
   /* -------------------------------------------------- */
   /* Sidebar resize                                     */
@@ -233,6 +254,8 @@ function App() {
           />
         ) : currentView === "meetings" ? (
           <MeetingHub spaces={meetingSpaces} onUpdateSpaces={setMeetingSpaces} />
+        ) : currentView === "health" ? (
+          <HealthView healthData={healthData} onUpdateHealthData={setHealthData} />
         ) : activePerson ? (
           <OneOnOneTaskView
             person={activePerson}

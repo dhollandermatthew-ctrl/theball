@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowLeft, Trash2, Plus } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, Zap } from "lucide-react";
 import { MeetingSpace, MeetingRecord } from "@/domain/types";
 import { generateId, cn } from "@/domain/utils";
 import { processMeetingTranscript } from "@/domain/ai/meetings";
@@ -7,6 +7,8 @@ import { MeetingInsightCard } from "@/components/MeetingInsightCard";
 import { WysiwygEditor } from "@/components/WysiwygEditor";
 import { executeSpaceAgent } from "@/domain/ai/spaceAgent";
 import { suggestSpaceQuestions } from "@/domain/ai/suggestSpaceQuestions";
+import { tokenTracker } from "@/domain/tokenTracker";
+import { TokenStatsModal } from "./TokenStatsModal";
 import type { SpaceAgentResponse } from "@/domain/ai/spaceAgent";
 
 
@@ -34,12 +36,25 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   const [activeTab, setActiveTab] = useState<"meetings" | "notes">("meetings");
   const [isAddingMeeting, setIsAddingMeeting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [totalTokens, setTotalTokens] = React.useState(0);
+  const [isStatsOpen, setIsStatsOpen] = React.useState(false);
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
   const [meetingType, setMeetingType] = useState<"normal" | "discovery">("normal");
+
+  React.useEffect(() => {
+    const updateTokens = () => {
+      setTotalTokens(tokenTracker.getTotalTokens());
+    };
+    updateTokens();
+    const unsubscribe = tokenTracker.subscribe(updateTokens);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   /* ---------------- Filter State ---------------- */
   const [meetingFilter, setMeetingFilter] = useState<"all" | "normal" | "discovery">("all");
@@ -228,7 +243,9 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <>
+      <TokenStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} />
+      <div className="h-full flex flex-col bg-white">
       {/* ================= HEADER ================= */}
       <div className="border-b px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -258,6 +275,17 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsStatsOpen(true)}
+            className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 transition-all cursor-pointer"
+            title="View token usage stats"
+          >
+            <Zap size={16} className="text-amber-600" />
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
+              {totalTokens.toLocaleString()}
+            </span>
+          </button>
+
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab("meetings")}
@@ -625,5 +653,6 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };

@@ -12,6 +12,7 @@ import {
   GripVertical,
   Pencil,
   Target,
+  Heart,
 } from "lucide-react";
 
 import { OneOnOnePerson } from "@/domain/state";
@@ -469,6 +470,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
     />
     Meetings
+  </button>
+</div>
+
+{/* Health */}
+<div className="px-2 mt-1">
+  <button
+    onClick={() => onNavigate("health")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "health"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <Heart
+      size={18}
+      className={cn(
+        "transition-colors",
+        currentView === "health"
+          ? "text-rose-500"
+          : "text-slate-400"
+      )}
+    />
+    Health
   </button>
 </div>
 

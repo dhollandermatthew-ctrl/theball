@@ -105,17 +105,17 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
         )}
 
         {/* ================= NORMAL CALL: FOLLOW-UPS + OPEN QUESTIONS ================= */}
-        {(followUps?.length > 0 || openQuestions?.length > 0) && (
+        {((followUps?.length ?? 0) > 0 || (openQuestions?.length ?? 0) > 0) && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* FOLLOW-UPS */}
-            {followUps?.length > 0 && (
+            {(followUps?.length ?? 0) > 0 && (
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
                 <h4 className="text-sm font-semibold text-emerald-700 mb-2">
                   Follow-ups
                 </h4>
 
                 <ul className="space-y-2 text-sm text-slate-800">
-                  {followUps.map((f, i) => (
+                  {followUps!.map((f, i) => (
                     <li
                       key={i}
                       className="pl-3 border-l-2 border-emerald-300 leading-snug"
@@ -128,14 +128,14 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
             )}
 
             {/* OPEN QUESTIONS */}
-            {openQuestions?.length > 0 && (
+            {(openQuestions?.length ?? 0) > 0 && (
               <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
                 <h4 className="text-sm font-semibold text-amber-700 mb-2">
                   Open Questions
                 </h4>
 
                 <ul className="space-y-2 text-sm text-slate-800">
-                  {openQuestions.map((q, i) => (
+                  {openQuestions!.map((q, i) => (
                     <li
                       key={i}
                       className="pl-3 border-l-2 border-amber-300 leading-snug"
@@ -150,17 +150,17 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
         )}
 
         {/* ================= DISCOVERY CALL: FEATURE REQUESTS + PROBLEM SIGNALS ================= */}
-        {(featureRequests?.length > 0 || problemSignals?.length > 0) && (
+        {((featureRequests?.length ?? 0) > 0 || (problemSignals?.length ?? 0) > 0) && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* FEATURE REQUESTS */}
-            {featureRequests?.length > 0 && (
+            {(featureRequests?.length ?? 0) > 0 && (
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
                 <h4 className="text-sm font-semibold text-emerald-700 mb-2">
                   Feature Requests
                 </h4>
 
                 <ul className="space-y-2 text-sm text-slate-800">
-                  {featureRequests.map((f, i) => (
+                  {featureRequests!.map((f, i) => (
                     <li
                       key={i}
                       className="pl-3 border-l-2 border-emerald-300 leading-snug"
@@ -173,14 +173,14 @@ export const MeetingInsightCard: React.FC<MeetingInsightCardProps> = ({
             )}
 
             {/* PROBLEM SIGNALS */}
-            {problemSignals?.length > 0 && (
+            {(problemSignals?.length ?? 0) > 0 && (
               <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
                 <h4 className="text-sm font-semibold text-amber-700 mb-2">
                   Problem Signals
                 </h4>
 
                 <ul className="space-y-2 text-sm text-slate-800">
-                  {problemSignals.map((q, i) => (
+                  {problemSignals!.map((q, i) => (
                     <li
                       key={i}
                       className="pl-3 border-l-2 border-amber-300 leading-snug"
