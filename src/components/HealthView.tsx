@@ -170,22 +170,22 @@ export const HealthView: React.FC<HealthViewProps> = ({
       <TokenStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} />
       <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-8 py-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border-b border-slate-200 px-8 py-3">
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Health</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Track your blood work and fitness metrics over time
+            <h1 className="text-xl font-semibold text-slate-900">Health</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Track your blood work and fitness metrics
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setIsStatsOpen(true)}
-              className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 transition-all cursor-pointer"
               title="View token usage stats"
             >
-              <Zap size={16} className="text-amber-600" />
+              <Zap size={14} className="text-amber-600" />
               <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
                 {totalTokens.toLocaleString()}
               </span>
@@ -195,38 +195,38 @@ export const HealthView: React.FC<HealthViewProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={() => setShowManualEntry(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                <Plus size={18} />
-                Manual Entry
+                <Plus size={16} />
+                Manual
               </button>
 
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Upload size={18} />
-                {isUploading ? "Processing..." : "Upload Blood Work"}
+                <Upload size={16} />
+                {isUploading ? "Processing..." : "Upload"}
               </button>
             </div>
           ) : (
             <div className="flex gap-2">
               <button
                 onClick={() => setShowWorkoutEntry(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                <Plus size={18} />
-                Manual Entry
+                <Plus size={16} />
+                Manual
               </button>
 
               <button
                 onClick={() => workoutFileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Upload size={18} />
-                {isUploading ? "Processing..." : "Upload Workout"}
+                <Upload size={16} />
+                {isUploading ? "Processing..." : "Upload"}
               </button>
             </div>
           )}
@@ -258,40 +258,40 @@ export const HealthView: React.FC<HealthViewProps> = ({
         />
 
         {/* Tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-2">
           <button
             onClick={() => setActiveTab("bloodwork")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ 
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${ 
               activeTab === "bloodwork"
                 ? "bg-indigo-100 text-indigo-700"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FileText size={16} className="inline mr-2" />
+            <FileText size={14} className="inline mr-1.5" />
             Blood Work
           </button>
           <button
             onClick={() => setActiveTab("fitness")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
               activeTab === "fitness"
                 ? "bg-indigo-100 text-indigo-700"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <Activity size={16} className="inline mr-2" />
+            <Activity size={14} className="inline mr-1.5" />
             Fitness
           </button>
         </div>
 
         {uploadError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
             {uploadError}
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-8 py-4">
         {activeTab === "bloodwork" ? (
           sortedRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -322,8 +322,8 @@ export const HealthView: React.FC<HealthViewProps> = ({
             
             {/* Trend Charts Section */}
             {sortedRecords.length > 1 && (
-              <div className="mb-8">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              <div className="mb-6">
+                <h2 className="text-base font-semibold text-slate-900 mb-3">
                   Trends Over Time
                 </h2>
                 <TrendCharts records={sortedRecords} personalProfile={healthData.personalProfile} />
@@ -331,9 +331,9 @@ export const HealthView: React.FC<HealthViewProps> = ({
             )}
 
             {/* Records List - Horizontal Pills */}
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-base font-semibold text-slate-900">
                   Blood Work History
                 </h2>
                 <div className="flex flex-wrap gap-3">
@@ -629,36 +629,34 @@ const HealthOverviewSection: React.FC<HealthOverviewSectionProps> = ({
   ].filter(Boolean) as LabValue[] : [];
 
   return (
-    <div className="mb-4 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <Activity size={16} />
-          Health Overview - Last 30 Days
+    <div className="mb-2 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-2.5">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+          <Activity size={14} />
+          Health Overview
         </h3>
         <button
           onClick={onOpenProfileSettings}
-          className="p-1.5 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 text-slate-600 hover:text-slate-900"
+          className="p-1 hover:bg-white rounded transition-colors border border-transparent hover:border-slate-300 text-slate-600 hover:text-slate-900"
           title="Personal Profile Settings"
         >
-          <Settings size={16} />
+          <Settings size={14} />
         </button>
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {/* Workout Metrics */}
         {sortedWorkouts.length > 0 && (
           <>
-            <div className="bg-white rounded-lg p-3 border border-slate-200">
-              <div className="text-xs text-slate-500 mb-1">Workouts</div>
-              <div className="text-2xl font-bold text-slate-900">{totalWorkouts}</div>
-              <div className="text-xs text-slate-600 mt-1">last 30 days</div>
+            <div className="bg-white rounded p-2 border border-slate-200">
+              <div className="text-[10px] text-slate-500 mb-0.5">Workouts (30d)</div>
+              <div className="text-xl font-bold text-slate-900">{totalWorkouts}</div>
             </div>
             
             {totalDistance > 0 && (
-              <div className="bg-white rounded-lg p-3 border border-slate-200">
-                <div className="text-xs text-slate-500 mb-1">Total Distance</div>
-                <div className="text-2xl font-bold text-slate-900">{totalDistance.toFixed(1)}</div>
-                <div className="text-xs text-slate-600 mt-1">km in 30 days</div>
+              <div className="bg-white rounded p-2 border border-slate-200">
+                <div className="text-[10px] text-slate-500 mb-0.5">Distance (30d)</div>
+                <div className="text-xl font-bold text-slate-900">{totalDistance.toFixed(1)}<span className="text-sm ml-0.5">km</span></div>
               </div>
             )}
           </>
@@ -670,36 +668,32 @@ const HealthOverviewSection: React.FC<HealthOverviewSectionProps> = ({
           return (
             <div 
               key={idx}
-              className={`rounded-lg p-3 border ${
+              className={`rounded p-2 border ${
                 isNormal 
                   ? 'bg-green-50 border-green-200' 
                   : 'bg-amber-50 border-amber-300'
               }`}
             >
-              <div className="text-xs text-slate-600 mb-1 flex items-center gap-1">
-                {metric.name}
-                {!isNormal && <AlertTriangle size={12} className="text-amber-600" />}
+              <div className="text-[10px] text-slate-600 mb-0.5 flex items-center gap-1 truncate">
+                <span className="truncate">{metric.name}</span>
+                {!isNormal && <AlertTriangle size={10} className="text-amber-600 flex-shrink-0" />}
               </div>
-              <div className={`text-lg font-bold ${isNormal ? 'text-green-900' : 'text-amber-900'}`}>
-                {metric.value} {metric.unit}
+              <div className={`text-base font-bold ${isNormal ? 'text-green-900' : 'text-amber-900'}`}>
+                {metric.value} <span className="text-xs font-normal">{metric.unit}</span>
               </div>
-              {metric.referenceRange && (
-                <div className="text-xs text-slate-500 mt-1">
-                  Normal: {metric.referenceRange}
-                </div>
-              )}
             </div>
           );
         })}
       </div>
       
-      {/* Last Updated */}
-      <div className="mt-3 text-xs text-slate-500 text-center">
+      {/* Last Updated - more compact */}
+      <div className="mt-2 text-[10px] text-slate-500 text-center">
         {latestBloodWork && (
-          <span>Blood work: {new Date(latestBloodWork.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • </span>
+          <span>Blood: {new Date(latestBloodWork.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
         )}
+        {latestBloodWork && sortedWorkouts.length > 0 && <span className="mx-1">•</span>}
         {sortedWorkouts.length > 0 && (
-          <span>Last workout: {new Date(sortedWorkouts[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          <span>Workout: {new Date(sortedWorkouts[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
         )}
       </div>
     </div>
@@ -1124,18 +1118,41 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
   let refMax: number | null = null;
   
   if (referenceRangeStr) {
-    // Parse formats like "3.5-5.2" or "< 5.2" or "> 3.5"
-    const rangeMatch = referenceRangeStr.match(/([\d.]+)\s*-\s*([\d.]+)/);
-    const lessThanMatch = referenceRangeStr.match(/<\s*([\d.]+)/);
-    const greaterThanMatch = referenceRangeStr.match(/>\s*([\d.]+)/);
+    console.log(`Parsing reference range for ${name}: "${referenceRangeStr}"`);
+    
+    // Clean up the string: remove common units and extra whitespace
+    const cleaned = referenceRangeStr
+      .replace(/\s*(mmol\/L|mg\/dL|g\/L|U\/L|IU\/L|µmol\/L|umol\/L)\s*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Try various formats:
+    // "3.5-5.2" or "3.5 - 5.2" or "3.5 -5.2" or "3.5- 5.2"
+    const rangeMatch = cleaned.match(/([\d.]+)\s*[-–—]\s*([\d.]+)/);
+    // "< 5.2" or "<5.2"
+    const lessThanMatch = cleaned.match(/<\s*=?\s*([\d.]+)/);
+    // "> 3.5" or ">3.5"
+    const greaterThanMatch = cleaned.match(/>\s*=?\s*([\d.]+)/);
+    // "3.5 to 5.2"
+    const toMatch = cleaned.match(/([\d.]+)\s+to\s+([\d.]+)/i);
     
     if (rangeMatch) {
       refMin = parseFloat(rangeMatch[1]);
       refMax = parseFloat(rangeMatch[2]);
+      console.log(`  Parsed as range: ${refMin} - ${refMax}`);
+    } else if (toMatch) {
+      refMin = parseFloat(toMatch[1]);
+      refMax = parseFloat(toMatch[2]);
+      console.log(`  Parsed as 'to' range: ${refMin} - ${refMax}`);
     } else if (lessThanMatch) {
       refMax = parseFloat(lessThanMatch[1]);
+      refMin = 0; // Assume 0 as lower bound for "less than" ranges
+      console.log(`  Parsed as less than: 0 - ${refMax}`);
     } else if (greaterThanMatch) {
       refMin = parseFloat(greaterThanMatch[1]);
+      console.log(`  Parsed as greater than: ${refMin} - (no upper limit)`);
+    } else {
+      console.log(`  Could not parse reference range`);
     }
   }
   
@@ -1191,18 +1208,18 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
   });
 
   // Create SVG path for line chart
-  const chartHeight = 256; // h-64 = 256px
+  const chartHeight = 192; // h-48 = 192px (was 256)
   const chartWidth = 600; // approximate
   const pointSpacing = values.length > 1 ? chartWidth / (values.length - 1) : 0;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-slate-900 mb-6">{name}</h3>
+    <div className="bg-white border border-slate-200 rounded-lg p-4">
+      <h3 className="text-base font-semibold text-slate-900 mb-4">{name}</h3>
       
       {/* Chart with Axes */}
-      <div className="flex gap-4">
+      <div className="flex gap-3">
         {/* Y-axis */}
-        <div className="flex flex-col justify-between h-64 text-xs text-slate-500">
+        <div className="flex flex-col justify-between h-48 text-xs text-slate-500">
           {yAxisTicks.map((tick, idx) => (
             <div key={idx} className="text-right pr-2 w-12">{tick}</div>
           ))}
@@ -1210,17 +1227,17 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
 
         {/* Chart area */}
         <div className="flex-1">
-          <div className="relative h-64 border-l-2 border-b-2 border-slate-300">
-            <svg className="w-full h-full" viewBox="0 0 600 256" preserveAspectRatio="none">
+          <div className="relative h-48 border-l-2 border-b-2 border-slate-300">
+            <svg className="w-full h-full" viewBox="0 0 600 192" preserveAspectRatio="none">
               {/* Background zones for reference range */}
               {refMin !== null && refMax !== null && (
                 <>
                   {/* Green zone (normal range) */}
                   <rect
                     x="0"
-                    y={(getY(refMax) / 100) * 256}
+                    y={(getY(refMax) / 100) * 192}
                     width="600"
-                    height={((getY(refMin) - getY(refMax)) / 100) * 256}
+                    height={((getY(refMin) - getY(refMax)) / 100) * 192}
                     fill="#dcfce7"
                     opacity="0.6"
                   />
@@ -1229,9 +1246,9 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                   {/* Upper borderline: 10% above normal */}
                   <rect
                     x="0"
-                    y={(getY(refMax * 1.1) / 100) * 256}
+                    y={(getY(refMax * 1.1) / 100) * 192}
                     width="600"
-                    height={((getY(refMax) - getY(refMax * 1.1)) / 100) * 256}
+                    height={((getY(refMax) - getY(refMax * 1.1)) / 100) * 192}
                     fill="#fef3c7"
                     opacity="0.6"
                   />
@@ -1240,9 +1257,9 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                   {refMin > 0 && (
                     <rect
                       x="0"
-                      y={(getY(refMin) / 100) * 256}
+                      y={(getY(refMin) / 100) * 192}
                       width="600"
-                      height={((getY(refMin * 0.9) - getY(refMin)) / 100) * 256}
+                      height={((getY(refMin * 0.9) - getY(refMin)) / 100) * 192}
                       fill="#fef3c7"
                       opacity="0.6"
                     />
@@ -1254,7 +1271,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                     x="0"
                     y="0"
                     width="600"
-                    height={(getY(refMax * 1.1) / 100) * 256}
+                    height={(getY(refMax * 1.1) / 100) * 192}
                     fill="#fee2e2"
                     opacity="0.6"
                   />
@@ -1263,9 +1280,9 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                   {refMin > 0 && (
                     <rect
                       x="0"
-                      y={(getY(refMin * 0.9) / 100) * 256}
+                      y={(getY(refMin * 0.9) / 100) * 192}
                       width="600"
-                      height={256 - (getY(refMin * 0.9) / 100) * 256}
+                      height={192 - (getY(refMin * 0.9) / 100) * 192}
                       fill="#fee2e2"
                       opacity="0.6"
                     />
@@ -1274,18 +1291,18 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                   {/* Reference range boundary lines */}
                   <line
                     x1="0"
-                    y1={(getY(refMax) / 100) * 256}
+                    y1={(getY(refMax) / 100) * 192}
                     x2="600"
-                    y2={(getY(refMax) / 100) * 256}
+                    y2={(getY(refMax) / 100) * 192}
                     stroke="#10b981"
                     strokeWidth="2"
                     strokeDasharray="5,5"
                   />
                   <line
                     x1="0"
-                    y1={(getY(refMin) / 100) * 256}
+                    y1={(getY(refMin) / 100) * 192}
                     x2="600"
-                    y2={(getY(refMin) / 100) * 256}
+                    y2={(getY(refMin) / 100) * 192}
                     stroke="#10b981"
                     strokeWidth="2"
                     strokeDasharray="5,5"
@@ -1295,7 +1312,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
               
               {/* Grid lines */}
               {yAxisTicks.map((_, idx) => {
-                const y = (256 * idx) / 4;
+                const y = (192 * idx) / 4;
                 return (
                   <line
                     key={idx}
@@ -1316,7 +1333,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                   points={values
                     .map((item, idx) => {
                       const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
-                      const y = (getY(item.value) / 100) * 256;
+                      const y = (getY(item.value) / 100) * 192;
                       return `${x},${y}`;
                     })
                     .join(" ")}
@@ -1330,7 +1347,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
               {/* Data points */}
               {values.map((item, idx) => {
                 const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
-                const y = (getY(item.value) / 100) * 256;
+                const y = (getY(item.value) / 100) * 192;
                 const color = getLineColor(item.flag);
                 const isAbnormal = item.flag !== undefined;
 
