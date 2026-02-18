@@ -6,6 +6,7 @@ export interface TokenUsage {
   total: number;
   timestamp: number;
   type: string;
+  category: 'vision' | 'analysis'; // vision = image/PDF uploads, analysis = text/chat
   promptText?: string; // The actual text sent to AI
   systemPrompt?: string; // System instructions used
   latency?: number; // Response time in milliseconds
@@ -14,7 +15,8 @@ export interface TokenUsage {
 }
 
 const STORAGE_KEY = 'token_tracker_data';
-const RESET_HOUR = 0; // Reset at midnight
+// Gemini free tier: 20 requests per 24 hours (rolling)
+const FREE_TIER_REQUESTS_24H = 20;
 
 interface StoredData {
   usageHistory: TokenUsage[];
@@ -41,6 +43,10 @@ class TokenTracker {
         this.usageHistory = data.usageHistory || [];
         this.totalTokens = data.totalTokens || 0;
         this.lastReset = data.lastReset || Date.now();
+        
+        // Clean up old entries (older than 24 hours)
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        this.usageHistory = this.usageHistory.filter(u => u.timestamp >= cutoff);
       }
     } catch (e) {
       console.error('Failed to load token tracker data:', e);
@@ -61,15 +67,9 @@ class TokenTracker {
   }
 
   private checkDailyReset() {
-    const now = new Date();
-    const lastResetDate = new Date(this.lastReset);
-    
-    // Check if we've crossed midnight
-    if (now.getDate() !== lastResetDate.getDate() || 
-        now.getMonth() !== lastResetDate.getMonth() ||
-        now.getFullYear() !== lastResetDate.getFullYear()) {
-      this.reset();
-    }
+    // Clean up entries older than 24 hours (rolling window)
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    this.usageHistory = this.usageHistory.filter(u => u.timestamp >= cutoff);
   }
 
   addUsage(usage: Omit<TokenUsage, 'timestamp'>) {
@@ -97,18 +97,42 @@ class TokenTracker {
   }
 
   getTotalTokens(): number {
-    // Calculate from last 24 hours only
+    // Calculate from last 24 hours
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return this.usageHistory
       .filter(u => u.timestamp >= cutoff)
       .reduce((sum, u) => sum + u.total, 0);
   }
 
+  // Get requests in the last 24 hours
+  getRequestsLast24Hours(): number {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return this.usageHistory.filter(u => u.timestamp >= cutoff).length;
+  }
+
+  // Check if we're at/near the 24-hour limit
+  isNearLimit(): boolean {
+    return this.getRequestsLast24Hours() >= FREE_TIER_REQUESTS_24H * 0.8; // 80% threshold (16/20)
+  }
+
   getSessionStats() {
     const now = Date.now();
     const cutoff24h = now - 24 * 60 * 60 * 1000;
+    const cutoffHour = now - 60 * 60 * 1000;
+    
     const last24h = this.usageHistory.filter(u => u.timestamp >= cutoff24h);
-    const lastHour = this.usageHistory.filter(u => now - u.timestamp < 3600000);
+    const lastHour = this.usageHistory.filter(u => u.timestamp >= cutoffHour);
+    
+    // Group by category
+    const byCategory = last24h.reduce((acc, u) => {
+      const cat = u.category || 'analysis';
+      if (!acc[cat]) {
+        acc[cat] = { tokens: 0, requests: 0 };
+      }
+      acc[cat].tokens += u.total;
+      acc[cat].requests += 1;
+      return acc;
+    }, {} as Record<string, { tokens: number; requests: number }>);
     
     return {
       total: last24h.reduce((sum, u) => sum + u.total, 0),
@@ -117,7 +141,13 @@ class TokenTracker {
       byType: last24h.reduce((acc, u) => {
         acc[u.type] = (acc[u.type] || 0) + u.total;
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, number>),
+      byCategory,
+      requestLimit: {
+        current: last24h.length,
+        max: FREE_TIER_REQUESTS_24H,
+        percentage: (last24h.length / FREE_TIER_REQUESTS_24H) * 100
+      }
     };
   }
 

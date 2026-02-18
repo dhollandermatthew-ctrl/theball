@@ -13,7 +13,7 @@ import { ollamaClient, OLLAMA_TEXT_MODEL } from "./ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const modelName =
-  import.meta.env.VITE_GEMINI_MODEL || "models/gemini-2.0-flash-001";
+  import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -87,6 +87,7 @@ ${JSON.stringify(input, null, 2)}
         response: usage.candidatesTokenCount || 0,
         total: usage.totalTokenCount || 0,
         type: "TASK",
+        category: "analysis" as const,
         promptText: JSON.stringify(input, null, 2),
         systemPrompt: SYSTEM_PROMPT,
         latency: Math.round(latency),
@@ -180,6 +181,7 @@ ${JSON.stringify(input, null, 2)}
       response: result.eval_count || 0,
       total: (result.prompt_eval_count || 0) + (result.eval_count || 0),
       type: "TASK-OLLAMA",
+      category: "analysis" as const,
       promptText: JSON.stringify(input, null, 2),
       systemPrompt: SYSTEM_PROMPT,
       latency: Math.round(latency),
@@ -279,6 +281,7 @@ ${params.user}
       response: usage.candidatesTokenCount || 0,
       total: usage.totalTokenCount || 0,
       type: "CHAT",
+      category: "analysis" as const,
       promptText: params.user,
       systemPrompt: params.system,
       latency: Math.round(latency),
@@ -322,6 +325,7 @@ async function callAIWithOllama(params: {
       total: (response.prompt_eval_count || 0) + (response.eval_count || 0),
       timestamp: Date.now(),
       type: "CHAT-OLLAMA",
+      category: "analysis",
       promptText: params.user,
       systemPrompt: params.system,
       latency: Math.round(latency),

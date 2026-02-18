@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Zap, TrendingUp, Clock, BarChart3 } from 'lucide-react';
+import { X, Zap, TrendingUp, Clock, BarChart3, Eye, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
 import { tokenTracker, TokenUsage } from '@/domain/tokenTracker';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -10,7 +10,25 @@ interface TokenStatsModalProps {
 
 export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClose }) => {
   const [history, setHistory] = React.useState<TokenUsage[]>([]);
-  const [stats, setStats] = React.useState({ total: 0, lastHour: 0, count: 0, byType: {} as Record<string, number> });
+  const [stats, setStats] = React.useState<{
+    total: number;
+    lastHour: number;
+    count: number;
+    byType: Record<string, number>;
+    byCategory: Record<string, { tokens: number; requests: number }>;
+    requestLimit: {
+      current: number;
+      max: number;
+      percentage: number;
+    };
+  }>({
+    total: 0,
+    lastHour: 0,
+    count: 0,
+    byType: {},
+    byCategory: {},
+    requestLimit: { current: 0, max: 20, percentage: 0 }
+  });
   const [lastReset, setLastReset] = React.useState(0);
   const [expandedIndex, setExpandedIndex] = React.useState<number | null>(null);
   const [detailViewUsage, setDetailViewUsage] = React.useState<TokenUsage | null>(null);
@@ -177,7 +195,7 @@ export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClos
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">Token Usage</h2>
-              <p className="text-sm text-slate-500">Last 24 hours of AI activity</p>
+              <p className="text-sm text-slate-500">Gemini API - Last 24 hours (20 request limit)</p>
             </div>
           </div>
           <button
@@ -188,16 +206,96 @@ export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClos
           </button>
         </div>
 
+        {/* Request Limit Status Banner */}
+        {stats.requestLimit && (
+          <div className={`px-4 py-3 border-b ${
+            stats.requestLimit.percentage >= 100 
+              ? 'bg-red-50 border-red-200' 
+              : stats.requestLimit.percentage >= 80 
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-green-50 border-green-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {stats.requestLimit.percentage >= 100 ? (
+                  <AlertCircle size={20} className="text-red-600" />
+                ) : stats.requestLimit.percentage >= 80 ? (
+                  <AlertCircle size={20} className="text-amber-600" />
+                ) : (
+                  <CheckCircle size={20} className="text-green-600" />
+                )}
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {stats.requestLimit.current}/{stats.requestLimit.max} requests in last 24 hours
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    {stats.requestLimit.percentage >= 100 
+                      ? 'Limit reached - oldest request expires in rolling window'
+                      : stats.requestLimit.percentage >= 80 
+                      ? 'Approaching 24-hour limit'
+                      : 'Normal operation'
+                    }
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <div className={`text-2xl font-bold ${
+                    stats.requestLimit.percentage >= 100 
+                      ? 'text-red-600' 
+                      : stats.requestLimit.percentage >= 80 
+                      ? 'text-amber-600'
+                      : 'text-green-600'
+                  }`}>
+                    {Math.round(stats.requestLimit.percentage)}%
+                  </div>
+                </div>
+                <div className="w-16 h-16">
+                  <svg viewBox="0 0 36 36" className="transform -rotate-90">
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      className="text-slate-200"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeDasharray={`${stats.requestLimit.percentage} 100`}
+                      className={
+                        stats.requestLimit.percentage >= 100 
+                          ? 'text-red-500' 
+                          : stats.requestLimit.percentage >= 80 
+                          ? 'text-amber-500'
+                          : 'text-green-500'
+                      }
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Overview */}
         <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 border-b border-slate-200">
           <div className="bg-white rounded-lg p-3 border border-slate-200">
             <div className="flex items-center gap-2 text-slate-600 text-xs mb-0.5">
               <TrendingUp size={14} />
-              <span>Last 24h</span>
+              <span>Last 24 Hours</span>
             </div>
             <div className="text-xl font-bold text-slate-900">
               {stats.total.toLocaleString()}
             </div>
+            <div className="text-xs text-slate-500 mt-0.5">tokens</div>
           </div>
 
           <div className="bg-white rounded-lg p-3 border border-slate-200">
@@ -206,8 +304,9 @@ export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClos
               <span>Last Hour</span>
             </div>
             <div className="text-xl font-bold text-slate-900">
-              {stats.lastHour.toLocaleString()}
+              {stats.lastHour?.toLocaleString() || 0}
             </div>
+            <div className="text-xs text-slate-500 mt-0.5">tokens</div>
           </div>
 
           <div className="bg-white rounded-lg p-3 border border-slate-200">
@@ -218,22 +317,61 @@ export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClos
             <div className="text-xl font-bold text-slate-900">
               {stats.count}
             </div>
+            <div className="text-xs text-slate-500 mt-0.5">last 24h</div>
           </div>
         </div>
 
-        {/* By Type Breakdown */}
-        {Object.keys(stats.byType).length > 0 && (
+        {/* By Category Breakdown */}
+        {stats.byCategory && Object.keys(stats.byCategory).length > 0 && (
           <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
-              Usage by Type
+            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+              Usage by Category
             </h3>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(stats.byType).map(([type, tokens]) => (
-                <div key={type} className="flex items-center gap-2 bg-white rounded px-3 py-1.5 border border-slate-200 text-xs">
-                  <span className="font-medium text-slate-600">{type}</span>
-                  <span className="font-bold text-slate-900">{tokens.toLocaleString()}</span>
+            <div className="grid grid-cols-2 gap-3">
+              {stats.byCategory.vision && (
+                <div className="bg-white rounded-lg p-3 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Eye size={16} className="text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-slate-500">Vision</div>
+                      <div className="text-xs text-slate-400">Images & PDFs</div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {stats.byCategory.vision.tokens.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-slate-500">tokens</div>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {stats.byCategory.vision.requests} {stats.byCategory.vision.requests === 1 ? 'request' : 'requests'}
+                  </div>
                 </div>
-              ))}
+              )}
+              {stats.byCategory.analysis && (
+                <div className="bg-white rounded-lg p-3 border border-slate-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <MessageSquare size={16} className="text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-slate-500">Analysis</div>
+                      <div className="text-xs text-slate-400">Text & Chat</div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {stats.byCategory.analysis.tokens.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-slate-500">tokens</div>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {stats.byCategory.analysis.requests} {stats.byCategory.analysis.requests === 1 ? 'request' : 'requests'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -349,7 +487,7 @@ export const TokenStatsModal: React.FC<TokenStatsModalProps> = ({ isOpen, onClos
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 bg-slate-50 text-center">
           <p className="text-xs text-slate-500">
-            Shows AI usage from the last 24 hours • Rolling window updates continuously
+            Gemini API Free Tier: 20 requests per 24 hours • Rolling window resets continuously
           </p>
         </div>
       </div>

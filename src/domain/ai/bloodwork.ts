@@ -8,9 +8,13 @@ import { modelProvider } from "@/domain/modelProvider";
 import { ollamaClient, OLLAMA_VISION_MODEL, OLLAMA_TEXT_MODEL } from "@/domain/ai/ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const modelName = "models/gemini-2.0-flash-001";
+const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
 
-const genAI = new GoogleGenerativeAI(apiKey);
+if (!apiKey) {
+  console.warn("⚠️ VITE_GEMINI_API_KEY not configured. Vision features will not work with Gemini.");
+}
+
+const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key');
 
 const EXTRACTION_PROMPT = `You are a medical data extraction assistant. Analyze the provided blood work/lab report image or PDF and extract all lab values in a structured JSON format.
 
@@ -69,6 +73,11 @@ export async function extractBloodWorkFromFile(
 async function extractBloodWorkFromFileWithGemini(
   file: File
 ): Promise<BloodWorkRecord> {
+  // Check API key first
+  if (!apiKey) {
+    throw new Error("Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file, or switch to Ollama in the header.");
+  }
+  
   try {
     console.log("🩸 Extracting blood work from:", file.name, "(Gemini)");
 
@@ -100,6 +109,7 @@ async function extractBloodWorkFromFileWithGemini(
         response: usage.candidatesTokenCount || 0,
         total: usage.totalTokenCount || 0,
         type: "VISION",
+        category: "vision",
         promptText: `[Image: ${file.name}]`,
         systemPrompt: EXTRACTION_PROMPT,
         latency: Math.round(latency),
@@ -133,9 +143,26 @@ async function extractBloodWorkFromFileWithGemini(
     
     // Provide more helpful error messages
     if (error instanceof Error) {
-      if (error.message.includes("quota") || error.message.includes("429")) {
+      // Check for actual rate limit errors (HTTP 429) - be more specific
+      const errorStr = error.message.toLowerCase();
+      const stackStr = error.stack?.toLowerCase() || '';
+      
+      // Only treat as quota error if it's clearly a rate limit (429) or resource exhausted
+      if (
+        errorStr.includes('429') || 
+        errorStr.includes('resource_exhausted') ||
+        (errorStr.includes('quota') && errorStr.includes('exceeded'))
+      ) {
         throw new Error("API quota exceeded. Try again later or enter data manually.");
       }
+      
+      // Log the full error for debugging
+      console.error("Full error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      
       throw error;
     }
     
@@ -169,6 +196,7 @@ async function extractBloodWorkFromFileWithOllama(
       response: Math.round(raw.length / 4), // Estimate
       total: Math.round((EXTRACTION_PROMPT.length + raw.length) / 4),
       type: "VISION-OLLAMA",
+      category: "vision",
       promptText: `[Image: ${file.name}]`,
       systemPrompt: EXTRACTION_PROMPT,
       latency: Math.round(latency),
@@ -286,6 +314,7 @@ Return ONLY a JSON object:
         response: usage.candidatesTokenCount || 0,
         total: usage.totalTokenCount || 0,
         type: "ANALYSIS",
+        category: "analysis",
         promptText: JSON.stringify(labValues),
         systemPrompt: analysisPrompt,
         latency: Math.round(latency),
@@ -348,6 +377,7 @@ Return ONLY a JSON object:
       response: response.eval_count || 0,
       total: (response.prompt_eval_count || 0) + (response.eval_count || 0),
       type: "ANALYSIS-OLLAMA",
+      category: "analysis",
       promptText: JSON.stringify(labValues),
       systemPrompt: analysisPrompt,
       latency: Math.round(latency),

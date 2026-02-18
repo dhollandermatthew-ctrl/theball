@@ -8,9 +8,13 @@ import { modelProvider } from "@/domain/modelProvider";
 import { ollamaClient, OLLAMA_VISION_MODEL } from "@/domain/ai/ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const modelName = "models/gemini-2.0-flash-001";
+const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
 
-const genAI = new GoogleGenerativeAI(apiKey);
+if (!apiKey) {
+  console.warn("⚠️ VITE_GEMINI_API_KEY not configured. Vision features will not work with Gemini.");
+}
+
+const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key');
 
 const EXTRACTION_PROMPT = `You are a fitness data extraction assistant. Analyze the provided workout image (Strava screenshot, treadmill display, fitness app, etc.) and extract all workout metrics.
 
@@ -64,6 +68,11 @@ export async function extractWorkoutFromImage(
 async function extractWorkoutFromImageWithGemini(
   file: File
 ): Promise<WorkoutRecord> {
+  // Check API key first
+  if (!apiKey) {
+    throw new Error("Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file, or switch to Ollama in the header.");
+  }
+  
   try {
     console.log("🏃 Extracting workout from:", file.name, "(Gemini)");
 
@@ -95,6 +104,7 @@ async function extractWorkoutFromImageWithGemini(
         response: usage.candidatesTokenCount || 0,
         total: usage.totalTokenCount || 0,
         type: "FITNESS",
+        category: "vision",
         promptText: `[Image: ${file.name}]`,
         systemPrompt: EXTRACTION_PROMPT,
         latency: Math.round(latency),
@@ -126,9 +136,26 @@ async function extractWorkoutFromImageWithGemini(
     
     // Provide more helpful error messages
     if (error instanceof Error) {
-      if (error.message.includes("quota") || error.message.includes("429")) {
+      // Check for actual rate limit errors (HTTP 429) - be more specific
+      const errorStr = error.message.toLowerCase();
+      const stackStr = error.stack?.toLowerCase() || '';
+      
+      // Only treat as quota error if it's clearly a rate limit (429) or resource exhausted
+      if (
+        errorStr.includes('429') || 
+        errorStr.includes('resource_exhausted') ||
+        (errorStr.includes('quota') && errorStr.includes('exceeded'))
+      ) {
         throw new Error("API quota exceeded. Try again later or enter data manually.");
       }
+      
+      // Log the full error for debugging
+      console.error("Full error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      
       throw error;
     }
     
@@ -162,6 +189,7 @@ async function extractWorkoutFromImageWithOllama(
       response: Math.round(raw.length / 4), // Estimate
       total: Math.round((EXTRACTION_PROMPT.length + raw.length) / 4),
       type: "FITNESS-OLLAMA",
+      category: "vision",
       promptText: `[Image: ${file.name}]`,
       systemPrompt: EXTRACTION_PROMPT,
       latency: Math.round(latency),
