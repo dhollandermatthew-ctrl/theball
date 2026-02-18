@@ -166,9 +166,18 @@
     createdAt: string;
   }
 
+  export interface PersonalProfile {
+    dateOfBirth?: string; // ISO date string
+    sex?: "male" | "female" | "other";
+    weight?: number; // in lbs
+    height?: number; // in cm
+    // These factors influence reference ranges for many lab values
+  }
+
   export interface HealthData {
     bloodWorkRecords: BloodWorkRecord[];
     workoutRecords: WorkoutRecord[];
+    personalProfile?: PersonalProfile;
   }
 
   // --------------------------------------------------

@@ -1,7 +1,7 @@
 // FILE: src/components/HealthView.tsx
 import React, { useState, useRef } from "react";
-import { Upload, Plus, FileText, Image as ImageIcon, Calendar, Trash2, Activity, Zap, TrendingUp, TrendingDown, Minus, AlertCircle, AlertTriangle, Info } from "lucide-react";
-import { HealthData, BloodWorkRecord, LabValue, WorkoutRecord } from "@/domain/types";
+import { Upload, Plus, FileText, Image as ImageIcon, Calendar, Trash2, Activity, Zap, TrendingUp, TrendingDown, Minus, AlertCircle, AlertTriangle, Info, Settings, User, X } from "lucide-react";
+import { HealthData, BloodWorkRecord, LabValue, WorkoutRecord, PersonalProfile } from "@/domain/types";
 import { generateId } from "@/domain/utils";
 import { extractBloodWorkFromFile } from "@/domain/ai/bloodwork";
 import { extractWorkoutFromImage } from "@/domain/ai/fitness";
@@ -27,6 +27,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
   const [totalTokens, setTotalTokens] = React.useState(0);
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   React.useEffect(() => {
     const updateTokens = () => {
@@ -252,6 +253,8 @@ export const HealthView: React.FC<HealthViewProps> = ({
         <HealthOverviewSection 
           bloodWorkRecords={healthData.bloodWorkRecords || []}
           workoutRecords={healthData.workoutRecords || []}
+          personalProfile={healthData.personalProfile}
+          onOpenProfileSettings={() => setShowProfileModal(true)}
         />
 
         {/* Tabs */}
@@ -323,7 +326,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                 <h2 className="text-lg font-semibold text-slate-900 mb-4">
                   Trends Over Time
                 </h2>
-                <TrendCharts records={sortedRecords} />
+                <TrendCharts records={sortedRecords} personalProfile={healthData.personalProfile} />
               </div>
             )}
 
@@ -469,6 +472,20 @@ export const HealthView: React.FC<HealthViewProps> = ({
           onSave={handleManualWorkout}
         />
       )}
+
+      {showProfileModal && (
+        <PersonalProfileModal
+          profile={healthData.personalProfile}
+          onClose={() => setShowProfileModal(false)}
+          onSave={(profile) => {
+            onUpdateHealthData({
+              ...healthData,
+              personalProfile: profile,
+            });
+            setShowProfileModal(false);
+          }}
+        />
+      )}
     </div>
     </>
   );
@@ -569,11 +586,15 @@ const BloodWorkCard: React.FC<BloodWorkCardProps> = ({ record, onDelete }) => {
 interface HealthOverviewSectionProps {
   bloodWorkRecords: BloodWorkRecord[];
   workoutRecords: WorkoutRecord[];
+  personalProfile?: PersonalProfile;
+  onOpenProfileSettings: () => void;
 }
 
 const HealthOverviewSection: React.FC<HealthOverviewSectionProps> = ({ 
   bloodWorkRecords, 
-  workoutRecords 
+  workoutRecords,
+  personalProfile,
+  onOpenProfileSettings
 }) => {
   if (bloodWorkRecords.length === 0 && workoutRecords.length === 0) {
     return null;
@@ -609,10 +630,19 @@ const HealthOverviewSection: React.FC<HealthOverviewSectionProps> = ({
 
   return (
     <div className="mb-4 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-        <Activity size={16} />
-        Health Overview - Last 30 Days
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <Activity size={16} />
+          Health Overview - Last 30 Days
+        </h3>
+        <button
+          onClick={onOpenProfileSettings}
+          className="p-1.5 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 text-slate-600 hover:text-slate-900"
+          title="Personal Profile Settings"
+        >
+          <Settings size={16} />
+        </button>
+      </div>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Workout Metrics */}
@@ -971,13 +1001,14 @@ const BloodWorkPill: React.FC<BloodWorkPillProps> = ({ record, isSelected, onSel
 
 interface TrendChartsProps {
   records: BloodWorkRecord[];
+  personalProfile?: PersonalProfile;
 }
 
-const TrendCharts: React.FC<TrendChartsProps> = ({ records }) => {
+const TrendCharts: React.FC<TrendChartsProps> = ({ records, personalProfile }) => {
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   
-  // Group all lab values by name across all records
-  const labValuesByName = new Map<string, Array<{ date: string; value: number; flag?: string }>>();
+  // Group all lab values by name across all records with reference ranges
+  const labValuesByName = new Map<string, Array<{ date: string; value: number; flag?: string; referenceRange?: string }>>();
 
   records.forEach((record) => {
     record.labValues.forEach((labValue) => {
@@ -990,6 +1021,7 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records }) => {
           date: record.date,
           value: numericValue,
           flag: labValue.flag,
+          referenceRange: labValue.referenceRange,
         });
       }
     });
@@ -998,10 +1030,29 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records }) => {
   // Only show labs that have multiple data points
   const trendsToShow = Array.from(labValuesByName.entries())
     .filter(([_, values]) => values.length > 1)
-    .map(([name, values]) => ({
-      name,
-      values: values.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-    }));
+    .map(([name, values]) => {
+      const sortedValues = values.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const latestValue = sortedValues[sortedValues.length - 1];
+      
+      // Determine status based on latest value
+      let status: 'green' | 'yellow' | 'red' | 'none' = 'none';
+      if (latestValue.flag) {
+        if (latestValue.flag === 'HH' || latestValue.flag === 'LL' || latestValue.flag === 'CRIT') {
+          status = 'red';
+        } else if (latestValue.flag === 'H' || latestValue.flag === 'L') {
+          status = 'yellow';
+        }
+      } else if (latestValue.referenceRange) {
+        status = 'green';
+      }
+      
+      return {
+        name,
+        values: sortedValues,
+        status,
+        hasReferenceRange: !!latestValue.referenceRange,
+      };
+    });
 
   if (trendsToShow.length === 0) {
     return (
@@ -1030,17 +1081,31 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records }) => {
           onChange={(e) => setSelectedMetric(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
         >
-          {trendsToShow.map((trend) => (
-            <option key={trend.name} value={trend.name}>
-              {trend.name} ({trend.values.length} data points)
-            </option>
-          ))}
+          {trendsToShow.map((trend) => {
+            const statusEmoji = trend.status === 'red' ? '🔴' : trend.status === 'yellow' ? '🟡' : trend.status === 'green' ? '🟢' : '⚪';
+            return (
+              <option key={trend.name} value={trend.name}>
+                {statusEmoji} {trend.name} ({trend.values.length} data points)
+              </option>
+            );
+          })}
         </select>
+        <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
+          <span>🟢 Normal</span>
+          <span>🟡 Borderline</span>
+          <span>🔴 Abnormal</span>
+          <span>⚪ No reference range</span>
+        </div>
       </div>
 
       {/* Selected Chart */}
       {selectedTrend && (
-        <TrendChart key={selectedTrend.name} name={selectedTrend.name} values={selectedTrend.values} />
+        <TrendChart 
+          key={selectedTrend.name} 
+          name={selectedTrend.name} 
+          values={selectedTrend.values}
+          personalProfile={personalProfile}
+        />
       )}
     </div>
   );
@@ -1048,18 +1113,65 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records }) => {
 
 interface TrendChartProps {
   name: string;
-  values: Array<{ date: string; value: number; flag?: string }>;
+  values: Array<{ date: string; value: number; flag?: string; referenceRange?: string }>;
+  personalProfile?: PersonalProfile;
 }
 
-const TrendChart: React.FC<TrendChartProps> = ({ name, values }) => {
-  const minValue = Math.min(...values.map((v) => v.value));
-  const maxValue = Math.max(...values.map((v) => v.value));
-  const range = maxValue - minValue || 1;
+const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }) => {
+  // Parse reference range from the most recent value that has it
+  const referenceRangeStr = values.find(v => v.referenceRange)?.referenceRange;
+  let refMin: number | null = null;
+  let refMax: number | null = null;
   
-  // Add padding to scale for better visualization
-  const padding = range * 0.15;
-  const scaledMin = minValue - padding;
-  const scaledMax = maxValue + padding;
+  if (referenceRangeStr) {
+    // Parse formats like "3.5-5.2" or "< 5.2" or "> 3.5"
+    const rangeMatch = referenceRangeStr.match(/([\d.]+)\s*-\s*([\d.]+)/);
+    const lessThanMatch = referenceRangeStr.match(/<\s*([\d.]+)/);
+    const greaterThanMatch = referenceRangeStr.match(/>\s*([\d.]+)/);
+    
+    if (rangeMatch) {
+      refMin = parseFloat(rangeMatch[1]);
+      refMax = parseFloat(rangeMatch[2]);
+    } else if (lessThanMatch) {
+      refMax = parseFloat(lessThanMatch[1]);
+    } else if (greaterThanMatch) {
+      refMin = parseFloat(greaterThanMatch[1]);
+    }
+  }
+  
+  const dataMin = Math.min(...values.map((v) => v.value));
+  const dataMax = Math.max(...values.map((v) => v.value));
+  
+  // Calculate Y-axis range based on reference range and data
+  let scaledMin: number;
+  let scaledMax: number;
+  
+  if (refMin !== null && refMax !== null) {
+    // Use reference range with padding
+    const refRange = refMax - refMin;
+    const padding = refRange * 0.3; // 30% padding
+    scaledMin = Math.max(0, refMin - padding); // Don't go below 0 for most lab values
+    scaledMax = refMax + padding;
+    
+    // Extend if data goes beyond reference range + padding
+    scaledMin = Math.min(scaledMin, dataMin - (dataMax - dataMin) * 0.1);
+    scaledMax = Math.max(scaledMax, dataMax + (dataMax - dataMin) * 0.1);
+  } else if (refMax !== null) {
+    // Only upper limit
+    scaledMin = 0;
+    scaledMax = Math.max(refMax * 1.5, dataMax * 1.2);
+  } else if (refMin !== null) {
+    // Only lower limit
+    scaledMin = Math.max(0, refMin * 0.5);
+    scaledMax = dataMax * 1.2;
+  } else {
+    // No reference range, use data with padding
+    const range = dataMax - dataMin || 1;
+    const padding = range * 0.15;
+    scaledMin = Math.max(0, dataMin - padding);
+    scaledMax = dataMax + padding;
+  }
+  
   const scaledRange = scaledMax - scaledMin;
 
   const getY = (value: number) => {
@@ -1100,6 +1212,87 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values }) => {
         <div className="flex-1">
           <div className="relative h-64 border-l-2 border-b-2 border-slate-300">
             <svg className="w-full h-full" viewBox="0 0 600 256" preserveAspectRatio="none">
+              {/* Background zones for reference range */}
+              {refMin !== null && refMax !== null && (
+                <>
+                  {/* Green zone (normal range) */}
+                  <rect
+                    x="0"
+                    y={(getY(refMax) / 100) * 256}
+                    width="600"
+                    height={((getY(refMin) - getY(refMax)) / 100) * 256}
+                    fill="#dcfce7"
+                    opacity="0.6"
+                  />
+                  
+                  {/* Amber zones (borderline) */}
+                  {/* Upper borderline: 10% above normal */}
+                  <rect
+                    x="0"
+                    y={(getY(refMax * 1.1) / 100) * 256}
+                    width="600"
+                    height={((getY(refMax) - getY(refMax * 1.1)) / 100) * 256}
+                    fill="#fef3c7"
+                    opacity="0.6"
+                  />
+                  
+                  {/* Lower borderline: 10% below normal */}
+                  {refMin > 0 && (
+                    <rect
+                      x="0"
+                      y={(getY(refMin) / 100) * 256}
+                      width="600"
+                      height={((getY(refMin * 0.9) - getY(refMin)) / 100) * 256}
+                      fill="#fef3c7"
+                      opacity="0.6"
+                    />
+                  )}
+                  
+                  {/* Red zones (abnormal) */}
+                  {/* High abnormal: above 10% of normal */}
+                  <rect
+                    x="0"
+                    y="0"
+                    width="600"
+                    height={(getY(refMax * 1.1) / 100) * 256}
+                    fill="#fee2e2"
+                    opacity="0.6"
+                  />
+                  
+                  {/* Low abnormal: below 10% of normal */}
+                  {refMin > 0 && (
+                    <rect
+                      x="0"
+                      y={(getY(refMin * 0.9) / 100) * 256}
+                      width="600"
+                      height={256 - (getY(refMin * 0.9) / 100) * 256}
+                      fill="#fee2e2"
+                      opacity="0.6"
+                    />
+                  )}
+                  
+                  {/* Reference range boundary lines */}
+                  <line
+                    x1="0"
+                    y1={(getY(refMax) / 100) * 256}
+                    x2="600"
+                    y2={(getY(refMax) / 100) * 256}
+                    stroke="#10b981"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                  <line
+                    x1="0"
+                    y1={(getY(refMin) / 100) * 256}
+                    x2="600"
+                    y2={(getY(refMin) / 100) * 256}
+                    stroke="#10b981"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                </>
+              )}
+              
               {/* Grid lines */}
               {yAxisTicks.map((_, idx) => {
                 const y = (256 * idx) / 4;
@@ -1110,8 +1303,9 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values }) => {
                     y1={y}
                     x2="600"
                     y2={y}
-                    stroke="#e2e8f0"
+                    stroke="#cbd5e1"
                     strokeWidth="1"
+                    opacity="0.5"
                   />
                 );
               })}
@@ -1176,14 +1370,42 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values }) => {
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between text-sm">
-        <span className="text-slate-600">
-          Range: <span className="font-semibold text-slate-900">{minValue} - {maxValue}</span>
-        </span>
-        {values.some((v) => v.flag) && (
-          <div className="text-amber-600 flex items-center gap-1">
-            <AlertTriangle size={14} />
-            Some values flagged
+      <div className="mt-4 pt-4 border-t border-slate-200">
+        <div className="flex justify-between text-sm mb-3">
+          <span className="text-slate-600">
+            Your Range: <span className="font-semibold text-slate-900">{dataMin.toFixed(2)} - {dataMax.toFixed(2)}</span>
+          </span>
+          {values.some((v) => v.flag) && (
+            <div className="text-amber-600 flex items-center gap-1">
+              <AlertTriangle size={14} />
+              Some values flagged
+            </div>
+          )}
+        </div>
+        
+        {refMin !== null && refMax !== null && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-200 border border-green-400 rounded"></div>
+                <span className="text-slate-600">Normal: {refMin} - {refMax}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-amber-200 border border-amber-400 rounded"></div>
+                <span className="text-slate-600">Borderline</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-200 border border-red-400 rounded"></div>
+                <span className="text-slate-600">Abnormal</span>
+              </div>
+            </div>
+            
+            {!personalProfile?.dateOfBirth || !personalProfile?.sex && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                <Info size={12} />
+                <span>Reference ranges shown are generic. Add your age/sex in profile settings for personalized ranges.</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1627,6 +1849,172 @@ const WorkoutEntryModal: React.FC<WorkoutEntryModalProps> = ({ onClose, onSave }
             className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Save Workout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Personal Profile Modal for Age/Weight/Sex settings
+interface PersonalProfileModalProps {
+  profile?: PersonalProfile;
+  onClose: () => void;
+  onSave: (profile: PersonalProfile) => void;
+}
+
+const PersonalProfileModal: React.FC<PersonalProfileModalProps> = ({ profile, onClose, onSave }) => {
+  const [dateOfBirth, setDateOfBirth] = useState(profile?.dateOfBirth || "");
+  const [sex, setSex] = useState<"male" | "female" | "other" | "">(profile?.sex || "");
+  const [weight, setWeight] = useState(profile?.weight?.toString() || "");
+  const [height, setHeight] = useState(profile?.height?.toString() || "");
+
+  const calculateAge = (dob: string): number | null => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const age = calculateAge(dateOfBirth);
+
+  const handleSave = () => {
+    onSave({
+      dateOfBirth: dateOfBirth || undefined,
+      sex: sex || undefined,
+      weight: weight ? parseFloat(weight) : undefined,
+      height: height ? parseFloat(height) : undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <User size={20} className="text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Personal Profile</h2>
+              <p className="text-sm text-slate-500">Used to personalize reference ranges</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <X size={20} className="text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Form Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Date of Birth */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {age !== null && (
+                <p className="mt-1 text-xs text-slate-500">Age: {age} years</p>
+              )}
+            </div>
+
+            {/* Sex */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Biological Sex
+              </label>
+              <select
+                value={sex}
+                onChange={(e) => setSex(e.target.value as "male" | "female" | "other" | "")}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="">Select...</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other/Prefer not to say</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">Used for medical reference ranges</p>
+            </div>
+
+            {/* Weight */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Weight (lbs)
+              </label>
+              <input
+                type="number"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                placeholder="154"
+                step="0.1"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {weight && (
+                <p className="mt-1 text-xs text-slate-500">{(parseFloat(weight) / 2.20462).toFixed(1)} kg</p>
+              )}
+            </div>
+
+            {/* Height */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Height (cm)
+              </label>
+              <input
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="175"
+                step="0.1"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {height && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {Math.floor(parseFloat(height) / 2.54 / 12)}'{Math.round((parseFloat(height) / 2.54) % 12)}"
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* BMI Calculation */}
+          {weight && height && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-slate-700 mb-2">Body Mass Index (BMI)</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-slate-900">
+                  {((parseFloat(weight) / 2.20462) / Math.pow(parseFloat(height) / 100, 2)).toFixed(1)}
+                </span>
+                <span className="text-sm text-slate-600">kg/m²</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm border border-slate-300 text-slate-600 rounded-lg hover:bg-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Save Profile
           </button>
         </div>
       </div>
