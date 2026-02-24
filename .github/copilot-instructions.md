@@ -1,8 +1,23 @@
 # GitHub Copilot Instructions for The Ball
 
-## Always Reference
+## ⚠️ MANDATORY FIRST STEP — READ THIS BEFORE RESPONDING ⚠️
 
-Before responding to any request, always read and reference [ProjectContext.md](../ProjectContext.md) at the root of this workspace. This file contains complete product definition, architecture details, and AI integration patterns.
+**DO NOT SKIP**: Before responding to ANY request—even "hello"—you MUST:
+
+1. Read [ProjectContext.md](../ProjectContext.md) in full (it's the canonical source of truth)
+2. Reference it when making ANY architectural, design, or data decisions
+3. Check it when Matthew proposes ideas (does it conflict with product philosophy?)
+4. Use it to challenge incomplete or misaligned thinking
+
+**This is not optional. ProjectContext.md contains:**
+
+- Complete product definition and 80/20 feature split
+- Data architecture (Turso schema, Zustand patterns, sync layer)
+- AI integration patterns (vision vs text, token tracking, model routing)
+- Matthew's personality, failure modes, and interaction style expectations
+- Non-goals, failure modes, and scope boundaries
+
+**If you skip this, you will make bad decisions.**
 
 ---
 
@@ -190,3 +205,15 @@ Before responding to any request, always read and reference [ProjectContext.md](
 ## When Uncertain
 
 Ask max 3 sharp clarifying questions, only if answers would materially change the recommendation. Prefer proposing a sensible default.
+
+---
+
+## Final Reminder: Always Check ProjectContext.md
+
+Before implementing ANY feature, making architectural decisions, or responding to product ideas:
+- Read [ProjectContext.md](../ProjectContext.md) first
+- Verify alignment with product philosophy
+- Check for conflicts with non-goals or failure modes
+- Challenge ideas that don't fit the 80/20 split
+
+**ProjectContext.md is the source of truth. Check it. Use it. Challenge with it.**
