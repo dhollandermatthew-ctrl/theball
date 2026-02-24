@@ -128,6 +128,7 @@
     description: string;
     category: "tech" | "architecture" | "leadership" | "client";
     color: string;
+    sortOrder?: number;
     records: MeetingRecord[];
     spaceNotes?: SpaceNotePage[];
 

@@ -74,8 +74,6 @@ async function extractWorkoutFromImageWithGemini(
   }
   
   try {
-    console.log("🏃 Extracting workout from:", file.name, "(Gemini)");
-
     // Convert file to base64
     const base64Data = await fileToBase64(file);
     const mimeType = file.type || "image/jpeg";
@@ -94,7 +92,6 @@ async function extractWorkoutFromImageWithGemini(
     const latency = performance.now() - startTime;
 
     const raw = result.response.text().trim();
-    console.log("🤖 RAW EXTRACTION:", raw);
 
     // Log token usage
     const usage = result.response.usageMetadata;
@@ -129,7 +126,6 @@ async function extractWorkoutFromImageWithGemini(
       createdAt: new Date().toISOString(),
     };
 
-    console.log("✅ Workout record created:", record);
     return record;
   } catch (error) {
     console.error("❌ Workout extraction error:", error);
@@ -167,8 +163,6 @@ async function extractWorkoutFromImageWithOllama(
   file: File
 ): Promise<WorkoutRecord> {
   try {
-    console.log("🏃 Extracting workout from:", file.name, "(Ollama)");
-
     // Convert file to base64
     const base64Data = await fileToBase64(file);
 
@@ -180,8 +174,6 @@ async function extractWorkoutFromImageWithOllama(
     );
     const latency = performance.now() - startTime;
     const raw = result.response;
-
-    console.log("🤖 RAW EXTRACTION (Ollama):", raw);
 
     // Log token usage (Ollama doesn't provide detailed token counts for vision)
     tokenTracker.addUsage({
@@ -213,7 +205,6 @@ async function extractWorkoutFromImageWithOllama(
       createdAt: new Date().toISOString(),
     };
 
-    console.log("✅ Workout record created:", record);
     return record;
   } catch (error) {
     console.error("❌ Workout extraction error (Ollama):", error);

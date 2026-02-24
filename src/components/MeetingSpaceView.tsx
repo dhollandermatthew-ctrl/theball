@@ -10,11 +10,11 @@ import { suggestSpaceQuestions } from "@/domain/ai/suggestSpaceQuestions";
 import { tokenTracker } from "@/domain/tokenTracker";
 import { TokenStatsModal } from "./TokenStatsModal";
 import type { SpaceAgentResponse } from "@/domain/ai/spaceAgent";
+import { useAppStore } from "@/domain/state";
 
 
 interface MeetingSpaceViewProps {
   space: MeetingSpace;
-  onUpdateSpace: (space: MeetingSpace) => void;
   onBack: () => void;
 }
 
@@ -29,9 +29,15 @@ type ChatMessage = {
 
 export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   space,
-  onUpdateSpace,
   onBack,
 }) => {
+  // Zustand actions
+  const addMeetingRecord = useAppStore((s) => s.addMeetingRecord);
+  const deleteMeetingRecord = useAppStore((s) => s.deleteMeetingRecord);
+  const addSpaceNote = useAppStore((s) => s.addSpaceNote);
+  const updateSpaceNote = useAppStore((s) => s.updateSpaceNote);
+  const updateMeetingSpace = useAppStore((s) => s.updateMeetingSpace);
+
   /* ---------------- Core State ---------------- */
   const [activeTab, setActiveTab] = useState<"meetings" | "notes">("meetings");
   const [isAddingMeeting, setIsAddingMeeting] = useState(false);
@@ -73,10 +79,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
-      onUpdateSpace({
-        ...space,
-        spaceNotes: [firstPage],
-      });
+      addSpaceNote(space.id, firstPage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages.length]);
@@ -220,10 +223,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
         createdAt: new Date().toISOString(),
       };
 
-      onUpdateSpace({
-        ...space,
-        records: [record, ...space.records],
-      });
+      addMeetingRecord(space.id, record);
 
       setTitle("");
       setTranscript("");
@@ -236,10 +236,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
   };
 
   const deleteRecord = (id: string) => {
-    onUpdateSpace({
-      ...space,
-      records: space.records.filter((r) => r.id !== id),
-    });
+    deleteMeetingRecord(space.id, id);
   };
 
   return (
@@ -257,7 +254,7 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
             <input
               value={space.name}
               onChange={(e) =>
-                onUpdateSpace({ ...space, name: e.target.value })
+                updateMeetingSpace(space.id, { name: e.target.value })
               }
               className="text-2xl font-bold bg-transparent focus:outline-none border-none p-0 w-full"
             />
@@ -534,20 +531,14 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
                 key={activePage?.id}
                 initialContent={activePage?.content ?? ""}
                 placeholder="Write anything worth remembering…"
-                onChange={(html) =>
-                  onUpdateSpace({
-                    ...space,
-                    spaceNotes: pages.map((p) =>
-                      p.id === activePage?.id
-                        ? {
-                            ...p,
-                            content: html,
-                            updatedAt: new Date().toISOString(),
-                          }
-                        : p
-                    ),
-                  })
-                }
+                onChange={(html) => {
+                  if (activePage) {
+                    updateSpaceNote(space.id, activePage.id, {
+                      content: html,
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
+                }}
                 onBlur={() => {}}
               />
             </div>

@@ -5,6 +5,7 @@ import { Plus, ChevronRight, LayoutGrid, Trash2, GripVertical } from "lucide-rea
 import type { MeetingSpace } from "@/domain/types";
 import { cn, generateId, getRandomColor } from "@/domain/utils";
 import { MeetingSpaceView } from "./MeetingSpaceView";
+import { useAppStore } from "@/domain/state";
 
 import {
   DndContext,
@@ -22,22 +23,20 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-interface MeetingHubProps {
-  spaces: MeetingSpace[];
-  onUpdateSpaces: (spaces: MeetingSpace[]) => void;
-}
+export const MeetingHub: React.FC = () => {
+  const meetingSpaces = useAppStore((s) => s.meetingSpaces);
+  const addMeetingSpace = useAppStore((s) => s.addMeetingSpace);
+  const deleteMeetingSpace = useAppStore((s) => s.deleteMeetingSpace);
+  const updateMeetingSpace = useAppStore((s) => s.updateMeetingSpace);
+  const reorderMeetingSpaces = useAppStore((s) => s.reorderMeetingSpaces);
 
-export const MeetingHub: React.FC<MeetingHubProps> = ({
-  spaces,
-  onUpdateSpaces,
-}) => {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
 
   const activeSpace = useMemo(
-    () => spaces.find((s) => s.id === activeSpaceId) ?? null,
-    [spaces, activeSpaceId]
+    () => meetingSpaces.find((s) => s.id === activeSpaceId) ?? null,
+    [meetingSpaces, activeSpaceId]
   );
 
   const sensors = useSensors(
@@ -48,12 +47,12 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = spaces.findIndex((s) => s.id === active.id);
-    const newIndex = spaces.findIndex((s) => s.id === over.id);
+    const oldIndex = meetingSpaces.findIndex((s) => s.id === active.id);
+    const newIndex = meetingSpaces.findIndex((s) => s.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(spaces, oldIndex, newIndex);
-    onUpdateSpaces(reordered);
+    const reordered = arrayMove(meetingSpaces, oldIndex, newIndex);
+    reorderMeetingSpaces(reordered);
   };
 
   /* ---------------- Create space ---------------- */
@@ -71,9 +70,7 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
       records: [],
     };
 
-    console.log("[createSpace]", newSpace.id);
-
-    onUpdateSpaces([newSpace, ...spaces]);
+    addMeetingSpace(newSpace);
     setNewSpaceName("");
     setIsAdding(false);
     setActiveSpaceId(newSpace.id);
@@ -82,9 +79,7 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
   /* ---------------- Delete space (GUARANTEED) ---------------- */
 
   const deleteSpace = (spaceId: string) => {
-    console.log("[deleteSpace] CLICKED", spaceId);
-  
-    const remainingSpaces = spaces.filter((s) => s.id !== spaceId);
+    const remainingSpaces = meetingSpaces.filter((s) => s.id !== spaceId);
   
     if (remainingSpaces.length === 0) {
       console.warn("[deleteSpace] blocked: would delete last space");
@@ -92,30 +87,17 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
       return;
     }
   
-    const space = spaces.find((s) => s.id === spaceId);
+    const space = meetingSpaces.find((s) => s.id === spaceId);
     if (!space) {
-      console.error("[deleteSpace] space not found", spaceId);
       return;
     }
-  
-    console.log(
-      "[deleteSpace] proceeding",
-      "remaining:",
-      remainingSpaces.map((s) => s.id)
-    );
   
     // clear active space if needed
     if (activeSpaceId === spaceId) {
       setActiveSpaceId(null);
     }
   
-    onUpdateSpaces(remainingSpaces);
-  };
-
-  /* ---------------- Update space ---------------- */
-
-  const handleUpdateSpace = (updated: MeetingSpace) => {
-    onUpdateSpaces(spaces.map((s) => (s.id === updated.id ? updated : s)));
+    deleteMeetingSpace(spaceId);
   };
 
   /* ---------------- Space detail ---------------- */
@@ -125,7 +107,6 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
       <MeetingSpaceView
         space={activeSpace}
         onBack={() => setActiveSpaceId(null)}
-        onUpdateSpace={handleUpdateSpace}
       />
     );
   }
@@ -302,11 +283,11 @@ export const MeetingHub: React.FC<MeetingHubProps> = ({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={spaces.map((s) => s.id)}
+              items={meetingSpaces.map((s) => s.id)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-3">
-                {spaces.map((space) => (
+                {meetingSpaces.map((space) => (
                   <SortableSpaceCard
                     key={space.id}
                     space={space}

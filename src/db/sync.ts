@@ -7,6 +7,12 @@ import {
   prompts,
   aiLogs,
   goals,
+  meetingSpaces,
+  meetingRecords,
+  spaceNotes,
+  healthBloodwork,
+  healthWorkouts,
+  healthProfile,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -29,13 +35,30 @@ type Change =
   | { type: "delete"; table: "oneOnOnePeople"; id: string }
   // PROMPTS / AI LOGS
   | { type: "insert"; table: "prompts"; data: any }
-  | { type: "insert"; table: "aiLogs"; data: any };
+  | { type: "insert"; table: "aiLogs"; data: any }
+  // MEETINGS
+  | { type: "insert"; table: "meetingSpaces"; data: any }
+  | { type: "update"; table: "meetingSpaces"; id: string; data: any }
+  | { type: "delete"; table: "meetingSpaces"; id: string }
+  | { type: "insert"; table: "meetingRecords"; data: any }
+  | { type: "update"; table: "meetingRecords"; id: string; data: any }
+  | { type: "delete"; table: "meetingRecords"; id: string }
+  | { type: "insert"; table: "spaceNotes"; data: any }
+  | { type: "update"; table: "spaceNotes"; id: string; data: any }
+  | { type: "delete"; table: "spaceNotes"; id: string }
+  // HEALTH
+  | { type: "insert"; table: "healthBloodwork"; data: any }
+  | { type: "update"; table: "healthBloodwork"; id: string; data: any }
+  | { type: "delete"; table: "healthBloodwork"; id: string }
+  | { type: "insert"; table: "healthWorkouts"; data: any }
+  | { type: "update"; table: "healthWorkouts"; id: string; data: any }
+  | { type: "delete"; table: "healthWorkouts"; id: string }
+  | { type: "upsert"; table: "healthProfile"; id: string; data: any };
 
 const queue: Change[] = [];
 let flushing = false;
 
 export function enqueue(change: Change) {
-  console.log("ENQUEUE", change); // ← add this
   queue.push(change);
   flush();
 }
@@ -60,18 +83,7 @@ async function apply(change: Change) {
     // ---------------- TASKS ----------------
     case "tasks":
       if (change.type === "insert") {
-        console.log("DB INSERT TASK", change.data);
-      
-        await db.insert(tasks).values(change.data);
-      
-        const readback = await db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.id, change.data.id));
-      
-        console.log("DB READBACK TASK", readback);
-      
-        return readback;
+        return db.insert(tasks).values(change.data);
       }
       if (change.type === "update") {
         return db
@@ -144,6 +156,102 @@ async function apply(change: Change) {
     case "aiLogs":
       if (change.type === "insert") {
         return db.insert(aiLogs).values(change.data);
+      }
+      break;
+
+    // ---------------- MEETINGS ----------------
+    case "meetingSpaces":
+      if (change.type === "insert") {
+        return db.insert(meetingSpaces).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(meetingSpaces)
+          .set(change.data)
+          .where(eq(meetingSpaces.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(meetingSpaces).where(eq(meetingSpaces.id, change.id));
+      }
+      break;
+
+    case "meetingRecords":
+      if (change.type === "insert") {
+        return db.insert(meetingRecords).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(meetingRecords)
+          .set(change.data)
+          .where(eq(meetingRecords.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(meetingRecords).where(eq(meetingRecords.id, change.id));
+      }
+      break;
+
+    case "spaceNotes":
+      if (change.type === "insert") {
+        return db.insert(spaceNotes).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(spaceNotes)
+          .set(change.data)
+          .where(eq(spaceNotes.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(spaceNotes).where(eq(spaceNotes.id, change.id));
+      }
+      break;
+
+    // ---------------- HEALTH ----------------
+    case "healthBloodwork":
+      if (change.type === "insert") {
+        return db.insert(healthBloodwork).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(healthBloodwork)
+          .set(change.data)
+          .where(eq(healthBloodwork.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(healthBloodwork).where(eq(healthBloodwork.id, change.id));
+      }
+      break;
+
+    case "healthWorkouts":
+      if (change.type === "insert") {
+        return db.insert(healthWorkouts).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(healthWorkouts)
+          .set(change.data)
+          .where(eq(healthWorkouts.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(healthWorkouts).where(eq(healthWorkouts.id, change.id));
+      }
+      break;
+
+    case "healthProfile":
+      if (change.type === "upsert") {
+        // Upsert: try update first, insert if not exists
+        const existing = await db
+          .select()
+          .from(healthProfile)
+          .where(eq(healthProfile.id, change.id));
+
+        if (existing.length > 0) {
+          return db
+            .update(healthProfile)
+            .set(change.data)
+            .where(eq(healthProfile.id, change.id));
+        } else {
+          return db.insert(healthProfile).values(change.data);
+        }
       }
       break;
 

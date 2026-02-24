@@ -20,6 +20,8 @@ function App() {
     tasks,
     people,
     goals,
+    meetingSpaces,
+    healthData,
 
     addTask,
     updateTask,
@@ -85,39 +87,6 @@ function App() {
     set((draft) => {
       draft.settings.zoom = v;
     });
-
-  /* -------------------------------------------------- */
-  /* Meetings (local storage)                           */
-  /* -------------------------------------------------- */
-
-  const [meetingSpaces, setMeetingSpaces] = useState<MeetingSpace[]>(() => {
-    const saved = localStorage.getItem("theball-meetings");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem("theball-meetings", JSON.stringify(meetingSpaces));
-  }, [meetingSpaces]);
-
-  /* -------------------------------------------------- */
-  /* Health (local storage)                             */
-  /* -------------------------------------------------- */
-
-  const [healthData, setHealthData] = useState<HealthData>(() => {
-    const saved = localStorage.getItem("theball-health");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        bloodWorkRecords: parsed.bloodWorkRecords || [],
-        workoutRecords: parsed.workoutRecords || [],
-      };
-    }
-    return { bloodWorkRecords: [], workoutRecords: [] };
-  });
-
-  useEffect(() => {
-    localStorage.setItem("theball-health", JSON.stringify(healthData));
-  }, [healthData]);
 
   /* -------------------------------------------------- */
   /* Sidebar resize                                     */
@@ -253,9 +222,9 @@ function App() {
             onReorderGoals={reorderGoals}
           />
         ) : currentView === "meetings" ? (
-          <MeetingHub spaces={meetingSpaces} onUpdateSpaces={setMeetingSpaces} />
+          <MeetingHub />
         ) : currentView === "health" ? (
-          <HealthView healthData={healthData} onUpdateHealthData={setHealthData} />
+          <HealthView />
         ) : activePerson ? (
           <OneOnOneTaskView
             person={activePerson}

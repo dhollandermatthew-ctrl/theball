@@ -81,3 +81,76 @@ export const goals = sqliteTable("goals", {
   updatedAt: text("updatedAt").notNull(),
   sort_order: integer("sort_order").notNull(),
 });
+
+// -----------------------------------------------------
+// MEETINGS TABLES
+// -----------------------------------------------------
+export const meetingSpaces = sqliteTable("meeting_spaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // tech|architecture|leadership|client
+  color: text("color").notNull(),
+  sortOrder: integer("sortOrder"),
+  createdAt: text("createdAt").notNull(),
+});
+
+export const meetingRecords = sqliteTable("meeting_records", {
+  id: text("id").primaryKey(),
+  spaceId: text("spaceId").notNull(), // References meeting_spaces(id)
+  title: text("title").notNull(),
+  date: text("date").notNull(),
+  transcript: text("transcript").notNull(), // Full transcript text
+  notes: text("notes"), // Optional user notes
+  meetingType: text("meetingType"), // normal|discovery
+  insight: text("insight"), // JSON string: {summary, participants, keyLearnings, followUps, etc.}
+  createdAt: text("createdAt").notNull(),
+});
+
+export const spaceNotes = sqliteTable("space_notes", {
+  id: text("id").primaryKey(),
+  spaceId: text("spaceId").notNull(), // References meeting_spaces(id)
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+});
+
+// -----------------------------------------------------
+// HEALTH TABLES
+// -----------------------------------------------------
+export const healthBloodwork = sqliteTable("health_bloodwork", {
+  id: text("id").primaryKey(),
+  date: text("date").notNull(), // Date of blood test
+  labName: text("labName"), // e.g., "LifeLabs"
+  sourceType: text("sourceType").notNull(), // pdf|image|manual
+  sourceFileName: text("sourceFileName"),
+  labValues: text("labValues").notNull(), // JSON array: [{name, value, unit, referenceRange, flag}]
+  aiAnalysis: text("aiAnalysis"), // AI-generated insights
+  aiFlags: text("aiFlags"), // JSON array of concern strings
+  notes: text("notes"), // User notes
+  createdAt: text("createdAt").notNull(),
+});
+
+export const healthWorkouts = sqliteTable("health_workouts", {
+  id: text("id").primaryKey(),
+  date: text("date").notNull(), // Date of workout
+  type: text("type").notNull(), // run|treadmill|bike|walk|other
+  distance: integer("distance"), // in km (stored as integer for simplicity)
+  duration: integer("duration"), // in minutes
+  pace: text("pace"), // e.g., "6:02 min/km"
+  calories: integer("calories"),
+  sourceType: text("sourceType").notNull(), // image|manual
+  sourceFileName: text("sourceFileName"),
+  notes: text("notes"),
+  createdAt: text("createdAt").notNull(),
+});
+
+export const healthProfile = sqliteTable("health_profile", {
+  id: text("id").primaryKey(), // Singleton (only 1 row)
+  dateOfBirth: text("dateOfBirth"),
+  sex: text("sex"), // male|female|other
+  weight: integer("weight"), // in lbs
+  height: integer("height"), // in cm
+  updatedAt: text("updatedAt").notNull(),
+});

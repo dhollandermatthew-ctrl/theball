@@ -7,16 +7,15 @@ import { extractBloodWorkFromFile } from "@/domain/ai/bloodwork";
 import { extractWorkoutFromImage } from "@/domain/ai/fitness";
 import { tokenTracker } from "@/domain/tokenTracker";
 import { TokenStatsModal } from "./TokenStatsModal";
+import { useAppStore } from "@/domain/state";
 
-interface HealthViewProps {
-  healthData: HealthData;
-  onUpdateHealthData: (data: HealthData) => void;
-}
-
-export const HealthView: React.FC<HealthViewProps> = ({
-  healthData,
-  onUpdateHealthData,
-}) => {
+export const HealthView: React.FC = () => {
+  // Zustand state and actions
+  const healthData = useAppStore((s) => s.healthData);
+  const addBloodwork = useAppStore((s) => s.addBloodwork);
+  const deleteBloodwork = useAppStore((s) => s.deleteBloodwork);
+  const addWorkout = useAppStore((s) => s.addWorkout);
+  const updateHealthProfile = useAppStore((s) => s.updateHealthProfile);
   const [activeTab, setActiveTab] = useState<"bloodwork" | "fitness">("bloodwork");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -48,17 +47,10 @@ export const HealthView: React.FC<HealthViewProps> = ({
     setUploadError(null);
 
     try {
-      console.log("Processing file:", file.name);
-
       // Use Gemini Vision to extract blood work data
       const record = await extractBloodWorkFromFile(file);
 
-      onUpdateHealthData({
-        ...healthData,
-        bloodWorkRecords: [record, ...(healthData.bloodWorkRecords || [])],
-      });
-
-      console.log("✅ Blood work added successfully");
+      addBloodwork(record);
     } catch (error) {
       console.error("Error processing file:", error);
       
@@ -90,10 +82,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
   };
 
   const handleManualEntry = (record: BloodWorkRecord) => {
-    onUpdateHealthData({
-      ...healthData,
-      bloodWorkRecords: [record, ...(healthData.bloodWorkRecords || [])],
-    });
+    addBloodwork(record);
     setShowManualEntry(false);
   };
 
@@ -107,12 +96,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
     try {
       const record = await extractWorkoutFromImage(file);
 
-      onUpdateHealthData({
-        ...healthData,
-        workoutRecords: [record, ...(healthData.workoutRecords || [])],
-      });
-
-      console.log("✅ Workout added successfully");
+      addWorkout(record);
     } catch (error) {
       console.error("Error processing workout:", error);
       
@@ -141,10 +125,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
   };
 
   const handleManualWorkout = (record: WorkoutRecord) => {
-    onUpdateHealthData({
-      ...healthData,
-      workoutRecords: [record, ...(healthData.workoutRecords || [])],
-    });
+    addWorkout(record);
     setShowWorkoutEntry(false);
   };
 
@@ -385,13 +366,8 @@ export const HealthView: React.FC<HealthViewProps> = ({
                       )}
                       <button
                         onClick={() => {
-                          if (confirm('Are you sure you want to delete this blood work record?')) {
-                            onUpdateHealthData({
-                              ...healthData,
-                              bloodWorkRecords: healthData.bloodWorkRecords.filter(r => r.id !== selectedRecord.id),
-                            });
-                            setSelectedRecordId(null);
-                          }
+                          deleteBloodwork(selectedRecord.id);
+                          setSelectedRecordId(null);
                         }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="Delete record"
@@ -478,10 +454,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
           profile={healthData.personalProfile}
           onClose={() => setShowProfileModal(false)}
           onSave={(profile) => {
-            onUpdateHealthData({
-              ...healthData,
-              personalProfile: profile,
-            });
+            updateHealthProfile(profile);
             setShowProfileModal(false);
           }}
         />
@@ -999,10 +972,10 @@ interface TrendChartsProps {
 }
 
 const TrendCharts: React.FC<TrendChartsProps> = ({ records, personalProfile }) => {
-  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   
   // Group all lab values by name across all records with reference ranges
-  const labValuesByName = new Map<string, Array<{ date: string; value: number; flag?: string; referenceRange?: string }>>();
+  const labValuesByName = new Map<string, Array<{ date: string; value: number; unit: string; flag?: string; referenceRange?: string }>>();
 
   records.forEach((record) => {
     record.labValues.forEach((labValue) => {
@@ -1014,6 +987,7 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records, personalProfile }) =
         labValuesByName.get(labValue.name)!.push({
           date: record.date,
           value: numericValue,
+          unit: labValue.unit,
           flag: labValue.flag,
           referenceRange: labValue.referenceRange,
         });
@@ -1021,12 +995,12 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records, personalProfile }) =
     });
   });
 
-  // Only show labs that have multiple data points
-  const trendsToShow = Array.from(labValuesByName.entries())
-    .filter(([_, values]) => values.length > 1)
+  // Show ALL labs (not just those with multiple data points)
+  const allBiomarkers = Array.from(labValuesByName.entries())
     .map(([name, values]) => {
       const sortedValues = values.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const latestValue = sortedValues[sortedValues.length - 1];
+      const previousValue = sortedValues.length > 1 ? sortedValues[sortedValues.length - 2] : null;
       
       // Determine status based on latest value
       let status: 'green' | 'yellow' | 'red' | 'none' = 'none';
@@ -1040,67 +1014,188 @@ const TrendCharts: React.FC<TrendChartsProps> = ({ records, personalProfile }) =
         status = 'green';
       }
       
+      // Calculate trend
+      let trendPercent: number | null = null;
+      let trendDirection: 'rising' | 'falling' | 'stable' | 'none' = 'none';
+      
+      if (previousValue && previousValue.value !== 0) {
+        trendPercent = ((latestValue.value - previousValue.value) / previousValue.value) * 100;
+        
+        // Determine if trend is concerning based on flag and direction
+        if (Math.abs(trendPercent) > 5) {
+          trendDirection = trendPercent > 0 ? 'rising' : 'falling';
+        } else {
+          trendDirection = 'stable';
+        }
+      }
+      
       return {
         name,
         values: sortedValues,
         status,
-        hasReferenceRange: !!latestValue.referenceRange,
+        latestValue: latestValue.value,
+        latestUnit: latestValue.unit,
+        trendPercent,
+        trendDirection,
+        dataPoints: values.length,
       };
     });
 
-  if (trendsToShow.length === 0) {
+  // Sort by status (red → yellow → green → none), then alphabetically
+  const statusOrder = { red: 0, yellow: 1, green: 2, none: 3 };
+  allBiomarkers.sort((a, b) => {
+    if (a.status !== b.status) {
+      return statusOrder[a.status] - statusOrder[b.status];
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  if (allBiomarkers.length === 0) {
     return (
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-        Not enough data points yet. Add more blood work records to see trends.
+        No biomarker data available yet.
       </div>
     );
   }
 
-  // Set default selected metric if not set
-  if (!selectedMetric && trendsToShow.length > 0) {
-    setSelectedMetric(trendsToShow[0].name);
-  }
+  const getStatusIcon = (status: 'green' | 'yellow' | 'red' | 'none') => {
+    switch (status) {
+      case 'red': return <AlertCircle size={16} className="text-red-600" />;
+      case 'yellow': return <AlertTriangle size={16} className="text-amber-600" />;
+      case 'green': return <div className="w-4 h-4 rounded-full bg-green-500" />;
+      case 'none': return <div className="w-4 h-4 rounded-full bg-slate-300" />;
+    }
+  };
 
-  const selectedTrend = trendsToShow.find(t => t.name === selectedMetric);
+  const getTrendIcon = (direction: 'rising' | 'falling' | 'stable' | 'none', status: 'green' | 'yellow' | 'red' | 'none') => {
+    if (direction === 'none') {
+      return <span className="text-xs text-slate-400">First reading</span>;
+    }
+    if (direction === 'stable') {
+      return <Minus size={16} className="text-slate-400" />;
+    }
+    
+    // Color based on whether trend is concerning
+    const isAbnormal = status === 'red' || status === 'yellow';
+    const trendColor = isAbnormal ? 'text-red-600' : 'text-slate-600';
+    
+    return direction === 'rising' ? (
+      <TrendingUp size={16} className={trendColor} />
+    ) : (
+      <TrendingDown size={16} className={trendColor} />
+    );
+  };
+
+  const handleRowClick = (name: string) => {
+    setExpandedMetric(expandedMetric === name ? null : name);
+  };
 
   return (
     <div className="space-y-4">
-      {/* Metric Selector Dropdown */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          Select Lab Value
-        </label>
-        <select
-          value={selectedMetric || ""}
-          onChange={(e) => setSelectedMetric(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-        >
-          {trendsToShow.map((trend) => {
-            const statusEmoji = trend.status === 'red' ? '🔴' : trend.status === 'yellow' ? '🟡' : trend.status === 'green' ? '🟢' : '⚪';
+      {/* Biomarkers List */}
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        {/* Table Header */}
+        <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-medium text-slate-600">
+          <div className="col-span-1 text-center">Status</div>
+          <div className="col-span-5">Biomarker</div>
+          <div className="col-span-2 text-right">Latest Value</div>
+          <div className="col-span-2 text-center">Trend</div>
+          <div className="col-span-2 text-center">Data Points</div>
+        </div>
+
+        {/* Table Rows */}
+        <div className="divide-y divide-slate-100">
+          {allBiomarkers.map((biomarker) => {
+            const isExpanded = expandedMetric === biomarker.name;
+            const canShowChart = biomarker.dataPoints > 1;
+            
             return (
-              <option key={trend.name} value={trend.name}>
-                {statusEmoji} {trend.name} ({trend.values.length} data points)
-              </option>
+              <React.Fragment key={biomarker.name}>
+                <div
+                  onClick={() => canShowChart && handleRowClick(biomarker.name)}
+                  className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-colors ${
+                    canShowChart ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
+                  } ${isExpanded ? 'bg-indigo-50' : ''}`}
+                >
+                  {/* Status Icon */}
+                  <div className="col-span-1 flex justify-center">
+                    {getStatusIcon(biomarker.status)}
+                  </div>
+                  
+                  {/* Biomarker Name */}
+                  <div className="col-span-5">
+                    <span className="text-sm font-medium text-slate-900">{biomarker.name}</span>
+                  </div>
+                  
+                  {/* Latest Value */}
+                  <div className="col-span-2 text-right">
+                    <span className={`text-sm font-semibold ${
+                      biomarker.status === 'red' ? 'text-red-700' :
+                      biomarker.status === 'yellow' ? 'text-amber-700' :
+                      'text-slate-900'
+                    }`}>
+                      {biomarker.latestValue.toFixed(2)} <span className="text-xs font-normal text-slate-500">{biomarker.latestUnit}</span>
+                    </span>
+                  </div>
+                  
+                  {/* Trend */}
+                  <div className="col-span-2 flex items-center justify-center gap-1">
+                    {getTrendIcon(biomarker.trendDirection, biomarker.status)}
+                    {biomarker.trendPercent !== null && biomarker.trendDirection !== 'stable' && (
+                      <span className={`text-xs font-medium ${
+                        biomarker.status === 'red' || biomarker.status === 'yellow' 
+                          ? 'text-red-700' 
+                          : 'text-slate-600'
+                      }`}>
+                        {biomarker.trendPercent > 0 ? '+' : ''}{biomarker.trendPercent.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Data Points */}
+                  <div className="col-span-2 text-center">
+                    <span className="text-xs text-slate-500">
+                      {biomarker.dataPoints} {biomarker.dataPoints === 1 ? 'test' : 'tests'}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Expanded Chart with animation */}
+                {isExpanded && canShowChart && (
+                  <div className="px-6 py-5 bg-gradient-to-br from-slate-50 to-white border-t border-slate-200 animate-in slide-in-from-top-2 duration-300">
+                    <TrendChart 
+                      key={biomarker.name} 
+                      name={biomarker.name} 
+                      values={biomarker.values}
+                      personalProfile={personalProfile}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
-        </select>
-        <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
-          <span>🟢 Normal</span>
-          <span>🟡 Borderline</span>
-          <span>🔴 Abnormal</span>
-          <span>⚪ No reference range</span>
         </div>
       </div>
 
-      {/* Selected Chart */}
-      {selectedTrend && (
-        <TrendChart 
-          key={selectedTrend.name} 
-          name={selectedTrend.name} 
-          values={selectedTrend.values}
-          personalProfile={personalProfile}
-        />
-      )}
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 text-xs font-medium bg-gradient-to-r from-slate-50 via-white to-slate-50 border border-slate-200 rounded-lg py-3 px-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-green-500 shadow-sm border border-green-600" />
+          <span className="text-slate-700">Normal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={16} className="text-amber-600" />
+          <span className="text-slate-700">Borderline</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertCircle size={16} className="text-red-600" />
+          <span className="text-slate-700">Abnormal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-slate-300 shadow-sm border border-slate-400" />
+          <span className="text-slate-700">No reference range</span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1118,8 +1213,6 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
   let refMax: number | null = null;
   
   if (referenceRangeStr) {
-    console.log(`Parsing reference range for ${name}: "${referenceRangeStr}"`);
-    
     // Clean up the string: remove common units and extra whitespace
     const cleaned = referenceRangeStr
       .replace(/\s*(mmol\/L|mg\/dL|g\/L|U\/L|IU\/L|µmol\/L|umol\/L)\s*/gi, '')
@@ -1139,55 +1232,58 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
     if (rangeMatch) {
       refMin = parseFloat(rangeMatch[1]);
       refMax = parseFloat(rangeMatch[2]);
-      console.log(`  Parsed as range: ${refMin} - ${refMax}`);
     } else if (toMatch) {
       refMin = parseFloat(toMatch[1]);
       refMax = parseFloat(toMatch[2]);
-      console.log(`  Parsed as 'to' range: ${refMin} - ${refMax}`);
     } else if (lessThanMatch) {
       refMax = parseFloat(lessThanMatch[1]);
       refMin = 0; // Assume 0 as lower bound for "less than" ranges
-      console.log(`  Parsed as less than: 0 - ${refMax}`);
     } else if (greaterThanMatch) {
       refMin = parseFloat(greaterThanMatch[1]);
-      console.log(`  Parsed as greater than: ${refMin} - (no upper limit)`);
-    } else {
-      console.log(`  Could not parse reference range`);
     }
   }
   
   const dataMin = Math.min(...values.map((v) => v.value));
   const dataMax = Math.max(...values.map((v) => v.value));
   
-  // Calculate Y-axis range based on reference range and data
+  // Calculate Y-axis range with generous buffer (medical data visualization best practice)
   let scaledMin: number;
   let scaledMax: number;
   
   if (refMin !== null && refMax !== null) {
-    // Use reference range with padding
+    // Use reference range with generous padding for context
     const refRange = refMax - refMin;
-    const padding = refRange * 0.3; // 30% padding
-    scaledMin = Math.max(0, refMin - padding); // Don't go below 0 for most lab values
+    const padding = refRange * 0.4; // 40% padding above/below reference range
+    scaledMin = Math.max(0, refMin - padding);
     scaledMax = refMax + padding;
     
-    // Extend if data goes beyond reference range + padding
-    scaledMin = Math.min(scaledMin, dataMin - (dataMax - dataMin) * 0.1);
-    scaledMax = Math.max(scaledMax, dataMax + (dataMax - dataMin) * 0.1);
+    // Extend if data goes beyond with 20% buffer
+    const dataBuffer = (dataMax - dataMin) * 0.2;
+    scaledMin = Math.min(scaledMin, dataMin - dataBuffer);
+    scaledMax = Math.max(scaledMax, dataMax + dataBuffer);
   } else if (refMax !== null) {
-    // Only upper limit
+    // Only upper limit - show context with buffer
     scaledMin = 0;
-    scaledMax = Math.max(refMax * 1.5, dataMax * 1.2);
+    const dataBuffer = dataMax * 0.25;
+    scaledMax = Math.max(refMax * 1.5, dataMax + dataBuffer);
   } else if (refMin !== null) {
     // Only lower limit
     scaledMin = Math.max(0, refMin * 0.5);
-    scaledMax = dataMax * 1.2;
+    const dataBuffer = dataMax * 0.25;
+    scaledMax = dataMax + dataBuffer;
   } else {
-    // No reference range, use data with padding
+    // No reference range - use 25% buffer above/below data
     const range = dataMax - dataMin || 1;
-    const padding = range * 0.15;
+    const padding = range * 0.25; // More generous buffer
     scaledMin = Math.max(0, dataMin - padding);
     scaledMax = dataMax + padding;
   }
+  
+  // Round to nice numbers for human readability
+  const range = scaledMax - scaledMin;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(range)) - 1);
+  scaledMin = Math.floor(scaledMin / magnitude) * magnitude;
+  scaledMax = Math.ceil(scaledMax / magnitude) * magnitude;
   
   const scaledRange = scaledMax - scaledMin;
 
@@ -1207,19 +1303,16 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
     return value.toFixed(1);
   });
 
-  // Create SVG path for line chart
-  const chartHeight = 192; // h-48 = 192px (was 256)
-  const chartWidth = 600; // approximate
-  const pointSpacing = values.length > 1 ? chartWidth / (values.length - 1) : 0;
+  const [hoveredPoint, setHoveredPoint] = React.useState<number | null>(null);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4">
-      <h3 className="text-base font-semibold text-slate-900 mb-4">{name}</h3>
+    <div className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-lg shadow-sm p-4">
+      <h3 className="text-base font-bold text-slate-900 mb-3">{name}</h3>
       
       {/* Chart with Axes */}
       <div className="flex gap-3">
         {/* Y-axis */}
-        <div className="flex flex-col justify-between h-48 text-xs text-slate-500">
+        <div className="flex flex-col justify-between h-[180px] text-[10px] font-medium text-slate-600">
           {yAxisTicks.map((tick, idx) => (
             <div key={idx} className="text-right pr-2 w-12">{tick}</div>
           ))}
@@ -1227,92 +1320,121 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
 
         {/* Chart area */}
         <div className="flex-1">
-          <div className="relative h-48 border-l-2 border-b-2 border-slate-300">
-            <svg className="w-full h-full" viewBox="0 0 600 192" preserveAspectRatio="none">
+          <div className="relative h-[180px] bg-white rounded-lg border border-slate-200 shadow-inner overflow-visible">
+            <svg className="w-full h-full" viewBox="0 0 600 180" preserveAspectRatio="none">
+              {/* Define gradients */}
+              <defs>
+                <linearGradient id="greenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#dcfce7" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#bbf7d0" stopOpacity="0.6" />
+                </linearGradient>
+                <linearGradient id="amberGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#fef3c7" stopOpacity="0.7" />
+                  <stop offset="100%" stopColor="#fde68a" stopOpacity="0.5" />
+                </linearGradient>
+                <linearGradient id="redGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#fee2e2" stopOpacity="0.7" />
+                  <stop offset="100%" stopColor="#fecaca" stopOpacity="0.5" />
+                </linearGradient>
+                <filter id="dropShadow">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+                  <feOffset dx="0" dy="2" result="offsetblur"/>
+                  <feComponentTransfer>
+                    <feFuncA type="linear" slope="0.3"/>
+                  </feComponentTransfer>
+                  <feMerge>
+                    <feMergeNode/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              
               {/* Background zones for reference range */}
               {refMin !== null && refMax !== null && (
                 <>
-                  {/* Green zone (normal range) */}
-                  <rect
-                    x="0"
-                    y={(getY(refMax) / 100) * 192}
-                    width="600"
-                    height={((getY(refMin) - getY(refMax)) / 100) * 192}
-                    fill="#dcfce7"
-                    opacity="0.6"
-                  />
-                  
-                  {/* Amber zones (borderline) */}
-                  {/* Upper borderline: 10% above normal */}
-                  <rect
-                    x="0"
-                    y={(getY(refMax * 1.1) / 100) * 192}
-                    width="600"
-                    height={((getY(refMax) - getY(refMax * 1.1)) / 100) * 192}
-                    fill="#fef3c7"
-                    opacity="0.6"
-                  />
-                  
-                  {/* Lower borderline: 10% below normal */}
-                  {refMin > 0 && (
-                    <rect
-                      x="0"
-                      y={(getY(refMin) / 100) * 192}
-                      width="600"
-                      height={((getY(refMin * 0.9) - getY(refMin)) / 100) * 192}
-                      fill="#fef3c7"
-                      opacity="0.6"
-                    />
-                  )}
-                  
-                  {/* Red zones (abnormal) */}
-                  {/* High abnormal: above 10% of normal */}
+                  {/* Red zone (high abnormal) */}
                   <rect
                     x="0"
                     y="0"
                     width="600"
-                    height={(getY(refMax * 1.1) / 100) * 192}
-                    fill="#fee2e2"
-                    opacity="0.6"
+                    height={(getY(refMax * 1.1) / 100) * 180}
+                    fill="url(#redGradient)"
                   />
                   
-                  {/* Low abnormal: below 10% of normal */}
+                  {/* Amber zone (high borderline) */}
+                  <rect
+                    x="0"
+                    y={(getY(refMax * 1.1) / 100) * 180}
+                    width="600"
+                    height={((getY(refMax) - getY(refMax * 1.1)) / 100) * 180}
+                    fill="url(#amberGradient)"
+                  />
+                  
+                  {/* Green zone (normal range) */}
+                  <rect
+                    x="0"
+                    y={(getY(refMax) / 100) * 180}
+                    width="600"
+                    height={((getY(refMin) - getY(refMax)) / 100) * 180}
+                    fill="url(#greenGradient)"
+                  />
+                  
+                  {/* Amber zone (low borderline) */}
                   {refMin > 0 && (
                     <rect
                       x="0"
-                      y={(getY(refMin * 0.9) / 100) * 192}
+                      y={(getY(refMin) / 100) * 180}
                       width="600"
-                      height={192 - (getY(refMin * 0.9) / 100) * 192}
-                      fill="#fee2e2"
-                      opacity="0.6"
+                      height={((getY(refMin * 0.9) - getY(refMin)) / 100) * 180}
+                      fill="url(#amberGradient)"
+                    />
+                  )}
+                  
+                  {/* Red zone (low abnormal) */}
+                  {refMin > 0 && (
+                    <rect
+                      x="0"
+                      y={(getY(refMin * 0.9) / 100) * 180}
+                      width="600"
+                      height={180 - (getY(refMin * 0.9) / 100) * 180}
+                      fill="url(#redGradient)"
                     />
                   )}
                   
                   {/* Reference range boundary lines */}
                   <line
                     x1="0"
-                    y1={(getY(refMax) / 100) * 192}
+                    y1={(getY(refMax) / 100) * 180}
                     x2="600"
-                    y2={(getY(refMax) / 100) * 192}
-                    stroke="#10b981"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
+                    y2={(getY(refMax) / 100) * 180}
+                    stroke="#059669"
+                    strokeWidth="1.5"
+                    strokeDasharray="6,3"
+                    opacity="0.7"
                   />
                   <line
                     x1="0"
-                    y1={(getY(refMin) / 100) * 192}
+                    y1={(getY(refMin) / 100) * 180}
                     x2="600"
-                    y2={(getY(refMin) / 100) * 192}
-                    stroke="#10b981"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
+                    y2={(getY(refMin) / 100) * 180}
+                    stroke="#059669"
+                    strokeWidth="1.5"
+                    strokeDasharray="6,3"
+                    opacity="0.7"
                   />
                 </>
               )}
               
               {/* Grid lines */}
               {yAxisTicks.map((_, idx) => {
-                const y = (192 * idx) / 4;
+                const y = (180 * idx) / 4;
                 return (
                   <line
                     key={idx}
@@ -1320,81 +1442,210 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
                     y1={y}
                     x2="600"
                     y2={y}
-                    stroke="#cbd5e1"
+                    stroke="#e2e8f0"
                     strokeWidth="1"
-                    opacity="0.5"
+                    opacity="0.6"
                   />
                 );
               })}
 
-              {/* Line connecting points */}
+              {/* Area under line (gradient fill) */}
               {values.length > 1 && (
-                <polyline
-                  points={values
-                    .map((item, idx) => {
-                      const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
-                      const y = (getY(item.value) / 100) * 192;
-                      return `${x},${y}`;
-                    })
-                    .join(" ")}
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="3"
-                  strokeLinejoin="round"
+                <defs>
+                  <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+              )}
+              {values.length > 1 && (
+                <polygon
+                  points={
+                    values
+                      .map((item, idx) => {
+                        const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
+                        const y = (getY(item.value) / 100) * 180;
+                        return `${x},${y}`;
+                      })
+                      .join(" ") +
+                    ` 600,180 0,180`
+                  }
+                  fill="url(#areaGradient)"
                 />
               )}
 
-              {/* Data points */}
+              {/* Line connecting points with shadow */}
+              {values.length > 1 && (
+                <>
+                  {/* Shadow line */}
+                  <polyline
+                    points={values
+                      .map((item, idx) => {
+                        const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
+                        const y = (getY(item.value) / 100) * 180 + 1.5;
+                        return `${x},${y}`;
+                      })
+                      .join(" ")}
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth="2.5"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    opacity="0.08"
+                  />
+                  {/* Main line */}
+                  <polyline
+                    points={values
+                      .map((item, idx) => {
+                        const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
+                        const y = (getY(item.value) / 100) * 180;
+                        return `${x},${y}`;
+                      })
+                      .join(" ")}
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="2.5"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                </>
+              )}
+
+              {/* Data points with enhanced styling */}
               {values.map((item, idx) => {
                 const x = values.length === 1 ? 300 : (600 * idx) / (values.length - 1);
-                const y = (getY(item.value) / 100) * 192;
+                const y = (getY(item.value) / 100) * 180;
                 const color = getLineColor(item.flag);
                 const isAbnormal = item.flag !== undefined;
+                const isHovered = hoveredPoint === idx;
 
                 return (
                   <g key={idx}>
+                    {/* Outer glow for abnormal values */}
+                    {isAbnormal && (
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={isHovered ? "12" : "10"}
+                        fill={color}
+                        opacity="0.2"
+                        className="transition-all duration-200"
+                      />
+                    )}
+                    {/* Hover ring */}
+                    {isHovered && (
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r="10"
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        opacity="0.5"
+                      />
+                    )}
+                    {/* Main point */}
                     <circle
                       cx={x}
                       cy={y}
-                      r={isAbnormal ? "8" : "6"}
+                      r={isHovered ? "7" : isAbnormal ? "6" : "5"}
                       fill={color}
                       stroke="white"
-                      strokeWidth="2"
-                      className="cursor-pointer hover:r-10 transition-all"
-                    >
-                      <title>{`${item.value} on ${new Date(item.date).toLocaleDateString()}`}</title>
-                    </circle>
+                      strokeWidth="2.5"
+                      filter="url(#dropShadow)"
+                      className="cursor-pointer transition-all duration-200"
+                      onMouseEnter={() => setHoveredPoint(idx)}
+                      onMouseLeave={() => setHoveredPoint(null)}
+                    />
+                    {/* Center dot for depth */}
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="1.5"
+                      fill="white"
+                      opacity="0.8"
+                      pointerEvents="none"
+                    />
                   </g>
                 );
               })}
             </svg>
+            
+            {/* Hover tooltip - positioned above chart container */}
+            {hoveredPoint !== null && (() => {
+              const yPercent = getY(values[hoveredPoint].value);
+              const xPercent = (hoveredPoint / (values.length - 1)) * 100;
+              // Position above if point is in lower half, below if in upper half
+              const positionAbove = yPercent > 50;
+              
+              return (
+                <div 
+                  className="absolute z-50 bg-slate-900 text-white px-2.5 py-1.5 rounded-md shadow-xl text-xs font-medium pointer-events-none whitespace-nowrap"
+                  style={{
+                    left: `${xPercent}%`,
+                    [positionAbove ? 'bottom' : 'top']: '100%',
+                    transform: `translateX(-50%) ${positionAbove ? 'translateY(-8px)' : 'translateY(8px)'}`,
+                  }}
+                >
+                  <div className="text-[10px] text-slate-300">
+                    {new Date(values[hoveredPoint].date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div className="text-sm font-bold">{values[hoveredPoint].value.toFixed(2)}</div>
+                  {values[hoveredPoint].flag && (
+                    <div className="text-[10px] text-amber-300">Flag: {values[hoveredPoint].flag}</div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           
-          {/* X-axis labels */}
-          <div className="flex justify-between mt-2">
-            {values.map((item, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                <div className="text-xs text-slate-500 text-center">
-                  {new Date(item.date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+          {/* X-axis labels - positioned to align with data points */}
+          <div className="relative mt-2 h-12">
+            {values.map((item, idx) => {
+              const xPercent = values.length === 1 ? 50 : (100 * idx) / (values.length - 1);
+              return (
+                <div 
+                  key={idx} 
+                  className="absolute flex flex-col items-center gap-0.5 group cursor-pointer"
+                  style={{
+                    left: `${xPercent}%`,
+                    transform: 'translateX(-50%)',
+                  }}
+                  onMouseEnter={() => setHoveredPoint(idx)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                >
+                  <div className={`text-[10px] font-medium text-center transition-colors whitespace-nowrap ${
+                    hoveredPoint === idx ? 'text-indigo-700' : 'text-slate-500'
+                  }`}>
+                    {new Date(item.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </div>
+                  <div className={`text-sm font-bold transition-colors ${
+                    hoveredPoint === idx ? 'text-indigo-900' : 'text-slate-900'
+                  }`}>
+                    {item.value.toFixed(2)}
+                  </div>
                 </div>
-                <div className="text-sm font-semibold text-slate-900">{item.value}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-200">
-        <div className="flex justify-between text-sm mb-3">
-          <span className="text-slate-600">
-            Your Range: <span className="font-semibold text-slate-900">{dataMin.toFixed(2)} - {dataMax.toFixed(2)}</span>
+      <div className="mt-3 pt-3 border-t border-slate-200">
+        <div className="flex justify-between text-xs mb-2">
+          <span className="text-slate-600 font-medium">
+            Your Range: <span className="font-bold text-slate-900">{dataMin.toFixed(2)} - {dataMax.toFixed(2)}</span>
           </span>
           {values.some((v) => v.flag) && (
-            <div className="text-amber-600 flex items-center gap-1">
-              <AlertTriangle size={14} />
+            <div className="text-amber-700 flex items-center gap-1 font-medium bg-amber-50 px-2 py-0.5 rounded-md text-[10px]">
+              <AlertTriangle size={12} />
               Some values flagged
             </div>
           )}
@@ -1402,25 +1653,25 @@ const TrendChart: React.FC<TrendChartProps> = ({ name, values, personalProfile }
         
         {refMin !== null && refMax !== null && (
           <div className="space-y-2">
-            <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-200 border border-green-400 rounded"></div>
-                <span className="text-slate-600">Normal: {refMin} - {refMax}</span>
+            <div className="flex items-center gap-4 text-[10px] font-medium">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-gradient-to-br from-green-200 to-green-300 border border-green-400"></div>
+                <span className="text-slate-700">Normal: {refMin} - {refMax}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-amber-200 border border-amber-400 rounded"></div>
-                <span className="text-slate-600">Borderline</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-gradient-to-br from-amber-200 to-amber-300 border border-amber-400"></div>
+                <span className="text-slate-700">Borderline</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-200 border border-red-400 rounded"></div>
-                <span className="text-slate-600">Abnormal</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-gradient-to-br from-red-200 to-red-300 border border-red-400"></div>
+                <span className="text-slate-700">Abnormal</span>
               </div>
             </div>
             
             {!personalProfile?.dateOfBirth || !personalProfile?.sex && (
-              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                <Info size={12} />
-                <span>Reference ranges shown are generic. Add your age/sex in profile settings for personalized ranges.</span>
+              <div className="flex items-center gap-1.5 text-[10px] text-amber-800 bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-300 rounded px-2 py-1.5">
+                <Info size={11} className="flex-shrink-0" />
+                <span className="font-medium">Reference ranges shown are generic. Add your age/sex in profile settings for personalized ranges.</span>
               </div>
             )}
           </div>

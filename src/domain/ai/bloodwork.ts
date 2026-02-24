@@ -79,8 +79,6 @@ async function extractBloodWorkFromFileWithGemini(
   }
   
   try {
-    console.log("🩸 Extracting blood work from:", file.name, "(Gemini)");
-
     // Convert file to base64
     const base64Data = await fileToBase64(file);
     const mimeType = file.type || "application/pdf";
@@ -99,7 +97,6 @@ async function extractBloodWorkFromFileWithGemini(
     const latency = performance.now() - startTime;
 
     const raw = result.response.text().trim();
-    console.log("🤖 RAW EXTRACTION:", raw);
 
     // Log token usage
     const usage = result.response.usageMetadata;
@@ -136,7 +133,6 @@ async function extractBloodWorkFromFileWithGemini(
       createdAt: new Date().toISOString(),
     };
 
-    console.log("✅ Blood work record created:", record);
     return record;
   } catch (error) {
     console.error("❌ Blood work extraction error:", error);
@@ -174,8 +170,6 @@ async function extractBloodWorkFromFileWithOllama(
   file: File
 ): Promise<BloodWorkRecord> {
   try {
-    console.log("🩸 Extracting blood work from:", file.name, "(Ollama)");
-
     // Convert file to base64
     const base64Data = await fileToBase64(file);
 
@@ -187,8 +181,6 @@ async function extractBloodWorkFromFileWithOllama(
     );
     const latency = performance.now() - startTime;
     const raw = result.response;
-
-    console.log("🤖 RAW EXTRACTION (Ollama):", raw);
 
     // Log token usage (Ollama doesn't provide detailed token counts for vision)
     tokenTracker.addUsage({
@@ -222,7 +214,6 @@ async function extractBloodWorkFromFileWithOllama(
       createdAt: new Date().toISOString(),
     };
 
-    console.log("✅ Blood work record created:", record);
     return record;
   } catch (error) {
     console.error("❌ Blood work extraction error (Ollama):", error);
