@@ -1,5 +1,5 @@
 The Ball — Complete AI Context Document
-Version: 2.1 (Multi-Device Sync Update)
+Version: 2.2 (Product Knowledge Repository)
 Status: Canonical (Updated February 23, 2026)
 Owner: Matthew D'Hollander
 Purpose: Full grounding context for AI systems interacting with The Ball project
@@ -7,6 +7,19 @@ Purpose: Full grounding context for AI systems interacting with The Ball project
 ---
 
 ## Changelog
+
+**Version 2.2 (February 23, 2026) — Product Knowledge Repository**
+
+- **NEW FEATURE**: Product Knowledge Repository for PM learning capture
+- Added `product_knowledge` table to Turso (Base64 file storage for multi-device sync)
+- Created text extraction utilities: `src/domain/extractText.ts` (pdf-parse, mammoth)
+- Created file storage utilities: `src/domain/fileStorage.ts` (Base64 encoding/decoding)
+- Extended Zustand store with 3 CRUD actions: `addKnowledgeItem`, `updateKnowledgeItem`, `deleteKnowledgeItem`
+- Built ProductKnowledgeView component with search, tag filtering, upload, and modals
+- **Use Case**: Store and recall PM knowledge (competitor research, frameworks, presentations)
+- **Organization**: Tag-based only (no folders), client-side search
+- **Storage**: Base64-encoded files in Turso for automatic multi-device sync
+- **V1 Scope**: PDF/DOCX text extraction, quick notes with WYSIWYG, no OCR for images
 
 **Version 2.1 (February 23, 2026) — Multi-Device Sync Architecture**
 
@@ -134,6 +147,51 @@ More health metrics and tracking features
 Finance tracking
 Other personal data systems
 
+3.3.1 Product Knowledge Repository (Secondary — New Feb 2026)
+A searchable repository of all product management knowledge accumulated over Matthew's career.
+
+The Reality:
+
+PM work requires deep research on competitors, frameworks, AI tools, presentation techniques
+Knowledge scattered across Google Docs, Downloads folder, email attachments
+Critical insights get lost and need to be rediscovered
+When preparing for research or competitor analysis, Matthew needs instant recall: "I made a note at one time about Google Deep Research..."
+Use Cases:
+
+Store competitor research documents (PDFs, presentations, Word docs)
+Capture learning from articles, frameworks, PM best practices
+Quick notes on AI tools, frameworks, methodologies
+Tag-based organization for cross-cutting PM knowledge
+Full-text search across all documents and notes
+Multi-device sync (same as meetings/health)
+Design Principles:
+
+This is ACTIVE learning capture, not passive archiving
+Tags over folders (PM knowledge is cross-cutting, not hierarchical)
+Upload → Extract → Search (frictionless pipeline)
+Base64 file storage in Turso (automatic multi-device sync)
+Client-side filtering (fast, no server calls)
+Capabilities:
+
+Quick Notes: WYSIWYG editor for capturing insights on the fly
+Document Upload: PDF, DOCX, images (metadata only for images in V1)
+Text Extraction: Automated via pdf-parse (PDF) and mammoth (DOCX)
+Search: Filter by title, content, or tags (client-side, instant)
+Tag Cloud: Visual tag filtering (multi-select AND logic)
+Download: Retrieve original documents from any device
+V1 Limitations (Intentional):
+
+No OCR for images (metadata-only storage)
+No AI-powered tagging suggestions (manual tags only)
+No folders (tags only)
+No collaborative features (single-user system)
+Future Expansions:
+
+AI-powered semantic search
+Auto-tagging via LLM analysis
+Summarization of long documents
+Cross-referencing with meeting spaces (e.g., "All knowledge related to competitor X")
+
 3.4 Thinking & Reflection (Supporting)
 Reflection exists to:
 
@@ -192,9 +250,15 @@ Task management (Board, Column, TaskCard)
 1-on-1 conversations (OneOnOneTaskView)
 Meeting spaces (MeetingHub, MeetingSpaceView, SpaceChatPanel)
 Health tracking (HealthView with AI extraction)
+Product knowledge repository (ProductKnowledgeView with upload/search/tag filtering)
 WYSIWYG editor (WysiwygEditor) with AI polish toolbar (EditorToolbar)
 Cross-app search (SearchModal)
 Goals tracking (GoalView, GoalCard, GoalTimeline) — being sunset
+
+Utility Modules:
+
+Text extraction (`src/domain/extractText.ts`): PDF/DOCX parsing via pdf-parse and mammoth
+File storage (`src/domain/fileStorage.ts`): Base64 encoding/decoding, download helpers
 7.3 Data Layer
 Primary Storage:
 
@@ -204,6 +268,7 @@ Goals (being sunset)
 People (1-on-1 tracking)
 **NEW (Feb 2026): Meeting spaces, records, and notes**
 **NEW (Feb 2026): Health data (blood work, fitness, profile)**
+**NEW (Feb 2026): Product knowledge (documents + notes with Base64 file storage)**
 localStorage for ephemeral/settings data only:
 App settings (UI preferences, zoom, sidebar state)
 Token usage history
@@ -289,6 +354,14 @@ Fields: id, date, workoutType, durationMinutes, distance, distanceUnit, pace, av
 **health_profile**: Personal health context for AI analysis
 Fields: id, age, sex, heightCm, weightKg, goals (text), conditions (text), medications (text), updatedAt
 
+**NEW (Feb 2026) — Product Knowledge Table:**
+
+**product_knowledge**: PM learning repository with documents and notes
+Fields: id, title, type ('note' | 'document'), content (extracted text or note content), fileData (Base64-encoded file for documents), fileName, fileType (MIME type), fileSize (bytes), tags (JSON array of strings), createdAt, updatedAt
+Storage Strategy: Base64-encoded files stored directly in Turso (enables multi-device sync without external file storage)
+Text Extraction: pdf-parse for PDFs, mammoth for DOCX, no OCR for images in V1
+Organization: Tag-based only (no folders), client-side search and filtering
+
 localStorage Objects (Deprecated — migrated to Turso):
 
 Previously stored meetingSpaces, healthData
@@ -300,6 +373,7 @@ Tasks → Goals (origin tracking)
 MeetingRecords → MeetingSpaces (organization via spaceId FK)
 SpaceNotes → MeetingSpaces (organization via spaceId FK)
 HealthRecords → Time (longitudinal tracking)
+ProductKnowledgeItems → Tags (many-to-many via JSON array)
 
 7.5.1 Migration Strategy (Feb 2026)
 One-time localStorage → Turso migration implemented:
@@ -338,6 +412,10 @@ Health Actions:
 `addWorkout`, `updateWorkout`, `deleteWorkout`
 `updateHealthProfile`
 
+Product Knowledge Actions:
+
+`addKnowledgeItem`, `updateKnowledgeItem`, `deleteKnowledgeItem`
+
 Pattern: All actions call `enqueue()` to persist changes to Turso
 
 Component Refactoring (Feb 2026):
@@ -345,6 +423,7 @@ Component Refactoring (Feb 2026):
 MeetingHub.tsx: Converted from props to Zustand, added drag-and-drop
 MeetingSpaceView.tsx: Removed onUpdateSpace prop, uses Zustand actions
 HealthView.tsx: Removed all props, uses Zustand actions directly
+ProductKnowledgeView.tsx: New component, full Zustand integration from start
 7.6 System Integration Flow
 User Input → AI Processing → Zustand State → Sync Queue → Turso → UI Update
 
@@ -354,6 +433,7 @@ Upload blood work PDF → Gemini vision extraction → `addBloodwork()` → enqu
 Type task → Click AI polish → Groq rewrite → Zustand update → sync queue → Turso update → Board refresh
 Record meeting → Gemini summarization → `addMeetingRecord()` → enqueue → Turso insert → Space Q&A ready
 Drag meeting space → Reorder array → `reorderMeetingSpaces()` → enqueue sortOrder updates → Turso batch update → Persisted order
+Upload PM document → pdf-parse text extraction → Base64 encode → `addKnowledgeItem()` → enqueue → Turso insert with file → Multi-device sync → Searchable across all devices
 
 Sync Layer Architecture (`src/db/sync.ts`):
 

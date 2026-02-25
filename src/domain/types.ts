@@ -198,3 +198,25 @@
     notes?: string;
     createdAt: string;
   }
+
+  // --------------------------------------------------
+  // PRODUCT KNOWLEDGE
+  // --------------------------------------------------
+
+  export interface ProductKnowledgeItem {
+    id: string;
+    title: string;
+    type: 'note' | 'document';
+    content?: string; // Extracted text for search
+    
+    // File metadata (documents only)
+    fileData?: string; // Base64 encoded file bytes
+    fileName?: string;
+    fileType?: string; // MIME type
+    fileSize?: number; // Bytes
+    
+    tags?: string[]; // Array of tag strings
+    
+    createdAt: string;
+    updatedAt: string;
+  }

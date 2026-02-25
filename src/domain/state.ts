@@ -1,7 +1,7 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem } from "./types";
 
   import { enqueue } from "@/db/sync";
   import { db } from "@/db/client";
@@ -18,6 +18,7 @@
     healthBloodwork as healthBloodworkTable,
     healthWorkouts as healthWorkoutsTable,
     healthProfile as healthProfileTable,
+    productKnowledge as productKnowledgeTable,
   } from "@/db/schema";
 
   export const CURRENT_STATE_VERSION = 5;
@@ -79,6 +80,7 @@
     goals: Goal[];
     meetingSpaces: MeetingSpace[];
     healthData: HealthData;
+    productKnowledge: ProductKnowledgeItem[];
 
     settings: Settings;
 
@@ -131,6 +133,11 @@
     deleteWorkout: (id: string) => void;
     updateHealthProfile: (profile: PersonalProfile) => void;
 
+    // Product Knowledge
+    addKnowledgeItem: (item: ProductKnowledgeItem) => void;
+    updateKnowledgeItem: (id: string, updates: Partial<ProductKnowledgeItem>) => void;
+    deleteKnowledgeItem: (id: string) => void;
+
     // helpers
     getNoteCount: (id: string) => number;
   }
@@ -150,6 +157,7 @@ export const defaultState: Pick<
   | "goals"
   | "meetingSpaces"
   | "healthData"
+  | "productKnowledge"
   | "settings"
   | "hydrated"
 > = {
@@ -164,6 +172,7 @@ export const defaultState: Pick<
     bloodWorkRecords: [],
     workoutRecords: [],
   },
+  productKnowledge: [],
 
   settings: {
     zoom: 1,
@@ -728,6 +737,61 @@ loadGoals: (goals) =>
             },
           });
         }),
+
+      // ---------------------- PRODUCT KNOWLEDGE ----------------------
+      addKnowledgeItem: (item) =>
+        set((state) => {
+          state.productKnowledge = [item, ...state.productKnowledge];
+
+          enqueue({
+            type: "insert",
+            table: "productKnowledge",
+            data: {
+              id: item.id,
+              title: item.title,
+              type: item.type,
+              content: item.content || null,
+              fileData: item.fileData || null,
+              fileName: item.fileName || null,
+              fileType: item.fileType || null,
+              fileSize: item.fileSize || null,
+              tags: item.tags ? JSON.stringify(item.tags) : null,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            },
+          });
+        }),
+
+      updateKnowledgeItem: (id, updates) =>
+        set((state) => {
+          const item = state.productKnowledge.find((i) => i.id === id);
+          if (!item) return;
+
+          Object.assign(item, updates);
+          item.updatedAt = new Date().toISOString();
+
+          enqueue({
+            type: "update",
+            table: "productKnowledge",
+            id,
+            data: {
+              ...updates,
+              tags: updates.tags ? JSON.stringify(updates.tags) : undefined,
+              updatedAt: item.updatedAt,
+            },
+          });
+        }),
+
+      deleteKnowledgeItem: (id) =>
+        set((state) => {
+          state.productKnowledge = state.productKnowledge.filter((i) => i.id !== id);
+
+          enqueue({
+            type: "delete",
+            table: "productKnowledge",
+            id,
+          });
+        }),
     }))
   );
 
@@ -764,6 +828,7 @@ loadGoals: (goals) =>
         bloodworkRows,
         workoutRows,
         profileRows,
+        knowledgeRows,
       ] = await Promise.all([
         db.select().from(tasksTable),
         db.select().from(oneOnOneTable),
@@ -775,6 +840,7 @@ loadGoals: (goals) =>
         db.select().from(healthBloodworkTable),
         db.select().from(healthWorkoutsTable),
         db.select().from(healthProfileTable),
+        db.select().from(productKnowledgeTable),
       ]);
 
       // Group 1:1 notes by person
@@ -874,6 +940,21 @@ loadGoals: (goals) =>
         } : undefined,
       };
 
+      // Build product knowledge items
+      const productKnowledge: ProductKnowledgeItem[] = knowledgeRows.map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        type: r.type as 'note' | 'document',
+        content: r.content || undefined,
+        fileData: r.fileData || undefined,
+        fileName: r.fileName || undefined,
+        fileType: r.fileType || undefined,
+        fileSize: r.fileSize || undefined,
+        tags: r.tags ? JSON.parse(r.tags) : undefined,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      }));
+
       useAppStore.setState((s) => {
         s.tasks = taskRows as Task[];
         s.goals = (goalRows as Goal[]).sort(
@@ -885,6 +966,7 @@ loadGoals: (goals) =>
         s.oneOnOnes = grouped;
         s.meetingSpaces = meetingSpaces;
         s.healthData = healthData;
+        s.productKnowledge = productKnowledge;
         s.hydrated = true;
       });
     } catch (err) {

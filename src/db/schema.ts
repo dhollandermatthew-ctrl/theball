@@ -154,3 +154,28 @@ export const healthProfile = sqliteTable("health_profile", {
   height: integer("height"), // in cm
   updatedAt: text("updatedAt").notNull(),
 });
+
+// -----------------------------------------------------
+// PRODUCT KNOWLEDGE TABLE
+// -----------------------------------------------------
+export const productKnowledge = sqliteTable("product_knowledge", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  type: text("type").notNull(), // "note" | "document"
+  
+  // Content & Search
+  content: text("content"), // Extracted text for search
+  
+  // File Storage (for documents only)
+  fileData: text("fileData"), // Base64 encoded file bytes
+  fileName: text("fileName"), // Original filename
+  fileType: text("fileType"), // MIME type
+  fileSize: integer("fileSize"), // Bytes
+  
+  // Organization
+  tags: text("tags"), // JSON array of tag strings
+  
+  // Metadata
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+});

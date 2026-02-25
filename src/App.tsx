@@ -10,6 +10,7 @@ import { OneOnOneTaskView } from "./components/OneOnOneTaskView";
 import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
 import { HealthView } from "./components/HealthView";
+import { ProductKnowledgeView } from "./components/ProductKnowledgeView";
 
 import { generateId, getRandomColor } from "./domain/utils";
 import { MeetingSpace, Task, HealthData } from "@/domain/types";
@@ -68,7 +69,7 @@ function App() {
   /* -------------------------------------------------- */
 
   const [currentView, setCurrentView] = useState<
-    "calendar" | "goals" | "meetings" | "health" | string
+    "calendar" | "goals" | "meetings" | "health" | "product-knowledge" | string
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -225,6 +226,8 @@ function App() {
           <MeetingHub />
         ) : currentView === "health" ? (
           <HealthView />
+        ) : currentView === "product-knowledge" ? (
+          <ProductKnowledgeView />
         ) : activePerson ? (
           <OneOnOneTaskView
             person={activePerson}

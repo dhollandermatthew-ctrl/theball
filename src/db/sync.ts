@@ -13,6 +13,7 @@ import {
   healthBloodwork,
   healthWorkouts,
   healthProfile,
+  productKnowledge,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -53,7 +54,11 @@ type Change =
   | { type: "insert"; table: "healthWorkouts"; data: any }
   | { type: "update"; table: "healthWorkouts"; id: string; data: any }
   | { type: "delete"; table: "healthWorkouts"; id: string }
-  | { type: "upsert"; table: "healthProfile"; id: string; data: any };
+  | { type: "upsert"; table: "healthProfile"; id: string; data: any }
+  // PRODUCT KNOWLEDGE
+  | { type: "insert"; table: "productKnowledge"; data: any }
+  | { type: "update"; table: "productKnowledge"; id: string; data: any }
+  | { type: "delete"; table: "productKnowledge"; id: string };
 
 const queue: Change[] = [];
 let flushing = false;
@@ -252,6 +257,22 @@ async function apply(change: Change) {
         } else {
           return db.insert(healthProfile).values(change.data);
         }
+      }
+      break;
+
+    // ---------------- PRODUCT KNOWLEDGE ----------------
+    case "productKnowledge":
+      if (change.type === "insert") {
+        return db.insert(productKnowledge).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(productKnowledge)
+          .set(change.data)
+          .where(eq(productKnowledge.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(productKnowledge).where(eq(productKnowledge.id, change.id));
       }
       break;
 

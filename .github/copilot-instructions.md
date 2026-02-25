@@ -211,6 +211,7 @@ Ask max 3 sharp clarifying questions, only if answers would materially change th
 ## Final Reminder: Always Check ProjectContext.md
 
 Before implementing ANY feature, making architectural decisions, or responding to product ideas:
+
 - Read [ProjectContext.md](../ProjectContext.md) first
 - Verify alignment with product philosophy
 - Check for conflicts with non-goals or failure modes
