@@ -1,7 +1,11 @@
 // FILE: src/components/ProductKnowledgeView.tsx
 import React, { useState, useRef } from 'react';
-import { Search, Upload, FileText, Plus, Tag, Download, Trash2, X, Sparkles } from 'lucide-react';
+import { Search, Upload, FileText, Plus, Tag, Download, Trash2, X, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Document, Page, pdfjs } from 'react-pdf';
 import { suggestTags } from '@/domain/ai/suggestTags';
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { useAppStore } from '@/domain/state';
 import { ProductKnowledgeItem } from '@/domain/types';
 import { generateId } from '@/domain/utils';
@@ -425,6 +429,9 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagsInput, setTagsInput] = useState((item.tags || []).join(', '));
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [showFullContent, setShowFullContent] = useState(false);
 
   const handleSaveTags = () => {
     const tags = tagsInput
@@ -542,16 +549,94 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             )}
           </div>
 
-          {/* Content Preview */}
-          {item.content && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Content</label>
-              <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                {item.content.substring(0, 2000)}
-                {item.content.length > 2000 && '...'}
+          {/* Preview Section */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              {item.type === 'document' ? 'Preview' : 'Content'}
+            </label>
+            
+            {/* Image Preview */}
+            {item.type === 'document' && item.fileType?.startsWith('image/') && item.fileData && (
+              <div className="border border-slate-200 rounded-lg p-4 bg-white">
+                <img 
+                  src={`data:${item.fileType};base64,${item.fileData}`}
+                  alt={item.title}
+                  className="max-w-full h-auto rounded"
+                  style={{ maxHeight: '600px', objectFit: 'contain' }}
+                />
               </div>
-            </div>
-          )}
+            )}
+
+            {/* PDF Preview */}
+            {item.type === 'document' && item.fileType === 'application/pdf' && item.fileData && (
+              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <Document
+                  file={`data:application/pdf;base64,${item.fileData}`}
+                  onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                  className="flex justify-center"
+                >
+                  <Page 
+                    pageNumber={pageNumber} 
+                    width={700}
+                    className="shadow-lg"
+                  />
+                </Document>
+                {numPages && numPages > 1 && (
+                  <div className="flex items-center justify-center gap-4 mt-4">
+                    <button
+                      onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
+                      disabled={pageNumber <= 1}
+                      className="px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <ChevronLeft size={16} />
+                      Previous
+                    </button>
+                    <span className="text-sm text-slate-600">
+                      Page {pageNumber} of {numPages}
+                    </span>
+                    <button
+                      onClick={() => setPageNumber(Math.min(numPages, pageNumber + 1))}
+                      disabled={pageNumber >= numPages}
+                      className="px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Text Content (for notes or extracted text from documents) */}
+            {item.content && (
+              <div>
+                {item.content.length > 5000 && !showFullContent ? (
+                  <div>
+                    <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {item.content.substring(0, 5000)}...
+                    </div>
+                    <button
+                      onClick={() => setShowFullContent(true)}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Show full content ({item.content.length.toLocaleString()} characters)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
+                    {item.content}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No content message for images without extracted text */}
+            {!item.content && item.type === 'document' && !item.fileType?.startsWith('image/') && item.fileType !== 'application/pdf' && (
+              <p className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-lg">
+                No extracted text available for this file type.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="p-6 border-t border-slate-200 flex justify-between">
