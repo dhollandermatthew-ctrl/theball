@@ -784,13 +784,23 @@ loadGoals: (goals) =>
 
       deleteKnowledgeItem: (id) =>
         set((state) => {
+          console.log('[State] deleteKnowledgeItem called with id:', id);
+          console.log('[State] Current productKnowledge count:', state.productKnowledge.length);
+          
+          const before = state.productKnowledge.length;
           state.productKnowledge = state.productKnowledge.filter((i) => i.id !== id);
+          const after = state.productKnowledge.length;
+          
+          console.log('[State] After filter - before:', before, 'after:', after);
+          console.log('[State] Item deleted:', before !== after);
 
           enqueue({
             type: "delete",
             table: "productKnowledge",
             id,
           });
+          
+          console.log('[State] Delete operation enqueued for sync');
         }),
     }))
   );

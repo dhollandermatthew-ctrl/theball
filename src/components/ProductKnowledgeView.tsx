@@ -262,8 +262,11 @@ export const ProductKnowledgeView: React.FC = () => {
           onClose={() => setSelectedItemId(null)}
           onUpdate={(updates) => updateKnowledgeItem(selectedItem.id, updates)}
           onDelete={() => {
+            console.log('[ProductKnowledgeView] Delete clicked for:', selectedItem.id, selectedItem.title);
             deleteKnowledgeItem(selectedItem.id);
+            console.log('[ProductKnowledgeView] After deleteKnowledgeItem called');
             setSelectedItemId(null);
+            console.log('[ProductKnowledgeView] Modal closed');
           }}
           onDownload={
             selectedItem.type === 'document' && selectedItem.fileData
@@ -644,9 +647,13 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         <div className="p-6 border-t border-slate-200 flex justify-between">
           <button
             onClick={(e) => {
+              console.log('[KnowledgeDetailModal] Delete button clicked');
               e.stopPropagation();
               if (window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
+                console.log('[KnowledgeDetailModal] Delete confirmed, calling onDelete');
                 onDelete();
+              } else {
+                console.log('[KnowledgeDetailModal] Delete cancelled');
               }
             }}
             className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 flex items-center gap-2"

@@ -263,15 +263,18 @@ async function apply(change: Change) {
     // ---------------- PRODUCT KNOWLEDGE ----------------
     case "productKnowledge":
       if (change.type === "insert") {
+        console.log('[Sync] Inserting product knowledge item:', change.data.id);
         return db.insert(productKnowledge).values(change.data);
       }
       if (change.type === "update") {
+        console.log('[Sync] Updating product knowledge item:', change.id);
         return db
           .update(productKnowledge)
           .set(change.data)
           .where(eq(productKnowledge.id, change.id));
       }
       if (change.type === "delete") {
+        console.log('[Sync] Deleting product knowledge item from DB:', change.id);
         return db.delete(productKnowledge).where(eq(productKnowledge.id, change.id));
       }
       break;
