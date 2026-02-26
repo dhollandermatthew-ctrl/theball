@@ -84,6 +84,91 @@
     };
 
     /* -------------------------------------------------
+    * PASTE HANDLER - Sanitize pasted content
+    * ------------------------------------------------- */
+    const handlePaste = (e: React.ClipboardEvent) => {
+      e.preventDefault();
+
+      const html = e.clipboardData.getData('text/html');
+      const text = e.clipboardData.getData('text/plain');
+
+      if (!html && !text) return;
+
+      // Create temporary element to parse HTML
+      const temp = document.createElement('div');
+      temp.innerHTML = html || text;
+
+      // Sanitize: remove all inline styles, classes, and unwanted attributes
+      const sanitize = (node: Node): Node | null => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return node.cloneNode(true);
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          const tagName = el.tagName.toLowerCase();
+
+          // Allowed tags
+          const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'div'];
+          
+          if (!allowedTags.includes(tagName)) {
+            // For span and other inline elements, extract text content
+            if (tagName === 'span') {
+              const fragment = document.createDocumentFragment();
+              Array.from(el.childNodes).forEach(child => {
+                const sanitized = sanitize(child);
+                if (sanitized) fragment.appendChild(sanitized);
+              });
+              return fragment;
+            }
+            return null;
+          }
+
+          // Create clean element without attributes
+          const clean = document.createElement(tagName);
+          
+          // Keep href for links only
+          if (tagName === 'a' && el.hasAttribute('href')) {
+            clean.setAttribute('href', el.getAttribute('href')!);
+          }
+
+          // Recursively sanitize children
+          Array.from(el.childNodes).forEach(child => {
+            const sanitized = sanitize(child);
+            if (sanitized) clean.appendChild(sanitized);
+          });
+
+          return clean;
+        }
+
+        return null;
+      };
+
+      // Build sanitized content
+      const fragment = document.createDocumentFragment();
+      Array.from(temp.childNodes).forEach(child => {
+        const sanitized = sanitize(child);
+        if (sanitized) fragment.appendChild(sanitized);
+      });
+
+      // Insert at cursor
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(fragment);
+
+      // Move cursor to end
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      // Trigger change
+      handleInput();
+    };
+
+    /* -------------------------------------------------
     * KEYBOARD SHORTCUTS (Tab, Cmd/Ctrl+B/I/U, Enter in lists)
     * ------------------------------------------------- */
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -316,6 +401,7 @@
           tabIndex={0}
           suppressContentEditableWarning
           onInput={handleInput}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           onFocus={handleFocus}

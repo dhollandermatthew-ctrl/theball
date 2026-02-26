@@ -612,9 +612,10 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               <div>
                 {item.content.length > 5000 && !showFullContent ? (
                   <div>
-                    <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                      {item.content.substring(0, 5000)}...
-                    </div>
+                    <div 
+                      className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 max-h-96 overflow-y-auto prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: item.content.substring(0, 5000) + '...' }}
+                    />
                     <button
                       onClick={() => setShowFullContent(true)}
                       className="mt-2 text-sm text-blue-600 hover:text-blue-700"
@@ -623,9 +624,10 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
-                    {item.content}
-                  </div>
+                  <div 
+                    className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 max-h-[600px] overflow-y-auto prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: item.content }}
+                  />
                 )}
               </div>
             )}
@@ -641,8 +643,9 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
 
         <div className="p-6 border-t border-slate-200 flex justify-between">
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to delete this item?')) {
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
                 onDelete();
               }
             }}
