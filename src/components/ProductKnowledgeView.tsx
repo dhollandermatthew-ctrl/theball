@@ -649,12 +649,8 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             onClick={(e) => {
               console.log('[KnowledgeDetailModal] Delete button clicked');
               e.stopPropagation();
-              if (window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
-                console.log('[KnowledgeDetailModal] Delete confirmed, calling onDelete');
-                onDelete();
-              } else {
-                console.log('[KnowledgeDetailModal] Delete cancelled');
-              }
+              console.log('[KnowledgeDetailModal] Calling onDelete immediately');
+              onDelete();
             }}
             className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 flex items-center gap-2"
           >
