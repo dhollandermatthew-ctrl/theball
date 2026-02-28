@@ -429,6 +429,9 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
   onDelete,
   onDownload,
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editContent, setEditContent] = useState(item.content || '');
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagsInput, setTagsInput] = useState((item.tags || []).join(', '));
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
@@ -471,20 +474,55 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
     }
   };
 
+  const handleSaveEdit = () => {
+    onUpdate({ 
+      title: editTitle, 
+      content: editContent,
+      updatedAt: new Date().toISOString()
+    });
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditTitle(item.title);
+    setEditContent(item.content || '');
+    setIsEditing(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1">
             <FileText
               size={24}
               className={item.type === 'document' ? 'text-blue-600' : 'text-green-600'}
             />
-            <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="flex-1 text-xl font-bold text-slate-900 px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Note title"
+              />
+            ) : (
+              <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
+            )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            {item.type === 'note' && !isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="text-slate-600 hover:text-slate-800"
+              >
+                Edit
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
@@ -611,7 +649,17 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             )}
 
             {/* Text Content (for notes or extracted text from documents) */}
-            {item.content && (
+            {item.type === 'note' && isEditing ? (
+              <div className="border border-slate-300 rounded-lg p-3">
+                <WysiwygEditor
+                  initialContent={editContent}
+                  onChange={(html) => setEditContent(html)}
+                  onBlur={() => {}}
+                  placeholder="Note content..."
+                  className="min-h-[300px]"
+                />
+              </div>
+            ) : item.content ? (
               <div>
                 {item.content.length > 5000 && !showFullContent ? (
                   <div>
@@ -633,7 +681,7 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                   />
                 )}
               </div>
-            )}
+            ) : null}
 
             {/* No content message for images without extracted text */}
             {!item.content && item.type === 'document' && !item.fileType?.startsWith('image/') && item.fileType !== 'application/pdf' && (
@@ -645,36 +693,55 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         </div>
 
         <div className="p-6 border-t border-slate-200 flex justify-between">
-          <button
-            onClick={(e) => {
-              console.log('[KnowledgeDetailModal] Delete button clicked');
-              e.stopPropagation();
-              console.log('[KnowledgeDetailModal] Calling onDelete immediately');
-              onDelete();
-            }}
-            className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 flex items-center gap-2"
-          >
-            <Trash2 size={16} />
-            Delete
-          </button>
-
-          <div className="flex gap-3">
-            {onDownload && (
+          {isEditing ? (
+            <div className="flex gap-3 w-full justify-end">
               <button
-                onClick={onDownload}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                onClick={handleCancelEdit}
+                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
               >
-                <Download size={16} />
-                Download
+                Cancel
               </button>
-            )}
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
-            >
-              Close
-            </button>
-          </div>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={(e) => {
+                  console.log('[KnowledgeDetailModal] Delete button clicked');
+                  e.stopPropagation();
+                  console.log('[KnowledgeDetailModal] Calling onDelete immediately');
+                  onDelete();
+                }}
+                className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Delete
+              </button>
+
+              <div className="flex gap-3">
+                {onDownload && (
+                  <button
+                    onClick={onDownload}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Download size={16} />
+                    Download
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+                >
+                  Close
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
