@@ -577,9 +577,21 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                   {item.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex items-center gap-1"
                     >
                       {tag}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newTags = item.tags!.filter(t => t !== tag);
+                          setTagsInput(newTags.join(', '));
+                          onUpdate({ tags: newTags, updatedAt: new Date().toISOString() });
+                        }}
+                        className="ml-1 hover:text-blue-900 transition-colors"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <X size={14} />
+                      </button>
                     </span>
                   ))}
                 </div>
