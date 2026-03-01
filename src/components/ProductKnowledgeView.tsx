@@ -26,6 +26,13 @@ export const ProductKnowledgeView: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Helper to strip HTML tags for preview
+  const stripHtml = (html: string): string => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   // Filter items by search and tags
   const filteredItems = productKnowledge.filter((item: ProductKnowledgeItem) => {
     const searchLower = searchQuery.toLowerCase();
@@ -190,7 +197,9 @@ export const ProductKnowledgeView: React.FC = () => {
                 </div>
 
                 {item.content && (
-                  <p className="text-sm text-slate-600 line-clamp-2 mb-3">{item.content}</p>
+                  <p className="text-sm text-slate-600 line-clamp-2 mb-3">
+                    {stripHtml(item.content)}
+                  </p>
                 )}
 
                 {item.type === 'document' && item.fileName && (
