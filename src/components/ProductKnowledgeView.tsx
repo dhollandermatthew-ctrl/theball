@@ -488,6 +488,9 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
       
       const combined = Array.from(new Set([...existing, ...suggested]));
       setTagsInput(combined.join(', '));
+      
+      // Save immediately
+      onUpdate({ tags: combined, updatedAt: new Date().toISOString() });
     } catch (err) {
       console.error('Tag generation failed:', err);
       alert('Failed to generate tags. Please try again.');
@@ -567,6 +570,19 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                   <Sparkles size={14} />
                   {isGeneratingTags ? 'Generating...' : 'Generate Tags with AI'}
                 </button>
+              )}
+              {/* Visual tag display */}
+              {item.tags && item.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {item.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>
