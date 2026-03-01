@@ -521,19 +521,15 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               size={24}
               className={item.type === 'document' ? 'text-blue-600' : 'text-green-600'}
             />
-            {item.type === 'note' ? (
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                onBlur={handleTitleBlur}
-                className="flex-1 text-xl font-bold text-slate-900 px-3 py-2 border border-slate-200 rounded-lg hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 bg-white"
-                placeholder="Note title"
-                autoComplete="off"
-              />
-            ) : (
-              <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
-            )}
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              className="flex-1 text-xl font-bold text-slate-900 px-2 py-1 border-0 bg-transparent focus:outline-none focus:ring-0 hover:bg-slate-50 rounded"
+              placeholder="Title"
+              autoComplete="off"
+            />
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={24} />
