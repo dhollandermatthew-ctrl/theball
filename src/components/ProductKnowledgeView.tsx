@@ -429,23 +429,36 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
   onDelete,
   onDownload,
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingBody, setIsEditingBody] = useState(false);
   const [editTitle, setEditTitle] = useState(item.title);
   const [editContent, setEditContent] = useState(item.content || '');
-  const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagsInput, setTagsInput] = useState((item.tags || []).join(', '));
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [showFullContent, setShowFullContent] = useState(false);
 
-  const handleSaveTags = () => {
+  const handleTitleBlur = () => {
+    if (editTitle.trim() && editTitle !== item.title) {
+      onUpdate({ title: editTitle.trim(), updatedAt: new Date().toISOString() });
+    } else if (!editTitle.trim()) {
+      setEditTitle(item.title); // Revert if empty
+    }
+  };
+
+  const handleTagsBlur = () => {
     const tags = tagsInput
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    onUpdate({ tags });
-    setIsEditingTags(false);
+    
+    const currentTags = item.tags || [];
+    const hasChanged = tags.length !== currentTags.length || 
+                       tags.some((t, i) => t !== currentTags[i]);
+    
+    if (hasChanged) {
+      onUpdate({ tags, updatedAt: new Date().toISOString() });
+    }
   };
 
   const handleGenerateTags = async () => {
@@ -474,19 +487,17 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
     }
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveBodyEdit = () => {
     onUpdate({ 
-      title: editTitle, 
       content: editContent,
       updatedAt: new Date().toISOString()
     });
-    setIsEditing(false);
+    setIsEditingBody(false);
   };
 
-  const handleCancelEdit = () => {
-    setEditTitle(item.title);
+  const handleCancelBodyEdit = () => {
     setEditContent(item.content || '');
-    setIsEditing(false);
+    setIsEditingBody(false);
   };
 
   return (
@@ -498,31 +509,22 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               size={24}
               className={item.type === 'document' ? 'text-blue-600' : 'text-green-600'}
             />
-            {isEditing ? (
+            {item.type === 'note' ? (
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="flex-1 text-xl font-bold text-slate-900 px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onBlur={handleTitleBlur}
+                className="flex-1 text-xl font-bold text-slate-900 px-2 py-1 border-0 border-b-2 border-transparent hover:border-slate-200 focus:border-blue-500 focus:outline-none bg-transparent"
                 placeholder="Note title"
               />
             ) : (
               <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {item.type === 'note' && !isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="text-slate-600 hover:text-slate-800"
-              >
-                Edit
-              </button>
-            )}
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-              <X size={24} />
-            </button>
-          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={24} />
+          </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
@@ -537,32 +539,17 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
 
           {/* Tags */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-slate-700">Tags</label>
-              <button
-                onClick={() => setIsEditingTags(!isEditingTags)}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                {isEditingTags ? 'Cancel' : 'Edit'}
-              </button>
-            </div>
-            {isEditingTags ? (
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Comma-separated tags"
-                  />
-                  <button
-                    onClick={handleSaveTags}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Save
-                  </button>
-                </div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Tags</label>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                onBlur={handleTagsBlur}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Comma-separated tags"
+              />
+              {item.type === 'note' && (
                 <button
                   onClick={handleGenerateTags}
                   disabled={isGeneratingTags}
@@ -571,30 +558,25 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                   <Sparkles size={14} />
                   {isGeneratingTags ? 'Generating...' : 'Generate Tags with AI'}
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {item.tags && item.tags.length > 0 ? (
-                  item.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm"
-                    >
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-slate-500">No tags</span>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Preview Section */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {item.type === 'document' ? 'Preview' : 'Content'}
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                {item.type === 'document' ? 'Preview' : 'Content'}
+              </label>
+              {item.type === 'note' && !isEditingBody && (
+                <button
+                  onClick={() => setIsEditingBody(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
             
             {/* Image Preview */}
             {item.type === 'document' && item.fileType?.startsWith('image/') && item.fileData && (
@@ -649,7 +631,7 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             )}
 
             {/* Text Content (for notes or extracted text from documents) */}
-            {item.type === 'note' && isEditing ? (
+            {item.type === 'note' && isEditingBody ? (
               <div className="border border-slate-300 rounded-lg p-3">
                 <WysiwygEditor
                   initialContent={editContent}
@@ -693,16 +675,16 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         </div>
 
         <div className="p-6 border-t border-slate-200 flex justify-between">
-          {isEditing ? (
+          {isEditingBody ? (
             <div className="flex gap-3 w-full justify-end">
               <button
-                onClick={handleCancelEdit}
+                onClick={handleCancelBodyEdit}
                 className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSaveEdit}
+                onClick={handleSaveBodyEdit}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Save Changes
