@@ -71,17 +71,27 @@ export interface Settings {
   sidebarOpen: boolean;
   sidebarWidth?: number;
 }
-    goals: Goal[];
-    meetingSpaces: MeetingSpace[];
-    healthData: HealthData;
-    productKnowledge: ProductKnowledgeItem[];
 
-    settings: Settings;
+// -----------------------------------------------------
+// Main app state shape
+// -----------------------------------------------------
+export interface AppState {
+  version: number;
 
-    hydrated: boolean;
+  tasks: Task[];
+  people: OneOnOnePerson[];
+  oneOnOnes: Record<string, OneOnOneItem[]>;
+  goals: Goal[];
+  meetingSpaces: MeetingSpace[];
+  healthData: HealthData;
+  productKnowledge: ProductKnowledgeItem[];
 
-    set: (fn: (draft: AppState) => void) => void;
-    setHydrated: () => void;
+  settings: Settings;
+
+  hydrated: boolean;
+
+  set: (fn: (draft: AppState) => void) => void;
+  setHydrated: () => void;
     
     // Goals
     loadGoals: (goals: Goal[]) => void;
