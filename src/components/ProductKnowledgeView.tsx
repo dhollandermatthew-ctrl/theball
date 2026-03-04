@@ -4,8 +4,10 @@ import { Search, Upload, FileText, Plus, Tag, Download, Trash2, X, Sparkles, Che
 import { Document, Page, pdfjs } from 'react-pdf';
 import { suggestTags } from '@/domain/ai/suggestTags';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker for Tauri production builds
+// Use CDN for now (works in both dev and prod)
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 import { useAppStore } from '@/domain/state';
 import { ProductKnowledgeItem } from '@/domain/types';
 import { generateId } from '@/domain/utils';
