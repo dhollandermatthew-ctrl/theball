@@ -87,6 +87,11 @@ export const Column: React.FC<ColumnProps> = ({
   const doneTasks = tasks.filter((t) => t.status === 'done');
   const missedTasks = tasks.filter((t) => t.status === 'missed');
 
+  // Star stats for this day
+  const starredActive = tasks.filter((t) => t.starredDate === dateStr && t.status === 'todo').length;
+  const starredComplete = tasks.filter((t) => t.starredDate === dateStr && t.status === 'done').length;
+  const totalStarred = starredActive + starredComplete;
+
   // Sort active tasks: starred for this day first (by rank), then rest
   const sortedActiveTasks = [...activeTasks].sort((a, b) => {
     const aStarred = a.starredDate === dateStr;
@@ -144,6 +149,16 @@ export const Column: React.FC<ColumnProps> = ({
             {isCurrentDay && (
               <span className={cn('text-xs font-medium', categoryStyles.accent)}>
                 Today
+            {/* Star tally */}
+            {totalStarred > 0 && (
+              <span className="flex items-center gap-1 text-yellow-600">
+                <span>★</span>
+                <span>
+                  {starredComplete}/{totalStarred}
+                </span>
+              </span>
+            )}
+            
               </span>
             )}
           </div>

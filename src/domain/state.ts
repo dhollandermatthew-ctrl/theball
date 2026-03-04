@@ -215,6 +215,22 @@ export const defaultState: Pick<
 
         updateTask: (id, updates) =>
           set((state) => {
+            const task = state.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            // If task was starred and is being completed or moved, unstar it
+            if (task.starredDate) {
+              const wasStarred = task.starredDate;
+              const shouldUnstar = 
+                (updates.status && updates.status !== 'todo') || // Completing/marking as won't do
+                (updates.date && updates.date !== task.date);    // Moving to different day
+
+              if (shouldUnstar) {
+                // Unstar this task first (this shifts other ranks)
+                get().unstarTask(id);
+              }
+            }
+
             state.tasks = state.tasks.map((t) =>
               t.id === id ? { ...t, ...updates } : t
             );
@@ -249,9 +265,9 @@ export const defaultState: Pick<
           return { success: true };
         }
 
-        // Get starred tasks for this date
+        // Get ACTIVE starred tasks for this date (exclude done/missed)
         const starredTasks = state.tasks.filter(
-          (t) => t.starredDate === date && t.id !== id
+          (t) => t.starredDate === date && t.id !== id && t.status === 'todo'
         );
 
         if (starredTasks.length >= 3) {
