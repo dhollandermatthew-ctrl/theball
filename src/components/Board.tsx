@@ -235,6 +235,7 @@ export const Board: React.FC = () => {
   const addTask = useAppStore((s: AppState) => s.addTask);
   const updateTask = useAppStore((s: AppState) => s.updateTask);
   const deleteTask = useAppStore((s: AppState) => s.deleteTask);
+  const reorderStarredTasks = useAppStore((s: AppState) => s.reorderStarredTasks);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
@@ -317,7 +318,7 @@ export const Board: React.FC = () => {
   };
 
   const onDragEnd = (e: DragEndEvent) => {
-    const { over } = e;
+    const { over, active } = e;
     const task = activeTask;
   
     setActiveTask(null);
@@ -349,7 +350,32 @@ export const Board: React.FC = () => {
     // Dropped on top of another task → infer its column
     const overTask = tasks.find((t) => t.id === overId);
     if (overTask?.date && weekKeys.includes(overTask.date)) {
-      updateTask(task.id, { date: overTask.date });
+      // Check if reordering starred tasks within same day
+      if (
+        task.date === overTask.date &&
+        task.starredDate === task.date &&
+        overTask.starredDate === overTask.date
+      ) {
+        // Reorder starred tasks
+        const starredTasks = tasks
+          .filter((t) => t.starredDate === task.date && t.status === 'todo')
+          .sort((a, b) => (a.starredRank || 999) - (b.starredRank || 999));
+        
+        const oldIndex = starredTasks.findIndex((t) => t.id === task.id);
+        const newIndex = starredTasks.findIndex((t) => t.id === overTask.id);
+        
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          // Create new order
+          const reordered = [...starredTasks];
+          reordered.splice(oldIndex, 1);
+          reordered.splice(newIndex, 0, task);
+          
+          reorderStarredTasks(task.date, reordered.map(t => t.id));
+        }
+      } else {
+        // Normal move to different day
+        updateTask(task.id, { date: overTask.date });
+      }
     }
   };
 

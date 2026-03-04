@@ -11,6 +11,7 @@ import {
   Trash2,
   Sparkles,
   Loader2,
+  Star,
 } from "lucide-react";
 
 import { Task, TaskStatus, TaskPriority } from "@/domain/types";
@@ -18,6 +19,7 @@ import { cn, DEFAULT_TASK_BODY } from "@/domain/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { WysiwygEditor } from "@/components/WysiwygEditor";
 import { runAI } from "@/domain/ai/ai";
+import { useAppStore } from "@/domain/state";
 
 /* NORMALIZE STATUS */
 const normalizeStatus = (status: TaskStatus): TaskStatus =>
@@ -155,11 +157,15 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
 interface PriorityAccordionProps {
   priority: TaskPriority;
   onSelect: (p: TaskPriority) => void;
+  isStarred?: boolean;
+  task: Task;
 }
 
 const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
   priority,
   onSelect,
+  isStarred = false,
+  task,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -177,6 +183,9 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
   const label = (p: TaskPriority) => {
     switch (p) {
       case "p1":
+        if (isStarred && task.starredRank) {
+          return <span className="text-[10px] font-bold text-yellow-500">★{task.starredRank}</span>;
+        }
         return <span className="text-[10px] font-bold text-red-600">P1</span>;
       case "p2":
         return <span className="text-[10px] font-bold text-amber-500">P2</span>;
@@ -262,6 +271,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   showMissedStatus = true, // ✅ default
 }) => {
   const normalizedStatus = normalizeStatus(task.status);
+  const starTask = useAppStore((s) => s.starTask);
+  const unstarTask = useAppStore((s) => s.unstarTask);
 
   const initialBody =
     !task.content || task.content === DEFAULT_TASK_BODY
@@ -315,6 +326,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setEditValue(body);
   }, [task.content]);
 
+  /* STAR TOGGLE */
+  const handleStarToggle = () => {
+    if (!task.date) return; // Only calendar tasks can be starred
+
+    if (task.starredDate === task.date) {
+      // Already starred for this day → unstar
+      unstarTask(task.id);
+    } else {
+      // Not starred for this day → star it
+      const result = starTask(task.id, task.date);
+      if (!result.success && result.message) {
+        alert(result.message); // Simple feedback for now
+      }
+    }
+  };
+
 
 
 /* Auto-focus title */
@@ -324,6 +351,19 @@ useEffect(() => {
     finalTitleRef.current.select();
   }
 }, [editMode]);
+
+/* Keyboard shortcut: Cmd+S to star/unstar */
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      e.preventDefault();
+      handleStarToggle();
+    }
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [task.id, task.date, task.starredDate]);
   
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
@@ -422,6 +462,7 @@ const handleContentBlur = () => {
     setNodeRef(el);
     if (cardRef) cardRef.current = el;
   }}
+  style={style}
   className={cn(
     "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
     "hover:shadow-md hover:-translate-y-[1px]",
@@ -470,6 +511,8 @@ const handleContentBlur = () => {
           <PriorityAccordion
             priority={task.priority}
             onSelect={(p) => onUpdatePriority(task.id, p)}
+            isStarred={task.starredDate === task.date}
+            task={task}
           />
   
           {/* TITLE INPUT */}
@@ -557,6 +600,30 @@ const handleContentBlur = () => {
         {/* ACTIONS TOP RIGHT */}
         <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
   
+          {/* STAR (only for calendar tasks) */}
+          {task.date && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStarToggle();
+              }}
+              className={cn(
+                "p-1 rounded transition-all",
+                task.starredDate === task.date
+                  ? "text-yellow-500 hover:bg-yellow-50"
+                  : "text-slate-300 hover:text-yellow-500 hover:bg-yellow-50"
+              )}
+              title={`Star for daily focus (Cmd+S) ${
+                task.starredDate === task.date ? "★" : "☆"
+              }`}
+            >
+              <Star
+                size={14}
+                fill={task.starredDate === task.date ? "currentColor" : "none"}
+              />
+            </button>
+          )}
+
           {/* AI */}
           <button
             disabled={isAiLoading}

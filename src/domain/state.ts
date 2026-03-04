@@ -44,39 +44,33 @@
     priority: "p1" | "p2" | "p3";
     category: "work" | "personal";
   
-    createdAt: string;
-  }
+  // ✅ Daily Focus (max 3 per day, ranked)
+  starredDate?: string | null; // "2026-03-03" when starred for that day
+  starredRank?: number | null; // 1, 2, or 3 - order of importance
 
-  export interface OneOnOneItem {
-    id: string;
-    personId: string;
-    content: string;
-    isCompleted: boolean;
-    createdAt: string;
-  }
+  createdAt: string;
+}
 
-  export interface OneOnOnePerson {
-    id: string;
-    name: string;
-    avatarColor: string;
-    sortOrder: number;
-  }
+export interface OneOnOneItem {
+  id: string;
+  personId: string;
+  content: string;
+  isCompleted: boolean;
+  createdAt: string;
+}
 
-  export interface Settings {
-    zoom: number;
-    sidebarOpen: boolean;
-    sidebarWidth?: number;
-  }
+export interface OneOnOnePerson {
+  id: string;
+  name: string;
+  avatarColor: string;
+  sortOrder: number;
+}
 
-  // -----------------------------------------------------
-  // Main app state shape
-  // -----------------------------------------------------
-  export interface AppState {
-    version: number;
-
-    tasks: Task[];
-    people: OneOnOnePerson[];
-    oneOnOnes: Record<string, OneOnOneItem[]>;
+export interface Settings {
+  zoom: number;
+  sidebarOpen: boolean;
+  sidebarWidth?: number;
+}
     goals: Goal[];
     meetingSpaces: MeetingSpace[];
     healthData: HealthData;
@@ -100,6 +94,9 @@
     addTask: (task: Task) => void;
     updateTask: (id: string, updates: Partial<Task>) => void;
     deleteTask: (id: string) => void;
+    starTask: (id: string, date: string) => { success: boolean; message?: string };
+    unstarTask: (id: string) => void;
+    reorderStarredTasks: (date: string, taskIds: string[]) => void;
 
     // 1:1 people
     addPerson: (p: OneOnOnePerson) => void;
@@ -228,6 +225,107 @@ export const defaultState: Pick<
             type: "delete",
             table: "tasks",
             id,
+          });
+        }),
+
+      starTask: (id, date) => {
+        const state = get();
+        const task = state.tasks.find((t) => t.id === id);
+        if (!task) return { success: false, message: "Task not found" };
+
+        // If already starred for this date, unstar it
+        if (task.starredDate === date) {
+          get().unstarTask(id);
+          return { success: true };
+        }
+
+        // Get starred tasks for this date
+        const starredTasks = state.tasks.filter(
+          (t) => t.starredDate === date && t.id !== id
+        );
+
+        if (starredTasks.length >= 3) {
+          return { success: false, message: "Max 3 starred tasks per day" };
+        }
+
+        // Assign next available rank
+        const existingRanks = starredTasks.map(t => t.starredRank || 0).filter(r => r > 0);
+        let nextRank = 1;
+        while (existingRanks.includes(nextRank) && nextRank <= 3) {
+          nextRank++;
+        }
+
+        set((state) => {
+          const task = state.tasks.find((t) => t.id === id);
+          if (task) {
+            task.starredDate = date;
+            task.starredRank = nextRank;
+          }
+
+          enqueue({
+            type: "update",
+            table: "tasks",
+            id,
+            data: { starredDate: date, starredRank: nextRank },
+          });
+        });
+
+        return { success: true };
+      },
+
+      unstarTask: (id) =>
+        set((state) => {
+          const task = state.tasks.find((t) => t.id === id);
+          if (!task || !task.starredDate) return;
+
+          const date = task.starredDate;
+          const removedRank = task.starredRank || 0;
+
+          // Unstar this task
+          task.starredDate = null;
+          task.starredRank = null;
+
+          // Shift down tasks with higher ranks
+          if (removedRank > 0) {
+            state.tasks.forEach((t) => {
+              if (t.starredDate === date && t.starredRank && t.starredRank > removedRank) {
+                const newRank = t.starredRank - 1;
+                t.starredRank = newRank;
+                
+                enqueue({
+                  type: "update",
+                  table: "tasks",
+                  id: t.id,
+                  data: { starredRank: newRank },
+                });
+              }
+            });
+          }
+
+          enqueue({
+            type: "update",
+            table: "tasks",
+            id,
+            data: { starredDate: null, starredRank: null },
+          });
+        }),
+
+      reorderStarredTasks: (date, taskIds) =>
+        set((state) => {
+          // taskIds is array of task IDs in desired order (★1, ★2, ★3)
+          taskIds.forEach((taskId, index) => {
+            const task = state.tasks.find((t) => t.id === taskId);
+            if (task && task.starredDate === date) {
+              const newRank = index + 1; // 1-based ranking
+              task.starredRank = newRank;
+
+              enqueue({
+                type: "update",
+                table: "tasks",
+                id: taskId,
+                data: { starredRank: newRank },
+              });
+            }
           });
         }),
 

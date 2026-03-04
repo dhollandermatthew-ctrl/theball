@@ -18,6 +18,10 @@ export const tasks = sqliteTable("tasks", {
   priority: text("priority").notNull(),
   category: text("category").notNull(),
 
+  // ✅ Daily Focus (max 3 per day, ranked)
+  starredDate: text("starredDate"),
+  starredRank: integer("starredRank"),
+
   createdAt: text("createdAt").notNull(),
 });
 

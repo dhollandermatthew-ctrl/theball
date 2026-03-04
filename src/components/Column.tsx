@@ -87,6 +87,24 @@ export const Column: React.FC<ColumnProps> = ({
   const doneTasks = tasks.filter((t) => t.status === 'done');
   const missedTasks = tasks.filter((t) => t.status === 'missed');
 
+  // Sort active tasks: starred for this day first (by rank), then rest
+  const sortedActiveTasks = [...activeTasks].sort((a, b) => {
+    const aStarred = a.starredDate === dateStr;
+    const bStarred = b.starredDate === dateStr;
+    
+    if (aStarred && !bStarred) return -1;
+    if (!aStarred && bStarred) return 1;
+    
+    // Both starred: sort by rank
+    if (aStarred && bStarred) {
+      const aRank = a.starredRank || 999;
+      const bRank = b.starredRank || 999;
+      return aRank - bRank;
+    }
+    
+    return 0; // Keep original order for non-starred
+  });
+
   const completed = doneTasks.length;
   const active = activeTasks.length;
   const total = completed + active;
@@ -159,7 +177,7 @@ export const Column: React.FC<ColumnProps> = ({
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-{activeTasks.map((task) => (
+{sortedActiveTasks.map((task) => (
   <TaskCard
   key={task.id}
   task={task}
