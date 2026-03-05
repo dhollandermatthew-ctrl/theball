@@ -560,16 +560,14 @@ const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Comma-separated tags"
               />
-              {item.type === 'note' && (
-                <button
-                  onClick={handleGenerateTags}
-                  disabled={isGeneratingTags}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles size={14} />
-                  {isGeneratingTags ? 'Generating...' : 'Generate Tags with AI'}
-                </button>
-              )}
+              <button
+                onClick={handleGenerateTags}
+                disabled={isGeneratingTags}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles size={14} />
+                {isGeneratingTags ? 'Generating...' : 'Generate Tags with AI'}
+              </button>
               {/* Visual tag display */}
               {item.tags && item.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 pt-2">

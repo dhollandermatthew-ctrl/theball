@@ -26,7 +26,7 @@ export async function suggestTags(title: string, content: string): Promise<strin
   const userPrompt = `Title: ${title}
 
 Content:
-${content.substring(0, 2000)}`;
+${(content || '').substring(0, 2000)}`;
 
   try {
     const response = await callAI({

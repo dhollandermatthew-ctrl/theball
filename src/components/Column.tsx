@@ -149,16 +149,16 @@ export const Column: React.FC<ColumnProps> = ({
             {isCurrentDay && (
               <span className={cn('text-xs font-medium', categoryStyles.accent)}>
                 Today
-            {/* Star tally */}
+              </span>
+            )}
+
+            {/* Star tally - show on all days */}
             {totalStarred > 0 && (
-              <span className="flex items-center gap-1 text-yellow-600">
+              <span className="flex items-center gap-1 text-yellow-600 text-xs font-medium">
                 <span>★</span>
                 <span>
                   {starredComplete}/{totalStarred}
                 </span>
-              </span>
-            )}
-            
               </span>
             )}
           </div>

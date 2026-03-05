@@ -27,9 +27,14 @@ export async function extractTextFromDOCX(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer });
+    
+    if (!result.value || result.value.trim().length === 0) {
+      console.warn('DOCX extraction returned empty text for:', file.name);
+    }
+    
     return result.value;
   } catch (err) {
-    console.error('DOCX parsing error:', err);
+    console.error('DOCX parsing error for', file.name, ':', err);
     return '';
   }
 }
