@@ -953,10 +953,16 @@ loadGoals: (goals) =>
   let isInitializing = false;
 
   export async function initializeAppState() {
+    console.log('[Init] Starting app state initialization...');
+    
     const store = useAppStore.getState();
-    if (store.hydrated || isInitializing) return;
+    if (store.hydrated || isInitializing) {
+      console.log('[Init] Already hydrated or initializing, skipping');
+      return;
+    }
   
     isInitializing = true; // 🔒 LOCK hydration to prevent duplicate calls
+    console.log('[Init] Loading data from database...');
   
     try {
       // Run migration from localStorage → Turso (once)
@@ -1115,8 +1121,15 @@ loadGoals: (goals) =>
         s.productKnowledge = productKnowledge;
         s.hydrated = true;
       });
+      
+      console.log('[Init] App state loaded successfully');
     } catch (err) {
-      console.error("Failed to initialize app state:", err);
+      console.error("[Init] Failed to initialize app state:", err);
+      
+      // Set hydrated even on error so app can render (with empty state if needed)
+      useAppStore.setState((s) => {
+        s.hydrated = true;
+      });
     } finally {
       isInitializing = false;
     }
