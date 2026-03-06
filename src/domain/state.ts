@@ -218,25 +218,18 @@ export const defaultState: Pick<
             const task = state.tasks.find(t => t.id === id);
             if (!task) return;
 
-            // If task was starred and is being completed or moved, unstar it
+            // If task was starred and is being moved to a different day, unstar it
             let finalUpdates = updates;
-            if (task.starredDate) {
-              const wasStarred = task.starredDate;
-              const shouldUnstar = 
-                (updates.status && updates.status !== 'todo') || // Completing/marking as won't do
-                (updates.date && updates.date !== task.date);    // Moving to different day
-
-              if (shouldUnstar) {
-                // Unstar this task first (this shifts other ranks)
-                get().unstarTask(id);
-                
-                // Explicitly clear starred fields in updates
-                finalUpdates = { 
-                  ...updates, 
-                  starredDate: null, 
-                  starredRank: null 
-                };
-              }
+            if (task.starredDate && updates.date && updates.date !== task.date) {
+              // Unstar this task first (this shifts other ranks)
+              get().unstarTask(id);
+              
+              // Explicitly clear starred fields in updates
+              finalUpdates = { 
+                ...updates, 
+                starredDate: null, 
+                starredRank: null 
+              };
             }
 
             state.tasks = state.tasks.map((t) =>
