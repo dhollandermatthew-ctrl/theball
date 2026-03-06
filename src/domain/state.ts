@@ -954,6 +954,7 @@ loadGoals: (goals) =>
 
   export async function initializeAppState() {
     console.log('[Init] Starting app state initialization...');
+    const startTime = performance.now();
     
     const store = useAppStore.getState();
     if (store.hydrated || isInitializing) {
@@ -966,9 +967,12 @@ loadGoals: (goals) =>
   
     try {
       // Run migration from localStorage → Turso (once)
+      const migrationStart = performance.now();
       const { migrateLocalStorageToTurso } = await import("@/db/migrate-localStorage");
       await migrateLocalStorageToTurso();
+      console.log(`[Init] Migration check took ${Math.round(performance.now() - migrationStart)}ms`);
 
+      const queryStart = performance.now();
       const [
         taskRows,
         oneOnOneRows,
@@ -994,6 +998,9 @@ loadGoals: (goals) =>
         db.select().from(healthProfileTable),
         db.select().from(productKnowledgeTable),
       ]);
+      
+      console.log(`[Init] Database queries took ${Math.round(performance.now() - queryStart)}ms`);
+      console.log(`[Init] Loaded: ${taskRows.length} tasks, ${peopleRows.length} people, ${goalRows.length} goals`);
 
       // Group 1:1 notes by person
       const grouped: Record<string, OneOnOneItem[]> = {};
@@ -1122,7 +1129,9 @@ loadGoals: (goals) =>
         s.hydrated = true;
       });
       
-      console.log('[Init] App state loaded successfully');
+      const totalTime = Math.round(performance.now() - startTime);
+      console.log(`[Init] ✅ App state loaded successfully in ${totalTime}ms`);
+      console.log(`[Init] Final state: ${useAppStore.getState().tasks.length} tasks in memory`);
     } catch (err) {
       console.error("[Init] Failed to initialize app state:", err);
       
