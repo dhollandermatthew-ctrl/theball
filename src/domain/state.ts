@@ -948,11 +948,15 @@ loadGoals: (goals) =>
   // -----------------------------------------------------
   // INITIALIZATION — Load from Turso
   // -----------------------------------------------------
+  // Global init flag to prevent duplicate initialization
+  // -----------------------------------------------------
+  let isInitializing = false;
+
   export async function initializeAppState() {
     const store = useAppStore.getState();
-    if (store.hydrated) return;
+    if (store.hydrated || isInitializing) return;
   
-    store.setHydrated(); // 🔒 LOCK hydration immediately
+    isInitializing = true; // 🔒 LOCK hydration to prevent duplicate calls
   
     try {
       // Run migration from localStorage → Turso (once)
@@ -1113,6 +1117,8 @@ loadGoals: (goals) =>
       });
     } catch (err) {
       console.error("Failed to initialize app state:", err);
+    } finally {
+      isInitializing = false;
     }
   }
 
