@@ -136,12 +136,20 @@ export const MeetingSpaceView: React.FC<MeetingSpaceViewProps> = ({
 
   /* ---------------- Filtered records ---------------- */
   const filteredRecords = useMemo(() => {
-    if (meetingFilter === "all") {
-      return space.records;
+    let records = space.records;
+    
+    if (meetingFilter !== "all") {
+      records = records.filter(
+        (r) => (r.meetingType || "normal") === meetingFilter
+      );
     }
-    return space.records.filter(
-      (r) => (r.meetingType || "normal") === meetingFilter
-    );
+    
+    // Sort by date descending (most recent first)
+    return [...records].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
   }, [space.records, meetingFilter]);
 
   useEffect(() => {
