@@ -219,6 +219,7 @@ export const defaultState: Pick<
             if (!task) return;
 
             // If task was starred and is being completed or moved, unstar it
+            let finalUpdates = updates;
             if (task.starredDate) {
               const wasStarred = task.starredDate;
               const shouldUnstar = 
@@ -230,7 +231,7 @@ export const defaultState: Pick<
                 get().unstarTask(id);
                 
                 // Explicitly clear starred fields in updates
-                updates = { 
+                finalUpdates = { 
                   ...updates, 
                   starredDate: null, 
                   starredRank: null 
@@ -239,14 +240,14 @@ export const defaultState: Pick<
             }
 
             state.tasks = state.tasks.map((t) =>
-              t.id === id ? { ...t, ...updates } : t
+              t.id === id ? { ...t, ...finalUpdates } : t
             );
         
             enqueue({
               type: "update",
               table: "tasks",
               id,
-              data: updates,
+              data: finalUpdates,
             });
           }),
 
