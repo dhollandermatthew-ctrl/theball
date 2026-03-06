@@ -228,6 +228,13 @@ export const defaultState: Pick<
               if (shouldUnstar) {
                 // Unstar this task first (this shifts other ranks)
                 get().unstarTask(id);
+                
+                // Explicitly clear starred fields in updates
+                updates = { 
+                  ...updates, 
+                  starredDate: null, 
+                  starredRank: null 
+                };
               }
             }
 
