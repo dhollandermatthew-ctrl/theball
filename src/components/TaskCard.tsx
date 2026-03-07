@@ -157,15 +157,11 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
 interface PriorityAccordionProps {
   priority: TaskPriority;
   onSelect: (p: TaskPriority) => void;
-  isStarred?: boolean;
-  task: Task;
 }
 
 const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
   priority,
   onSelect,
-  isStarred = false,
-  task,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -183,9 +179,6 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
   const label = (p: TaskPriority) => {
     switch (p) {
       case "p1":
-        if (isStarred && task.starredRank) {
-          return <span className="text-[10px] font-bold text-yellow-500">★{task.starredRank}</span>;
-        }
         return <span className="text-[10px] font-bold text-red-600">P1</span>;
       case "p2":
         return <span className="text-[10px] font-bold text-amber-500">P2</span>;
@@ -455,6 +448,7 @@ const handleContentBlur = () => {
     };
     
     const styles = densityStyles[density];
+    const isStarred = task.starredDate === task.date;
   
     return (
 <div
@@ -476,6 +470,18 @@ const handleContentBlur = () => {
       : "bg-white border-slate-200"
   )}
 >
+        {/* Star Indicator */}
+        {isStarred && task.starredRank && (
+          <div className="absolute -left-2 top-1/2 -translate-y-1/2 z-20">
+            <div className={cn(
+              "flex items-center justify-center w-5 h-5 bg-yellow-500 text-white text-xs font-bold rounded-full shadow-sm ring-2 ring-white transition-opacity",
+              task.status === "done" && "opacity-50"
+            )}>
+              {task.status === "done" ? "✓" : task.starredRank}
+            </div>
+          </div>
+        )}
+
         {/* AI overlay */}
         {isAiLoading && (
           <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
@@ -511,8 +517,6 @@ const handleContentBlur = () => {
           <PriorityAccordion
             priority={task.priority}
             onSelect={(p) => onUpdatePriority(task.id, p)}
-            isStarred={task.starredDate === task.date}
-            task={task}
           />
   
           {/* TITLE INPUT */}
