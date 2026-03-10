@@ -266,16 +266,20 @@ export const defaultState: Pick<
           return { success: true };
         }
 
-        // Get ACTIVE starred tasks for this date (exclude done/missed)
+        // Get ALL starred tasks for this date (including completed)
         const starredTasks = state.tasks.filter(
-          (t) => t.starredDate === date && t.id !== id && t.status === 'todo'
+          (t) => t.starredDate === date && t.id !== id
         );
+
+        console.log('[Star Debug] Attempting to star task:', { id, date });
+        console.log('[Star Debug] Total starred tasks for this date:', starredTasks.map(t => ({ id: t.id, title: t.title, status: t.status, rank: t.starredRank })));
+        console.log('[Star Debug] Count:', starredTasks.length, 'Max: 3');
 
         if (starredTasks.length >= 3) {
           return { success: false, message: "Max 3 starred tasks per day" };
         }
 
-        // Assign next available rank
+        // Assign next available rank (among ALL starred tasks)
         const existingRanks = starredTasks.map(t => t.starredRank || 0).filter(r => r > 0);
         let nextRank = 1;
         while (existingRanks.includes(nextRank) && nextRank <= 3) {
