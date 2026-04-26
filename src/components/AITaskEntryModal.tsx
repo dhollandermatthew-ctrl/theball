@@ -181,12 +181,6 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pointer-events-none" onKeyDown={handleKeyDown}>
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/20 transition-opacity pointer-events-auto"
-        onClick={onClose}
-      />
-
       {/* Modal */}
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden relative animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
         
