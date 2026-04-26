@@ -230,7 +230,11 @@ const ScrollMonitor = ({
 /* Board                                              */
 /* -------------------------------------------------- */
 
-export const Board: React.FC = () => {
+interface BoardProps {
+  onAIEntryClick?: () => void;
+}
+
+export const Board: React.FC<BoardProps> = ({ onAIEntryClick }) => {
   const tasks = useAppStore((s) => s.tasks);
   const addTask = useAppStore((s: AppState) => s.addTask);
   const updateTask = useAppStore((s: AppState) => s.updateTask);
@@ -399,6 +403,7 @@ export const Board: React.FC = () => {
         onViewModeChange={setViewMode}
         onCategoryChange={setCategory}
         onToggleInbox={() => setShowInbox(!showInbox)}
+        onAIEntryClick={() => onAIEntryClick?.()}
       />
 
       {viewMode === "month" ? (

@@ -11,8 +11,10 @@ import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
 import { HealthView } from "./components/HealthView";
 import { ProductKnowledgeView } from "./components/ProductKnowledgeView";
+import { AITaskEntryModal } from "./components/AITaskEntryModal";
 
 import { generateId, getRandomColor } from "./domain/utils";
+import { ExtractedTask } from "./domain/ai/taskExtraction";
 import { MeetingSpace, Task, HealthData } from "@/domain/types";
 import { useAppStore, initializeAppState } from "./domain/state";
 
@@ -73,6 +75,7 @@ function App() {
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAIEntryOpen, setIsAIEntryOpen] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   const sidebarOpen = settings.sidebarOpen;
@@ -116,6 +119,23 @@ function App() {
   }, [isResizingSidebar, set]);
 
   /* -------------------------------------------------- */
+  /* Global keyboard shortcuts                          */
+  /* -------------------------------------------------- */
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+Shift+N: Open AI Task Entry
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'N') {
+        e.preventDefault();
+        setIsAIEntryOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  /* -------------------------------------------------- */
   /* Loading                                            */
   /* -------------------------------------------------- */
 
@@ -152,6 +172,29 @@ function App() {
       category: "work",
       createdAt: new Date().toISOString(),
     });
+  };
+
+  /* -------------------------------------------------- */
+  /* AI Task Entry Handler                              */
+  /* -------------------------------------------------- */
+
+  const handleCreateAITask = (extracted: ExtractedTask) => {
+    addTask({
+      id: generateId(),
+      title: extracted.title,
+      content: extracted.description ? `<p>${extracted.description}</p>` : "<p><br></p>",
+      taskType: "calendar",
+      date: extracted.date,
+      status: "todo",
+      priority: extracted.priority,
+      category: extracted.category,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Navigate to calendar view if not already there
+    if (currentView !== "calendar") {
+      setCurrentView("calendar");
+    }
   };
 
   /* -------------------------------------------------- */
@@ -199,7 +242,7 @@ function App() {
         )}
 
         {currentView === "calendar" ? (
-          <Board />
+          <Board onAIEntryClick={() => setIsAIEntryOpen(true)} />
         ) : currentView === "goals" ? (
           <GoalView
             goals={sortedGoals}
@@ -257,6 +300,12 @@ function App() {
         items={[]}
         people={sortedPeople}
         onNavigate={setCurrentView}
+      />
+
+      <AITaskEntryModal
+        isOpen={isAIEntryOpen}
+        onClose={() => setIsAIEntryOpen(false)}
+        onCreateTask={handleCreateAITask}
       />
     </div>
   );

@@ -337,7 +337,7 @@
 
             const text = await invoke<string>("transcribe_audio", {
               audio: Array.from(bytes),
-              apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+              apiKey: import.meta.env.VITE_GROQ_API_KEY,
             });
 
             if (text) insertAtCaret(text + " ");

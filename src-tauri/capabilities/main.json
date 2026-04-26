@@ -2,6 +2,7 @@
     "identifier": "main",
     "permissions": [
       "core:default",
-      "core:webview:allow-internal-toggle-devtools"
+      "core:webview:allow-internal-toggle-devtools",
+      "shell:allow-execute"
     ]
   }

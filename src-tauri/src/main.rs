@@ -16,7 +16,7 @@ struct TranscriptionResponse {
 
 //
 // -------------------------------------------------------------
-// Whisper Transcription Command
+// Whisper Transcription Command (Groq)
 // -------------------------------------------------------------
 #[command]
 async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, String> {
@@ -28,11 +28,11 @@ async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, Str
         .map_err(|e| format!("Mime error: {e}"))?;
 
     let form = reqwest::multipart::Form::new()
-        .text("model", "gpt-4o-transcribe")
+        .text("model", "whisper-large-v3")
         .part("file", part);
 
     let res = client
-        .post("https://api.openai.com/v1/audio/transcriptions")
+        .post("https://api.groq.com/openai/v1/audio/transcriptions")
         .bearer_auth(api_key)
         .multipart(form)
         .send()
@@ -46,7 +46,7 @@ async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, Str
         .map_err(|e| format!("Response read error: {e}"))?;
 
     if !status.is_success() {
-        return Err(format!("OpenAI error {status}: {body}"));
+        return Err(format!("Groq error {status}: {body}"));
     }
 
     let parsed: TranscriptionResponse =
@@ -97,6 +97,7 @@ async fn write_data_file(app: tauri::AppHandle, contents: String) -> Result<(), 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_log::Builder::default().build())
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
