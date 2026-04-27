@@ -379,77 +379,91 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
           {/* Preview */}
           {extractedTask && (
             <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-3">
+              <div className="p-5 bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-purple-200">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-4">
                   Preview
                 </h3>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-medium text-slate-500 block mb-1">Title</label>
+                    <label className="text-xs font-semibold text-slate-600 block mb-2">Title</label>
                     <input
                       type="text"
                       value={extractedTask.title}
                       onChange={(e) => setExtractedTask({ ...extractedTask, title: e.target.value })}
-                      className="w-full px-3 py-2 text-slate-900 font-medium bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-4 py-2.5 text-slate-900 font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-shadow"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-slate-500 block mb-1">Description</label>
+                    <label className="text-xs font-semibold text-slate-600 block mb-2">Description</label>
                     <textarea
                       value={extractedTask.description}
                       onChange={(e) => setExtractedTask({ ...extractedTask, description: e.target.value })}
-                      className="w-full px-3 py-2 text-sm text-slate-700 bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                      className="w-full px-4 py-2.5 text-sm text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-shadow"
                       rows={2}
                     />
                   </div>
 
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <label className="text-slate-500 text-xs">Priority:</label>
-                      <select
-                        value={extractedTask.priority}
-                        onChange={(e) => setExtractedTask({ ...extractedTask, priority: e.target.value as TaskPriority })}
-                        className={cn(
-                          'px-2 py-1 rounded border border-slate-200 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500',
-                          extractedTask.priority === 'p1' && 'text-red-600',
-                          extractedTask.priority === 'p2' && 'text-amber-600',
-                          extractedTask.priority === 'p3' && 'text-slate-600'
-                        )}
-                      >
-                        <option value="p1">P1</option>
-                        <option value="p2">P2</option>
-                        <option value="p3">P3</option>
-                      </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-2">Priority</label>
+                      <div className="flex gap-2">
+                        {(['p1', 'p2', 'p3'] as const).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setExtractedTask({ ...extractedTask, priority: p })}
+                            className={cn(
+                              'flex-1 px-3 py-2 rounded-lg font-semibold text-sm transition-all duration-200',
+                              extractedTask.priority === p
+                                ? p === 'p1' 
+                                  ? 'bg-red-500 text-white shadow-md ring-2 ring-red-200'
+                                  : p === 'p2'
+                                  ? 'bg-amber-500 text-white shadow-md ring-2 ring-amber-200'
+                                  : 'bg-slate-500 text-white shadow-md ring-2 ring-slate-200'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+                            )}
+                          >
+                            {p.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <label className="text-slate-500 text-xs">Date:</label>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-2">Date</label>
                       <input
                         type="date"
                         value={extractedTask.date}
                         onChange={(e) => setExtractedTask({ ...extractedTask, date: e.target.value })}
-                        className="px-2 py-1 rounded border border-slate-200 font-medium text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 font-medium text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white transition-shadow"
                       />
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <label className="text-slate-500 text-xs">Category:</label>
-                      <select
-                        value={extractedTask.category}
-                        onChange={(e) => setExtractedTask({ ...extractedTask, category: e.target.value as TaskCategory })}
-                        className="px-2 py-1 rounded border border-slate-200 font-medium text-slate-900 text-sm capitalize focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="work">Work</option>
-                        <option value="personal">Personal</option>
-                      </select>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-2">Category</label>
+                    <div className="flex gap-2">
+                      {(['work', 'personal'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => setExtractedTask({ ...extractedTask, category: cat })}
+                          className={cn(
+                            'flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 capitalize',
+                            extractedTask.category === cat
+                              ? 'bg-purple-500 text-white shadow-md ring-2 ring-purple-200'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+                          )}
+                        >
+                          {cat}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-3">
                 <button
                   onClick={() => {
                     // Store current transcript for additive re-recording
@@ -460,21 +474,21 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
                     }
                   }}
                   disabled={isListening || isProcessing}
-                  className="px-4 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-medium rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-medium rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-purple-200"
                 >
                   <Mic size={16} />
                   Add More
                 </button>
                 <button
                   onClick={handleCreate}
-                  className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg flex items-center gap-2"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200"
                 >
-                  <Sparkles size={16} />
+                  <Sparkles size={18} />
                   Create Task
                 </button>
               </div>
 
-              <p className="text-xs text-slate-400 text-right">
+              <p className="text-xs text-slate-400 text-center">
                 Press Enter to create
               </p>
             </div>

@@ -125,7 +125,7 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+Shift+N: Open AI Task Entry
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'N') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         setIsAIEntryOpen(true);
       }
