@@ -36,14 +36,13 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
   const isExpandMode = !!existingTaskId;
 
   // Auto-start voice when modal opens (if voice mode)
-  // DISABLED - manual activation via button click for better control
-  // useEffect(() => {
-  //   if (isOpen && mode === 'voice' && !isProcessing && !extractedTask) {
-  //     setTimeout(() => {
-  //       handleStartListening();
-  //     }, 200);
-  //   }
-  // }, [isOpen, mode]);
+  useEffect(() => {
+    if (isOpen && mode === 'voice' && !isProcessing && !extractedTask && !isListening) {
+      setTimeout(() => {
+        handleStartListening();
+      }, 300);
+    }
+  }, [isOpen, mode]);
 
   // Focus text area when switching to text mode
   useEffect(() => {
@@ -186,11 +185,14 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <Sparkles className="text-purple-500" size={20} />
-            <h2 className="text-lg font-semibold text-slate-900">
-              {isExpandMode ? 'Add Task Details' : 'Quick Add Task'}
-            </h2>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <Sparkles className="text-purple-500" size={20} />
+              <h2 className="text-lg font-semibold text-slate-900">
+                {isExpandMode ? 'Add Task Details' : 'Quick Add Task'}
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 ml-8">Cmd+Shift+N</p>
           </div>
           
           <div className="flex items-center gap-2">
