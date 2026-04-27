@@ -29,6 +29,7 @@ function App() {
     addTask,
     updateTask,
     deleteTask,
+    starTask,
 
     addGoal,
     updateGoal,
@@ -179,8 +180,9 @@ function App() {
   /* -------------------------------------------------- */
 
   const handleCreateAITask = (extracted: ExtractedTask) => {
+    const taskId = generateId();
     addTask({
-      id: generateId(),
+      id: taskId,
       title: extracted.title,
       content: extracted.description ? `<p>${extracted.description}</p>` : "<p><br></p>",
       taskType: "calendar",
@@ -190,6 +192,11 @@ function App() {
       category: extracted.category,
       createdAt: new Date().toISOString(),
     });
+
+    // Star the task if requested
+    if (extracted.starred) {
+      starTask(taskId, extracted.date);
+    }
 
     // Navigate to calendar view if not already there
     if (currentView !== "calendar") {

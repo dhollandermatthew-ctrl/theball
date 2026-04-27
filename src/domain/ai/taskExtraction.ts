@@ -22,6 +22,7 @@ export interface ExtractedTask {
   priority: TaskPriority;
   date: string; // ISO date string (YYYY-MM-DD)
   category: TaskCategory;
+  starred: boolean; // Star task for the day (top priority)
 }
 
 interface AIExtractedTask {
@@ -201,6 +202,7 @@ export async function extractTaskFromNaturalLanguage(
       priority,
       date,
       category,
+      starred: false, // Default to not starred
     };
 
     console.log('[TaskExtraction] ========================================');
@@ -222,6 +224,7 @@ export async function extractTaskFromNaturalLanguage(
       priority: "p2",
       date: new Date().toISOString().slice(0, 10),
       category: "work",
+      starred: false,
     };
   }
 }

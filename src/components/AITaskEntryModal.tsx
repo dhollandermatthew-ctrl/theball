@@ -1,7 +1,7 @@
 // FILE: src/components/AITaskEntryModal.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Mic, MicOff, Keyboard, Loader2, Sparkles } from 'lucide-react';
+import { X, Mic, MicOff, Keyboard, Loader2, Sparkles, Star } from 'lucide-react';
 import { cn } from '@/domain/utils';
 import { extractTaskFromNaturalLanguage, ExtractedTask } from '@/domain/ai/taskExtraction';
 import { TaskPriority, TaskCategory } from '@/domain/types';
@@ -458,6 +458,35 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
                           {cat}
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-2">Starred</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setExtractedTask({ ...extractedTask, starred: true })}
+                        className={cn(
+                          'flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2',
+                          extractedTask.starred
+                            ? 'bg-yellow-500 text-white shadow-md ring-2 ring-yellow-200'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+                        )}
+                      >
+                        <Star size={16} className={cn(extractedTask.starred && 'fill-white')} />
+                        Star
+                      </button>
+                      <button
+                        onClick={() => setExtractedTask({ ...extractedTask, starred: false })}
+                        className={cn(
+                          'flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200',
+                          !extractedTask.starred
+                            ? 'bg-slate-500 text-white shadow-md ring-2 ring-slate-200'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+                        )}
+                      >
+                        No Star
+                      </button>
                     </div>
                   </div>
                 </div>
