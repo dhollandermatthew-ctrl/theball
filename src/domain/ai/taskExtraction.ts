@@ -31,6 +31,7 @@ interface AIExtractedTask {
   priority: TaskPriority;
   date: string; // AI format: TODAY, TOMORROW, NEXT_FRIDAY, DATE_2026-03-30
   category: TaskCategory;
+  starred: boolean; // Star task for the day (top priority)
 }
 
 /* -----------------------------------------
@@ -195,6 +196,7 @@ export async function extractTaskFromNaturalLanguage(
       ? parsed.category
       : "work";
     const date = parseDateToken(parsed.date || "TODAY");
+    const starred = parsed.starred === true; // Use AI value, default false if not boolean
 
     const extractedResult = {
       title,
@@ -202,7 +204,7 @@ export async function extractTaskFromNaturalLanguage(
       priority,
       date,
       category,
-      starred: false, // Default to not starred
+      starred,
     };
 
     console.log('[TaskExtraction] ========================================');
@@ -211,6 +213,7 @@ export async function extractTaskFromNaturalLanguage(
     console.log('[TaskExtraction] Priority:', priority, '(from AI:', parsed.priority + ')');
     console.log('[TaskExtraction] Date:', date, '(from AI:', parsed.date + ')');
     console.log('[TaskExtraction] Category:', category);
+    console.log('[TaskExtraction] Starred:', starred, '(from AI:', parsed.starred + ')');
     console.log('[TaskExtraction] ========================================');
     return extractedResult;
 

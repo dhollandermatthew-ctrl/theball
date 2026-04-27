@@ -37,15 +37,21 @@ RULES:
    - Look for EXPLICIT date mentions anywhere in text:
      * "today" OR no date mentioned → TODAY
      * "tomorrow" → TOMORROW
-     * "Monday", "Tuesday", "Friday" (without "next") → NEXT_[DAY]
-     * "next Monday", "next Friday" → NEXT_[DAY]
+     * "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" (without "next") → NEXT_[DAY]
+     * "next Monday", "next Friday", "this Wednesday" → NEXT_[DAY]
      * Month + Day: "April 30", "April 30th", "the 30th", "April thirtieth" → DATE_2026-04-30
      * "April 28", "April 28th" → DATE_2026-04-28
      * "May 15", "May 15th" → DATE_2026-05-15
    - Multiple mentions: Use the LATEST/MOST SPECIFIC date
    - Default if no date: TODAY
 
-5. **Category**:
+5. **Starred Detection** (CRITICAL):
+   - Look for these phrases anywhere in text:
+     * "star task", "starred task", "star this", "starred" → starred: true
+     * "this is a star", "make it a star", "flag this", "top priority for the day" → starred: true
+   - Default: starred: false
+
+6. **Category**:
    - Work: meeting, client, project, roadmap, team, sales, pre-sales → work
    - Personal: gym, doctor, family, home → personal
    - Default: work
@@ -56,10 +62,22 @@ OUTPUT (strict JSON):
   "description": "string",
   "priority": "p1" | "p2" | "p3",
   "date": "TODAY" | "TOMORROW" | "NEXT_MONDAY" | "DATE_2026-04-30",
-  "category": "work" | "personal"
+  "category": "work" | "personal",
+  "starred": true | false
 }
 
 EXAMPLES:
+
+Input: "I need to call my mom and tell her I love her. This is AP1 task and it's for this Wednesday and this is a star task."
+Output:
+{
+  "title": "Call mom",
+  "description": "Express love and appreciation to mom",
+  "priority": "p1",
+  "date": "NEXT_WEDNESDAY",
+  "category": "personal",
+  "starred": true
+}
 
 Input: "I want to book a meeting with the pre-sales team. I want to take them through the roadmap and get their feedback on feature priorities. This is a P1 and I want to book it for April 30th."
 Output:
@@ -68,7 +86,8 @@ Output:
   "description": "Review feature priorities with pre-sales team, get feedback to adjust roadmap",
   "priority": "p1",
   "date": "DATE_2026-04-30",
-  "category": "work"
+  "category": "work",
+  "starred": false
 }
 
 Input: "So I need to book a meeting with the pre-sales team. This is AP1 and I want it for April 30th."
@@ -78,7 +97,8 @@ Output:
   "description": "Discuss priorities and alignment with pre-sales team",
   "priority": "p1",
   "date": "DATE_2026-04-30",
-  "category": "work"
+  "category": "work",
+  "starred": false
 }
 
 Input: "Create component library by Friday, high priority"
@@ -88,7 +108,8 @@ Output:
   "description": "Build reusable UI components for product",
   "priority": "p1",
   "date": "NEXT_FRIDAY",
-  "category": "work"
+  "category": "work",
+  "starred": false
 }
 
 Input: "Call dentist"
@@ -98,7 +119,8 @@ Output:
   "description": "Schedule cleaning appointment",
   "priority": "p2",
   "date": "TODAY",
-  "category": "personal"
+  "category": "personal",
+  "starred": false
 }
 
-IMPORTANT: Always extract priority and date if mentioned ANYWHERE in the text.`;
+IMPORTANT: Always extract priority, date, and starred status if mentioned ANYWHERE in the text.`;
