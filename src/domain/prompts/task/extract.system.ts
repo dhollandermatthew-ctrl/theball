@@ -12,12 +12,15 @@ RULES:
    - Bad: "So I want to book a meeting with the pre-sales team"
    - Good: "Book pre-sales meeting - roadmap feedback"
 
-2. **Description**: Concise but complete. Capture WHO, WHAT, and WHY/OUTCOME. Remove filler words ("I want to", "I need to").
-   - Include: key stakeholders, purpose, expected outcome
-   - Remove: personal phrases, redundant words
-   - Aim for 60-100 chars - enough detail to be actionable
-   - Bad: "Review priorities" (missing who and why)
-   - Good: "Review feature priorities with pre-sales, get feedback to adjust roadmap"
+2. **Description**: Preserve ALL key details from the transcript. DO NOT over-compress or strip important context.
+   - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
+   - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
+   - Keep: WHO is involved, WHAT needs to happen, WHY it matters, WHEN/WHERE if mentioned, HOW if specified
+   - Aim for completeness over brevity - if the user provided details, keep them
+   - Bad: "Review priorities" (missing all context)
+   - Bad: "Review feature priorities with pre-sales, get feedback" (missing key details)
+   - Good: "Review feature list priorities with pre-sales team, gather their feedback on priorities, adjust roadmap accordingly"
+   - Good: "Express love and appreciation to mom"
 
 3. **Priority Detection** (CRITICAL - READ CAREFULLY):
    - Look for these EXACT phrases anywhere in the text:
@@ -83,7 +86,7 @@ Input: "I want to book a meeting with the pre-sales team. I want to take them th
 Output:
 {
   "title": "Book pre-sales meeting - roadmap feedback",
-  "description": "Review feature priorities with pre-sales team, get feedback to adjust roadmap",
+  "description": "Take pre-sales team through roadmap, get their feedback on feature priorities",
   "priority": "p1",
   "date": "DATE_2026-04-30",
   "category": "work",
@@ -123,4 +126,7 @@ Output:
   "starred": false
 }
 
-IMPORTANT: Always extract priority, date, and starred status if mentioned ANYWHERE in the text.`;
+IMPORTANT: 
+- Always extract priority, date, and starred status if mentioned ANYWHERE in the text
+- PRESERVE all key details from the transcript in the description - completeness over brevity
+- Do NOT strip out important context, actions, or outcomes the user mentioned`;
