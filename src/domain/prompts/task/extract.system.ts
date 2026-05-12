@@ -8,19 +8,32 @@ CRITICAL INSTRUCTIONS:
 3. LOOK FOR EXPLICIT PRIORITY AND DATE MENTIONS
 
 RULES:
-1. **Title**: Synthesize a clear, actionable title from the FULL context (max 60 chars). DO NOT use the first sentence verbatim.
+1. **Title**: Auto-detect category prefix, then synthesize clear action (max 60 chars total). Format: "Category: Action"
+   - Categories to detect:
+     * Meeting: "meeting", "call", "chat", "sync", "1-on-1"
+     * Research: "research", "compare", "investigate", "analyze", "explore"
+     * Feedback: "feedback", "review", "comments", "input"
+     * Planning: "plan", "prep", "prepare", "organize", "sprint planning"
+     * Follow-up: "follow up", "check in", "circle back", "touch base"
+     * Ticket: "ticket", "bug", "issue", "fix", "resolve"
+     * Admin: "admin", "paperwork", "forms", "documentation"
+     * Personal: "mom", "dad", "family", "gym", "doctor", "dentist", "home"
+   - If no category detected, omit prefix and just use action
    - Bad: "So I want to book a meeting with the pre-sales team"
-   - Good: "Book pre-sales meeting - roadmap feedback"
+   - Good: "Meeting: Book pre-sales - roadmap feedback"
+   - Good: "Research: Compare Sonnet and Gemma quality"
+   - Good: "Planning: Prep sprint"
 
-2. **Description**: Preserve ALL key details from the transcript. DO NOT over-compress or strip important context.
+2. **Description**: Preserve ALL key details. Use bullets for 2+ distinct items/actions. Single items stay as prose.
+   - **Single item/action**: Keep as one line prose
+   - **2+ items/actions**: Use bullet format (• for each item)
    - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
    - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
-   - Keep: WHO is involved, WHAT needs to happen, WHY it matters, WHEN/WHERE if mentioned, HOW if specified
-   - Aim for completeness over brevity - if the user provided details, keep them
+   - Start each bullet with action verb
+   - Max 5 bullets (consolidate if more)
    - Bad: "Review priorities" (missing all context)
-   - Bad: "Review feature priorities with pre-sales, get feedback" (missing key details)
-   - Good: "Review feature list priorities with pre-sales team, gather their feedback on priorities, adjust roadmap accordingly"
-   - Good: "Express love and appreciation to mom"
+   - Good (single): "Express love and appreciation to mom"
+   - Good (multi): "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow"
 
 3. **Priority Detection** (CRITICAL - READ CAREFULLY):
    - Look for these EXACT phrases anywhere in the text:
@@ -54,9 +67,9 @@ RULES:
      * "this is a star", "make it a star", "flag this", "top priority for the day" → starred: true
    - Default: starred: false
 
-6. **Category**:
-   - Work: meeting, client, project, roadmap, team, sales, pre-sales → work
-   - Personal: gym, doctor, family, home → personal
+6. **Category** (work vs personal - separate from title prefix):
+   - Work: meeting, client, project, roadmap, team, sales, pre-sales, ticket, planning → work
+   - Personal: gym, doctor, family, home, mom, dad, personal → personal
    - Default: work
 
 OUTPUT (strict JSON):
@@ -74,7 +87,7 @@ EXAMPLES:
 Input: "I need to call my mom and tell her I love her. This is AP1 task and it's for this Wednesday and this is a star task."
 Output:
 {
-  "title": "Call mom",
+  "title": "Personal: Call mom",
   "description": "Express love and appreciation to mom",
   "priority": "p1",
   "date": "NEXT_WEDNESDAY",
@@ -85,8 +98,8 @@ Output:
 Input: "I want to book a meeting with the pre-sales team. I want to take them through the roadmap and get their feedback on feature priorities. This is a P1 and I want to book it for April 30th."
 Output:
 {
-  "title": "Book pre-sales meeting - roadmap feedback",
-  "description": "Take pre-sales team through roadmap, get their feedback on feature priorities",
+  "title": "Meeting: Book pre-sales - roadmap feedback",
+  "description": "• Take pre-sales team through roadmap\n• Get their feedback on feature priorities",
   "priority": "p1",
   "date": "DATE_2026-04-30",
   "category": "work",
@@ -96,7 +109,7 @@ Output:
 Input: "So I need to book a meeting with the pre-sales team. This is AP1 and I want it for April 30th."
 Output:
 {
-  "title": "Book pre-sales meeting",
+  "title": "Meeting: Book pre-sales",
   "description": "Discuss priorities and alignment with pre-sales team",
   "priority": "p1",
   "date": "DATE_2026-04-30",
@@ -104,11 +117,33 @@ Output:
   "starred": false
 }
 
+Input: "I need to prep for sprint planning. Review the backlog, prioritize the top 10 items, and send the agenda to the team by tomorrow."
+Output:
+{
+  "title": "Planning: Prep sprint planning",
+  "description": "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow",
+  "priority": "p2",
+  "date": "TOMORROW",
+  "category": "work",
+  "starred": false
+}
+
+Input: "Compare Sonnet and Gemma conversational quality for the chatbot project"
+Output:
+{
+  "title": "Research: Compare Sonnet vs Gemma quality",
+  "description": "Evaluate conversational quality of Sonnet and Gemma models for chatbot project",
+  "priority": "p2",
+  "date": "TODAY",
+  "category": "work",
+  "starred": false
+}
+
 Input: "Create component library by Friday, high priority"
 Output:
 {
-  "title": "Create component library",
-  "description": "Build reusable UI components for product",
+  "title": "Build component library",
+  "description": "Create reusable UI components for product",
   "priority": "p1",
   "date": "NEXT_FRIDAY",
   "category": "work",
@@ -118,7 +153,7 @@ Output:
 Input: "Call dentist"
 Output:
 {
-  "title": "Call dentist",
+  "title": "Personal: Call dentist",
   "description": "Schedule cleaning appointment",
   "priority": "p2",
   "date": "TODAY",
