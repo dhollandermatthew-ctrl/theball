@@ -27,19 +27,19 @@ RULES:
 
 2. **Description**: Preserve ALL key details. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
    - **Single thing**: Keep as one line prose
-   - **2+ things mentioned**: MUST use bullet format with EACH bullet on a NEW LINE
-   - CRITICAL: Each bullet must be separated by a line break (\n in JSON)
+   - **2+ things mentioned**: MUST use markdown bullet format (dash space: "- Item")
+   - CRITICAL: Use markdown dash format (- not •) with line breaks (\n) between bullets
    - Bullets trigger on: multiple actions, multiple objects/components, lists with commas/ands, or distinct deliverables
    - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
    - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
    - Start each bullet with action verb or object name
-   - Format: "• Item 1\n• Item 2\n• Item 3" (actual line breaks in output)
+   - Format: "- Item 1\n- Item 2\n- Item 3" (markdown dash format for proper HTML conversion)
    - Max 5 bullets (consolidate if more)
    - Bad: "Review priorities" (missing all context)
-   - Bad: "• Item 1 • Item 2 • Item 3" (inline bullets - WRONG)
+   - Bad: "- Item 1 - Item 2 - Item 3" (inline bullets - WRONG)
    - Good (single): "Express love and appreciation to mom"
-   - Good (multi): "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow"
-   - Good (list): "• Design complimentary products\n• Design API components\n• Design quick replies\n• Design product detail view\n• Design real-time transcription cleanup"
+   - Good (multi): "- Review backlog items\n- Prioritize top 10 items\n- Send agenda to team by tomorrow"
+   - Good (list): "- Design complimentary products\n- Design API components\n- Design quick replies\n- Design product detail view\n- Design real-time transcription cleanup"
 
 3. **Priority Detection** (CRITICAL - READ CAREFULLY):
    - Look for these EXACT phrases anywhere in the text:
@@ -105,7 +105,7 @@ Input: "I want to book a meeting with the pre-sales team. I want to take them th
 Output:
 {
   "title": "Meeting: Book pre-sales - roadmap feedback",
-  "description": "• Take pre-sales team through roadmap\n• Get their feedback on feature priorities",
+  "description": "- Take pre-sales team through roadmap\n- Get their feedback on feature priorities",
   "priority": "p1",
   "date": "DATE_2026-04-30",
   "category": "work",
@@ -127,7 +127,7 @@ Input: "I need to prep for sprint planning. Review the backlog, prioritize the t
 Output:
 {
   "title": "Planning: Prep sprint planning",
-  "description": "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow",
+  "description": "- Review backlog items\n- Prioritize top 10 items\n- Send agenda to team by tomorrow",
   "priority": "p2",
   "date": "TOMORROW",
   "category": "work",
@@ -149,7 +149,7 @@ Input: "Design complimentary products, API, dynamic, quick replies, product deta
 Output:
 {
   "title": "Design: Create sprint 16 designs",
-  "description": "• Design complimentary products\n• Design API components\n• Design dynamic features\n• Design quick replies\n• Design product detail view\n• Design real-time transcription cleanup",
+  "description": "- Design complimentary products\n- Design API components\n- Design dynamic features\n- Design quick replies\n- Design product detail view\n- Design real-time transcription cleanup",
   "priority": "p2",
   "date": "TODAY",
   "category": "work",
@@ -182,4 +182,4 @@ IMPORTANT:
 - Always extract priority, date, and starred status if mentioned ANYWHERE in the text
 - PRESERVE all key details from the transcript in the description - completeness over brevity
 - Do NOT strip out important context, actions, or outcomes the user mentioned
-- CRITICAL: When using bullets, each bullet MUST be on its own line separated by \n (not inline bullets)`;
+- CRITICAL: When using bullets, use markdown dash format (- not •) with each on new line (\n separator)`;

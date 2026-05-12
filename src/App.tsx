@@ -184,7 +184,7 @@ function App() {
     addTask({
       id: taskId,
       title: extracted.title,
-      content: extracted.description ? `<p>${extracted.description}</p>` : "<p><br></p>",
+      content: extracted.description || "<p><br></p>",
       taskType: "calendar",
       date: extracted.date,
       status: "todo",
