@@ -14,6 +14,7 @@ RULES:
      * Research: "research", "compare", "investigate", "analyze", "explore"
      * Feedback: "feedback", "review", "comments", "input"
      * Planning: "plan", "prep", "prepare", "organize", "sprint planning"
+     * Design: "design", "mockup", "wireframe", "UI", "UX"
      * Follow-up: "follow up", "check in", "circle back", "touch base"
      * Ticket: "ticket", "bug", "issue", "fix", "resolve"
      * Admin: "admin", "paperwork", "forms", "documentation"
@@ -24,16 +25,18 @@ RULES:
    - Good: "Research: Compare Sonnet and Gemma quality"
    - Good: "Planning: Prep sprint"
 
-2. **Description**: Preserve ALL key details. Use bullets for 2+ distinct items/actions. Single items stay as prose.
-   - **Single item/action**: Keep as one line prose
-   - **2+ items/actions**: Use bullet format (• for each item)
+2. **Description**: Preserve ALL key details. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
+   - **Single thing**: Keep as one line prose
+   - **2+ things mentioned**: Use bullet format (• for each item)
+   - Bullets trigger on: multiple actions, multiple objects/components, lists with commas/ands, or distinct deliverables
    - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
    - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
-   - Start each bullet with action verb
+   - Start each bullet with action verb or object name
    - Max 5 bullets (consolidate if more)
    - Bad: "Review priorities" (missing all context)
    - Good (single): "Express love and appreciation to mom"
    - Good (multi): "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow"
+   - Good (list): "• Design complimentary products\n• Design API components\n• Design quick replies\n• Design product detail view\n• Design real-time transcription cleanup"
 
 3. **Priority Detection** (CRITICAL - READ CAREFULLY):
    - Look for these EXACT phrases anywhere in the text:
@@ -133,6 +136,17 @@ Output:
 {
   "title": "Research: Compare Sonnet vs Gemma quality",
   "description": "Evaluate conversational quality of Sonnet and Gemma models for chatbot project",
+  "priority": "p2",
+  "date": "TODAY",
+  "category": "work",
+  "starred": false
+}
+
+Input: "Design complimentary products, API, dynamic, quick replies, product detail view, and real-time transcription cleanup for sprint 16"
+Output:
+{
+  "title": "Design: Create sprint 16 designs",
+  "description": "• Design complimentary products\n• Design API components\n• Design dynamic features\n• Design quick replies\n• Design product detail view\n• Design real-time transcription cleanup",
   "priority": "p2",
   "date": "TODAY",
   "category": "work",
