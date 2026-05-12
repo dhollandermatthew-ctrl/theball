@@ -27,13 +27,16 @@ RULES:
 
 2. **Description**: Preserve ALL key details. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
    - **Single thing**: Keep as one line prose
-   - **2+ things mentioned**: Use bullet format (• for each item)
+   - **2+ things mentioned**: MUST use bullet format with EACH bullet on a NEW LINE
+   - CRITICAL: Each bullet must be separated by a line break (\n in JSON)
    - Bullets trigger on: multiple actions, multiple objects/components, lists with commas/ands, or distinct deliverables
    - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
    - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
    - Start each bullet with action verb or object name
+   - Format: "• Item 1\n• Item 2\n• Item 3" (actual line breaks in output)
    - Max 5 bullets (consolidate if more)
    - Bad: "Review priorities" (missing all context)
+   - Bad: "• Item 1 • Item 2 • Item 3" (inline bullets - WRONG)
    - Good (single): "Express love and appreciation to mom"
    - Good (multi): "• Review backlog items\n• Prioritize top 10 items\n• Send agenda to team by tomorrow"
    - Good (list): "• Design complimentary products\n• Design API components\n• Design quick replies\n• Design product detail view\n• Design real-time transcription cleanup"
@@ -78,7 +81,7 @@ RULES:
 OUTPUT (strict JSON):
 {
   "title": "string",
-  "description": "string",
+  "description": "string (use \n for line breaks between bullets)",
   "priority": "p1" | "p2" | "p3",
   "date": "TODAY" | "TOMORROW" | "NEXT_MONDAY" | "DATE_2026-04-30",
   "category": "work" | "personal",
@@ -178,4 +181,5 @@ Output:
 IMPORTANT: 
 - Always extract priority, date, and starred status if mentioned ANYWHERE in the text
 - PRESERVE all key details from the transcript in the description - completeness over brevity
-- Do NOT strip out important context, actions, or outcomes the user mentioned`;
+- Do NOT strip out important context, actions, or outcomes the user mentioned
+- CRITICAL: When using bullets, each bullet MUST be on its own line separated by \n (not inline bullets)`;
