@@ -14,6 +14,7 @@ import {
   Target,
   Heart,
   BookOpen,
+  Mic,
 } from "lucide-react";
 
 import { OneOnOnePerson } from "@/domain/state";
@@ -519,6 +520,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
     />
     Product
+  </button>
+</div>
+
+{/* Transcripts */}
+<div className="px-2 mt-1">
+  <button
+    onClick={() => onNavigate("transcripts")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "transcripts"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <Mic
+      size={18}
+      className={cn(
+        "transition-colors",
+        currentView === "transcripts"
+          ? "text-green-600"
+          : "text-slate-400"
+      )}
+    />
+    Transcripts
   </button>
 </div>
 

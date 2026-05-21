@@ -11,6 +11,7 @@ import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
 import { HealthView } from "./components/HealthView";
 import { ProductKnowledgeView } from "./components/ProductKnowledgeView";
+import { TranscriptsView } from "./components/TranscriptsView";
 import { AITaskEntryModal } from "./components/AITaskEntryModal";
 
 import { generateId, getRandomColor } from "./domain/utils";
@@ -72,7 +73,7 @@ function App() {
   /* -------------------------------------------------- */
 
   const [currentView, setCurrentView] = useState<
-    "calendar" | "goals" | "meetings" | "health" | "product-knowledge" | string
+    "calendar" | "goals" | "meetings" | "health" | "product-knowledge" | "transcripts" | string
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -278,6 +279,8 @@ function App() {
           <HealthView />
         ) : currentView === "product-knowledge" ? (
           <ProductKnowledgeView />
+        ) : currentView === "transcripts" ? (
+          <TranscriptsView />
         ) : activePerson ? (
           <OneOnOneTaskView
             person={activePerson}

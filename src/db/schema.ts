@@ -183,3 +183,17 @@ export const productKnowledge = sqliteTable("product_knowledge", {
   createdAt: text("createdAt").notNull(),
   updatedAt: text("updatedAt").notNull(),
 });
+
+// -----------------------------------------------------
+// TRANSCRIPTS TABLE
+// -----------------------------------------------------
+export const transcripts = sqliteTable("transcripts", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  date: text("date").notNull(),            // YYYY-MM-DD
+  rawTranscript: text("rawTranscript").notNull().default(""),
+  utterances: text("utterances").notNull().default("[]"), // JSON array of SpeakerUtterance
+  speakerNames: text("speakerNames"),                     // JSON object {"A": "Matthew"}
+  status: text("status").notNull().default("done"),       // recording|processing|done|error
+  createdAt: text("createdAt").notNull(),
+});

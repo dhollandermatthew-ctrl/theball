@@ -1,7 +1,7 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, TranscriptRecord, SpeakerUtterance } from "./types";
 
   import { enqueue } from "@/db/sync";
   import { db } from "@/db/client";
@@ -19,6 +19,7 @@
     healthWorkouts as healthWorkoutsTable,
     healthProfile as healthProfileTable,
     productKnowledge as productKnowledgeTable,
+    transcripts as transcriptsTable,
   } from "@/db/schema";
 
   export const CURRENT_STATE_VERSION = 5;
@@ -70,6 +71,7 @@ export interface Settings {
   zoom: number;
   sidebarOpen: boolean;
   sidebarWidth?: number;
+  matthewVoiceProfileId?: string | null;
 }
 
 // -----------------------------------------------------
@@ -85,6 +87,7 @@ export interface AppState {
   meetingSpaces: MeetingSpace[];
   healthData: HealthData;
   productKnowledge: ProductKnowledgeItem[];
+  transcripts: TranscriptRecord[];
 
   settings: Settings;
 
@@ -145,6 +148,11 @@ export interface AppState {
     updateKnowledgeItem: (id: string, updates: Partial<ProductKnowledgeItem>) => void;
     deleteKnowledgeItem: (id: string) => void;
 
+    // Transcripts
+    addTranscript: (record: TranscriptRecord) => void;
+    updateTranscript: (id: string, updates: Partial<TranscriptRecord>) => void;
+    deleteTranscript: (id: string) => void;
+
     // helpers
     getNoteCount: (id: string) => number;
   }
@@ -165,6 +173,7 @@ export const defaultState: Pick<
   | "meetingSpaces"
   | "healthData"
   | "productKnowledge"
+  | "transcripts"
   | "settings"
   | "hydrated"
 > = {
@@ -180,11 +189,13 @@ export const defaultState: Pick<
     workoutRecords: [],
   },
   productKnowledge: [],
+  transcripts: [],
 
-  settings: {
+    settings: {
     zoom: 1,
     sidebarOpen: true,
-    sidebarWidth: 260,  
+    sidebarWidth: 260,
+    matthewVoiceProfileId: typeof window !== 'undefined' ? localStorage.getItem('theball-voice-profile-id') || null : null,
   },
 
   hydrated: false,
@@ -931,6 +942,57 @@ loadGoals: (goals) =>
           
           console.log('[State] Delete operation enqueued for sync');
         }),
+
+      // ---------------------- TRANSCRIPTS ----------------------
+      addTranscript: (record) =>
+        set((state) => {
+          state.transcripts = [record, ...state.transcripts];
+
+          enqueue({
+            type: "insert",
+            table: "transcripts",
+            data: {
+              id: record.id,
+              title: record.title,
+              date: record.date,
+              rawTranscript: record.rawTranscript,
+              utterances: JSON.stringify(record.utterances),
+              speakerNames: record.speakerNames ? JSON.stringify(record.speakerNames) : null,
+              status: record.status,
+              createdAt: record.createdAt,
+            },
+          });
+        }),
+
+      updateTranscript: (id, updates) =>
+        set((state) => {
+          const record = state.transcripts.find((r) => r.id === id);
+          if (!record) return;
+
+          Object.assign(record, updates);
+
+          enqueue({
+            type: "update",
+            table: "transcripts",
+            id,
+            data: {
+              ...updates,
+              utterances: updates.utterances ? JSON.stringify(updates.utterances) : undefined,
+              speakerNames: updates.speakerNames !== undefined ? JSON.stringify(updates.speakerNames) : undefined,
+            },
+          });
+        }),
+
+      deleteTranscript: (id) =>
+        set((state) => {
+          state.transcripts = state.transcripts.filter((r) => r.id !== id);
+
+          enqueue({
+            type: "delete",
+            table: "transcripts",
+            id,
+          });
+        }),
     }))
   );
 
@@ -982,6 +1044,7 @@ loadGoals: (goals) =>
         workoutRows,
         profileRows,
         knowledgeRows,
+        transcriptRows,
       ] = await Promise.all([
         db.select().from(tasksTable),
         db.select().from(oneOnOneTable),
@@ -994,6 +1057,7 @@ loadGoals: (goals) =>
         db.select().from(healthWorkoutsTable),
         db.select().from(healthProfileTable),
         db.select().from(productKnowledgeTable),
+        db.select().from(transcriptsTable),
       ]);
       
       console.log(`[Init] Database queries took ${Math.round(performance.now() - queryStart)}ms`);
@@ -1111,6 +1175,18 @@ loadGoals: (goals) =>
         updatedAt: r.updatedAt,
       }));
 
+      // Build transcripts
+      const transcriptRecords: TranscriptRecord[] = transcriptRows.map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        date: r.date,
+        rawTranscript: r.rawTranscript || '',
+        utterances: r.utterances ? JSON.parse(r.utterances) : [],
+        speakerNames: r.speakerNames ? JSON.parse(r.speakerNames) : undefined,
+        status: r.status as TranscriptRecord['status'],
+        createdAt: r.createdAt,
+      }));
+
       useAppStore.setState((s) => {
         s.tasks = taskRows as Task[];
         s.goals = (goalRows as Goal[]).sort(
@@ -1123,6 +1199,7 @@ loadGoals: (goals) =>
         s.meetingSpaces = meetingSpaces;
         s.healthData = healthData;
         s.productKnowledge = productKnowledge;
+        s.transcripts = transcriptRecords;
         s.hydrated = true;
       });
       

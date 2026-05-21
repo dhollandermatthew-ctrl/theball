@@ -14,6 +14,7 @@ import {
   healthWorkouts,
   healthProfile,
   productKnowledge,
+  transcripts,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -58,7 +59,11 @@ type Change =
   // PRODUCT KNOWLEDGE
   | { type: "insert"; table: "productKnowledge"; data: any }
   | { type: "update"; table: "productKnowledge"; id: string; data: any }
-  | { type: "delete"; table: "productKnowledge"; id: string };
+  | { type: "delete"; table: "productKnowledge"; id: string }
+  // TRANSCRIPTS
+  | { type: "insert"; table: "transcripts"; data: any }
+  | { type: "update"; table: "transcripts"; id: string; data: any }
+  | { type: "delete"; table: "transcripts"; id: string };
 
 const queue: Change[] = [];
 let flushing = false;
@@ -276,6 +281,22 @@ async function apply(change: Change) {
       if (change.type === "delete") {
         console.log('[Sync] Deleting product knowledge item from DB:', change.id);
         return db.delete(productKnowledge).where(eq(productKnowledge.id, change.id));
+      }
+      break;
+
+    // ---------------- TRANSCRIPTS ----------------
+    case "transcripts":
+      if (change.type === "insert") {
+        return db.insert(transcripts).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(transcripts)
+          .set(change.data)
+          .where(eq(transcripts.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(transcripts).where(eq(transcripts.id, change.id));
       }
       break;
 

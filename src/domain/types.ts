@@ -220,3 +220,25 @@
     createdAt: string;
     updatedAt: string;
   }
+
+  // --------------------------------------------------
+  // TRANSCRIPTS
+  // --------------------------------------------------
+
+  export interface SpeakerUtterance {
+    speaker: string;  // "A", "B", "C", etc.
+    text: string;
+    start: number;    // milliseconds
+    end: number;      // milliseconds
+  }
+
+  export interface TranscriptRecord {
+    id: string;
+    title: string;
+    date: string;              // YYYY-MM-DD
+    rawTranscript: string;     // plain text (no speaker labels)
+    utterances: SpeakerUtterance[];
+    speakerNames?: Record<string, string>; // e.g. {"A": "Matthew", "B": "Priya"}
+    status: 'recording' | 'processing' | 'done' | 'error';
+    createdAt: string;
+  }
