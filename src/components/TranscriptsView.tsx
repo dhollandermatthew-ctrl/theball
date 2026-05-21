@@ -1,5 +1,5 @@
 // FILE: src/components/TranscriptsView.tsx
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, MicOff, Trash2, Clock, Users, Copy, Download, Check } from "lucide-react";
 import { writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 
@@ -184,7 +184,12 @@ const TranscriptListItem: React.FC<{
           : "bg-transparent border-transparent hover:bg-white hover:border-slate-200"
       )}
     >
-      <p className="text-sm font-medium text-slate-800 truncate">{record.title || "Untitled"}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-slate-800 truncate">{record.title || "Untitled"}</p>
+        {record.status === "processing" && (
+          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        )}
+      </div>
       <div className="flex items-center gap-3 mt-1">
         <span className="text-xs text-slate-400">{formatDate(record.createdAt)}</span>
         {speakerCount > 0 && (
@@ -201,7 +206,7 @@ const TranscriptListItem: React.FC<{
 // -------------------------------------------------------
 // Main component
 // -------------------------------------------------------
-type Mode = "idle" | "recording" | "processing" | "review" | "viewing";
+type Mode = "idle" | "recording" | "viewing";
 
 export const TranscriptsView: React.FC = () => {
   const transcripts = useAppStore((s) => s.transcripts);
@@ -224,23 +229,27 @@ export const TranscriptsView: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [exported, setExported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Recording state
+  // Live transcript (Web Speech API)
+  const [liveSegments, setLiveSegments] = useState<string[]>([]);
+  const [interimText, setInterimText] = useState("");
+  const liveTextRef = useRef(""); // accumulated final text, safe to read in async closures
+  const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
+  const liveBottomRef = useRef<HTMLDivElement>(null);
+
+  // Recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Review state
-  const [reviewData, setReviewData] = useState<{
-    text: string;
-    utterances: SpeakerUtterance[];
-    speakerNames?: Record<string, string>;
-  } | null>(null);
-  const [reviewTitle, setReviewTitle] = useState("");
-  const [processingAttempt, setProcessingAttempt] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  // Auto-scroll live transcript to bottom
+  useEffect(() => {
+    liveBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [liveSegments, interimText]);
 
   const sorted = [...transcripts].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -252,11 +261,58 @@ export const TranscriptsView: React.FC = () => {
 
   const startRecording = async () => {
     setError(null);
+    liveTextRef.current = "";
+    setLiveSegments([]);
+    setInterimText("");
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       chunksRef.current = [];
 
+      // ---- Web Speech API for live captions ----
+      const SpeechRecognitionAPI =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognitionAPI) {
+        const recognition: any = new SpeechRecognitionAPI();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: any) => {
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            if (result.isFinal) {
+              const text = result[0].transcript.trim();
+              if (text) {
+                liveTextRef.current += (liveTextRef.current ? " " : "") + text;
+                setLiveSegments((prev) => [...prev, text]);
+              }
+            } else {
+              interim = result[0].transcript;
+            }
+          }
+          setInterimText(interim);
+        };
+
+        // Restart on end if still recording (Safari/WKWebView stops after ~60s silence)
+        recognition.onend = () => {
+          if (isRecordingRef.current) recognition.start();
+        };
+
+        recognition.onerror = (e: any) => {
+          if (e.error !== "no-speech" && e.error !== "aborted") {
+            console.warn("SpeechRecognition error:", e.error);
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      }
+
+      // ---- MediaRecorder for audio blob (AssemblyAI diarization) ----
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = recorder;
 
@@ -265,31 +321,49 @@ export const TranscriptsView: React.FC = () => {
       };
 
       recorder.onstart = () => {
+        isRecordingRef.current = true;
         setMode("recording");
         setElapsedSeconds(0);
-        timerRef.current = setInterval(() => {
-          setElapsedSeconds((s) => s + 1);
-        }, 1000);
+        timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
       };
 
       recorder.onstop = async () => {
         if (timerRef.current) clearInterval(timerRef.current);
         streamRef.current?.getTracks().forEach((t) => t.stop());
+        isRecordingRef.current = false;
+        recognitionRef.current?.stop();
 
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setMode("processing");
-        setProcessingAttempt(0);
+        const now = new Date();
 
+        // Auto-save immediately with live transcript — never lose data
+        const recordId = generateId();
+        const savedRecord: TranscriptRecord = {
+          id: recordId,
+          title: `Recording ${now.toLocaleDateString("en-CA")}`,
+          date: now.toISOString().slice(0, 10),
+          rawTranscript: liveTextRef.current.trim() || "(no speech detected)",
+          utterances: [],
+          status: "processing",
+          createdAt: now.toISOString(),
+        };
+        addTranscript(savedRecord);
+        setSelectedId(recordId);
+        setLiveSegments([]);
+        setInterimText("");
+        setMode("viewing");
+
+        // AssemblyAI diarization in background
         try {
-          const result = await transcribeWithDiarization(blob, (attempt) => {
-            setProcessingAttempt(attempt);
+          const result = await transcribeWithDiarization(blob, () => {});
+          updateTranscript(recordId, {
+            rawTranscript: result.text,
+            utterances: result.utterances,
+            status: "done",
           });
-          setReviewData(result);
-          setReviewTitle("");
-          setMode("review");
-        } catch (err: any) {
-          setError(err.message ?? "Transcription failed");
-          setMode("idle");
+        } catch {
+          // Keep the live transcript text, just mark done so the badge clears
+          updateTranscript(recordId, { status: "done" });
         }
       };
 
@@ -300,41 +374,12 @@ export const TranscriptsView: React.FC = () => {
   };
 
   const stopRecording = () => {
+    isRecordingRef.current = false;
     const r = mediaRecorderRef.current;
     if (r && r.state !== "inactive") r.stop();
   };
 
-  // ---- Save ----
-
-  const saveTranscript = () => {
-    if (!reviewData) return;
-
-    const now = new Date();
-    const record: TranscriptRecord = {
-      id: generateId(),
-      title: reviewTitle.trim() || `Recording ${now.toLocaleDateString("en-CA")}`,
-      date: now.toISOString().slice(0, 10),
-      rawTranscript: reviewData.text,
-      utterances: reviewData.utterances,
-      speakerNames: reviewData.speakerNames,
-      status: "done",
-      createdAt: now.toISOString(),
-    };
-
-    addTranscript(record);
-    setSelectedId(record.id);
-    setReviewData(null);
-    setReviewTitle("");
-    setMode("viewing");
-  };
-
   // ---- Speaker name assignment ----
-
-  const handleReviewNameChange = (speaker: string, name: string) => {
-    setReviewData((prev) =>
-      prev ? { ...prev, speakerNames: { ...(prev.speakerNames ?? {}), [speaker]: name } } : null
-    );
-  };
 
   const handleViewingNameChange = (speaker: string, name: string) => {
     if (!selectedRecord) return;
@@ -386,99 +431,37 @@ export const TranscriptsView: React.FC = () => {
   // -------------------------------------------------------
 
   const renderRightPanel = () => {
-    // --- RECORDING ---
+    // --- RECORDING — live captions ---
     if (mode === "recording") {
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-6">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center animate-pulse">
-                <Mic size={32} className="text-red-500" />
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 animate-ping" />
-            </div>
-            <p className="text-2xl font-mono font-semibold text-slate-700">
-              {formatDuration(elapsedSeconds)}
-            </p>
-            <p className="text-sm text-slate-400">Recording in progress…</p>
-          </div>
-          <button
-            onClick={stopRecording}
-            className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-          >
-            <MicOff size={16} />
-            Stop Recording
-          </button>
-        </div>
-      );
-    }
-
-    // --- PROCESSING ---
-    if (mode === "processing") {
-      return (
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <div className="w-14 h-14 rounded-full border-4 border-slate-200 border-t-blue-500 animate-spin" />
-          <p className="text-base font-medium text-slate-700">Transcribing…</p>
-          <p className="text-sm text-slate-400">
-            Identifying speakers · {processingAttempt > 0 ? `${processingAttempt * 2}s elapsed` : "uploading audio"}
-          </p>
-        </div>
-      );
-    }
-
-    // --- REVIEW (unsaved transcript) ---
-    if (mode === "review" && reviewData) {
-      const speakers = [...new Set(reviewData.utterances.map((u) => u.speaker))];
-      return (
         <div className="flex flex-col h-full">
-          <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-            <input
-              autoFocus
-              type="text"
-              value={reviewTitle}
-              onChange={(e) => setReviewTitle(e.target.value)}
-              placeholder="Add a title…"
-              className="flex-1 text-lg font-semibold text-slate-800 bg-transparent border-none outline-none placeholder:text-slate-300"
-            />
+          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-mono font-semibold text-slate-700">
+                {formatDuration(elapsedSeconds)}
+              </span>
+              <span className="text-xs text-slate-400">Recording…</span>
+            </div>
             <button
-              onClick={saveTranscript}
-              className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              onClick={stopRecording}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
             >
-              Save
+              <MicOff size={13} /> Stop
             </button>
           </div>
 
-          {speakers.length > 0 && (
-            <div className="flex items-center gap-2 px-6 py-2 border-b border-slate-100">
-              <Users size={14} className="text-slate-400" />
-              <span className="text-xs text-slate-400">
-                {speakers.length} speaker{speakers.length !== 1 ? "s" : ""} detected:&nbsp;
-                {speakers.map((s) => {
-                  const c = speakerColor(s);
-                  return (
-                    <span key={s} className={cn("inline-block px-1.5 py-0.5 rounded text-xs font-medium mr-1", c.bg, c.text)}>
-                      Speaker {s}
-                    </span>
-                  );
-                })}
-              </span>
-            </div>
-          )}
-
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            {reviewData.utterances.length > 0 ? (
-              reviewData.utterances.map((u, i) => (
-                <UtteranceBlock
-                  key={i}
-                  utterance={u}
-                  speakerNames={reviewData.speakerNames}
-                  knownNames={knownNames}
-                  onNameChange={handleReviewNameChange}
-                />
-              ))
-            ) : (
-              <p className="text-sm text-slate-500 whitespace-pre-wrap">{reviewData.text}</p>
+            {liveSegments.length === 0 && !interimText && (
+              <p className="text-sm text-slate-300 italic">Listening…</p>
             )}
+            {liveSegments.map((seg, i) => (
+              <p key={i} className="text-sm text-slate-800 leading-relaxed mb-2">{seg}</p>
+            ))}
+            {interimText && (
+              <p className="text-sm text-slate-400 italic">{interimText}</p>
+            )}
+            <div ref={liveBottomRef} />
           </div>
         </div>
       );
@@ -523,6 +506,14 @@ export const TranscriptsView: React.FC = () => {
               <Trash2 size={16} />
             </button>
           </div>
+
+          {/* Processing banner */}
+          {selectedRecord.status === "processing" && (
+            <div className="flex items-center gap-2 px-6 py-2 bg-amber-50 border-b border-amber-100">
+              <div className="w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+              <span className="text-xs text-amber-700">Identifying speakers… this may take a minute</span>
+            </div>
+          )}
 
           {/* Action bar */}
           <div className="flex items-center gap-2 px-6 py-2 border-b border-slate-100">
@@ -586,10 +577,10 @@ export const TranscriptsView: React.FC = () => {
               setError(null);
               startRecording();
             }}
-            disabled={mode === "recording" || mode === "processing"}
+            disabled={mode === "recording"}
             className={cn(
               "w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
-              mode === "recording" || mode === "processing"
+              mode === "recording"
                 ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                 : "bg-blue-600 text-white hover:bg-blue-700"
             )}
@@ -617,7 +608,7 @@ export const TranscriptsView: React.FC = () => {
                 record={r}
                 isActive={selectedId === r.id && mode === "viewing"}
                 onClick={() => {
-                  if (mode === "recording" || mode === "processing") return;
+                  if (mode === "recording") return;
                   setSelectedId(r.id);
                   setMode("viewing");
                 }}
