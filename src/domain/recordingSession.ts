@@ -41,9 +41,13 @@ let _chunks: Blob[] = [];
 let _stream: MediaStream | null = null;
 let _displayStream: MediaStream | null = null;
 let _audioCtx: AudioContext | null = null;
-let _recognition: any = null;
-let _isRecordingFlag = false; // separate from state to avoid closure staleness
-let _textAccumulator = "";    // full accumulated text (for saving)
+let _isRecordingFlag = false;
+let _textAccumulator = "";
+
+// AssemblyAI real-time streaming
+let _realtimeWs: WebSocket | null = null;
+let _realtimeStreamCtx: AudioContext | null = null;
+let _realtimeProcessor: ScriptProcessorNode | null = null;
 
 // -------------------------------------------------------
 // Pub/sub
@@ -120,55 +124,9 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
     }
   }
 
-  // Web Speech API — live captions (mic only, API limitation)
-  const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  if (SpeechAPI) {
-    const recognition = new SpeechAPI();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event: any) => {
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          const text = (event.results[i][0].transcript as string).trim();
-          if (text) {
-            _textAccumulator += (_textAccumulator ? " " : "") + text;
-            _state = { ..._state, segments: [..._state.segments, text] };
-            _notify();
-          }
-        } else {
-          interim = event.results[i][0].transcript as string;
-        }
-      }
-      if (_state.interimText !== interim) {
-        _state = { ..._state, interimText: interim };
-        _notify();
-      }
-    };
-
-    recognition.onend = () => {
-      if (_isRecordingFlag) recognition.start();
-    };
-
-    recognition.onstart = () => {
-      console.log("[SpeechRecognition] started");
-    };
-
-    recognition.onerror = (e: any) => {
-      // Log ALL errors so we can diagnose why live captions may not appear.
-      console.warn("[SpeechRecognition] error:", e.error);
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        // Permission denied — push a visible hint into segments so the user knows
-        _state = { ..._state, segments: [..._state.segments, "⚠️ Live captions blocked — check Speech Recognition permission in System Preferences → Privacy & Security."] };
-        _notify();
-      }
-    };
-
-    _recognition = recognition;
-    recognition.start();
-  }
+  // AssemblyAI real-time streaming — live captions
+  // webkitSpeechRecognition is broken in Tauri's WKWebView; AssemblyAI WebSocket works reliably.
+  _startRealtimeStreaming(streamToRecord);
 
   // MediaRecorder
   const recorder = new MediaRecorder(streamToRecord, { mimeType: "audio/webm" });
@@ -194,8 +152,7 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
     _displayStream = null;
     _audioCtx?.close();
     _audioCtx = null;
-    _recognition?.stop();
-    _recognition = null;
+    _stopRealtimeStreaming();
     _mediaRecorder = null;
 
     const blob = new Blob(_chunks, { type: "audio/webm" });
@@ -237,8 +194,105 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
 // -------------------------------------------------------
 export function stopRecording(): void {
   _isRecordingFlag = false;
-  _recognition?.stop();
+  _stopRealtimeStreaming();
   if (_mediaRecorder && _mediaRecorder.state !== "inactive") {
     _mediaRecorder.stop();
+  }
+}
+
+// -------------------------------------------------------
+// AssemblyAI real-time streaming helpers
+// -------------------------------------------------------
+
+function _startRealtimeStreaming(stream: MediaStream): void {
+  const apiKey = (import.meta.env.VITE_ASSEMBLYAI_API_KEY as string) ?? "";
+  if (!apiKey) {
+    console.warn("[realtime] No AssemblyAI API key — live captions disabled");
+    return;
+  }
+
+  // Get a short-lived token — browser WebSocket can't send Authorization headers
+  fetch("https://api.assemblyai.com/v2/realtime/token", {
+    method: "POST",
+    headers: { Authorization: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ expires_in: 3600 }),
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error(`Token ${r.status}`);
+      return r.json();
+    })
+    .then(({ token }: { token: string }) => {
+      const ws = new WebSocket(
+        `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`
+      );
+      _realtimeWs = ws;
+
+      ws.onopen = () => {
+        console.log("[realtime] connected");
+
+        // Downsample to 16 kHz for AssemblyAI
+        const ctx = new AudioContext({ sampleRate: 16000 });
+        _realtimeStreamCtx = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        _realtimeProcessor = processor;
+
+        processor.onaudioprocess = (e) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const float32 = e.inputBuffer.getChannelData(0);
+          const int16 = new Int16Array(float32.length);
+          for (let i = 0; i < float32.length; i++) {
+            int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+          }
+          // base64-encode the raw PCM bytes
+          const bytes = new Uint8Array(int16.buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          ws.send(JSON.stringify({ audio_data: btoa(binary) }));
+        };
+
+        // Silent gain node — keeps the processing chain active without speaker feedback
+        const silent = ctx.createGain();
+        silent.gain.value = 0;
+        source.connect(processor);
+        processor.connect(silent);
+        silent.connect(ctx.destination);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string);
+          if (msg.message_type === "PartialTranscript" && msg.text?.trim()) {
+            _state = { ..._state, interimText: msg.text };
+            _notify();
+          } else if (msg.message_type === "FinalTranscript" && msg.text?.trim()) {
+            const text = msg.text.trim() as string;
+            _textAccumulator += (_textAccumulator ? " " : "") + text;
+            _state = { ..._state, segments: [..._state.segments, text], interimText: "" };
+            _notify();
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      };
+
+      ws.onerror = (e) => console.error("[realtime] error:", e);
+      ws.onclose = (e) => console.log("[realtime] closed:", e.code, e.reason);
+    })
+    .catch((e) => console.warn("[realtime] setup failed:", e));
+}
+
+function _stopRealtimeStreaming(): void {
+  try { _realtimeProcessor?.disconnect(); } catch { /* ignore */ }
+  _realtimeProcessor = null;
+  _realtimeStreamCtx?.close().catch(() => { /* ignore */ });
+  _realtimeStreamCtx = null;
+
+  if (_realtimeWs) {
+    if (_realtimeWs.readyState === WebSocket.OPEN) {
+      try { _realtimeWs.send(JSON.stringify({ terminate_session: true })); } catch { /* ignore */ }
+      _realtimeWs.close();
+    }
+    _realtimeWs = null;
   }
 }
