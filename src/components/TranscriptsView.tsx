@@ -1,12 +1,25 @@
 // FILE: src/components/TranscriptsView.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Mic, MicOff, Trash2, Clock, Users, Copy, Download, Check } from "lucide-react";
 import { writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 
 import { useAppStore } from "@/domain/state";
-import { transcribeWithDiarization } from "@/domain/ai/transcription";
+import {
+  startRecording,
+  stopRecording,
+  subscribeSession,
+  getSessionState,
+  clearPendingRecordId,
+} from "@/domain/recordingSession";
 import type { SpeakerUtterance, TranscriptRecord } from "@/domain/types";
-import { cn, generateId } from "@/domain/utils";
+import { cn } from "@/domain/utils";
+
+// Hook: subscribes to the module-level recording session
+function useSession() {
+  const [, rerender] = useReducer((x) => x + 1, 0);
+  useEffect(() => subscribeSession(rerender), []);
+  return getSessionState();
+}
 
 // -------------------------------------------------------
 // Speaker colour palette (A→E)
@@ -206,16 +219,15 @@ const TranscriptListItem: React.FC<{
 // -------------------------------------------------------
 // Main component
 // -------------------------------------------------------
-type Mode = "idle" | "recording" | "viewing";
+type Mode = "idle" | "viewing";
 
 export const TranscriptsView: React.FC = () => {
+  const session = useSession();
   const transcripts = useAppStore((s) => s.transcripts);
   const people = useAppStore((s) => s.people);
-  const addTranscript = useAppStore((s) => s.addTranscript);
   const updateTranscript = useAppStore((s) => s.updateTranscript);
   const deleteTranscript = useAppStore((s) => s.deleteTranscript);
 
-  // All known speaker names: from people list + past transcript name assignments
   const knownNames = useMemo(() => {
     const names = new Set<string>();
     people.forEach((p) => names.add(p.name));
@@ -232,27 +244,32 @@ export const TranscriptsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [recordingMode, setRecordingMode] = useState<"room" | "call">("room");
 
-  // Live transcript (Web Speech API)
-  const [liveSegments, setLiveSegments] = useState<string[]>([]);
-  const [interimText, setInterimText] = useState("");
-  const liveTextRef = useRef(""); // accumulated final text, safe to read in async closures
-  const recognitionRef = useRef<any>(null);
-  const isRecordingRef = useRef(false);
   const liveBottomRef = useRef<HTMLDivElement>(null);
 
-  // Recording
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const displayStreamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Elapsed timer — re-renders every second while recording
+  const [, tick] = useReducer((x) => x + 1, 0);
+  useEffect(() => {
+    if (!session.isActive) return;
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [session.isActive]);
+  const elapsedSeconds = session.isActive
+    ? Math.floor((Date.now() - session.startedAt) / 1000)
+    : 0;
 
-  // Auto-scroll live transcript to bottom
+  // Navigate to new transcript when recording stops
+  useEffect(() => {
+    if (session.pendingRecordId) {
+      setSelectedId(session.pendingRecordId);
+      setMode("viewing");
+      clearPendingRecordId();
+    }
+  }, [session.pendingRecordId]);
+
+  // Auto-scroll live transcript
   useEffect(() => {
     liveBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [liveSegments, interimText]);
+  }, [session.segments.length, session.interimText]);
 
   const sorted = [...transcripts].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -262,168 +279,13 @@ export const TranscriptsView: React.FC = () => {
 
   // ---- Recording ----
 
-  const startRecording = async () => {
+  const handleStartRecording = async () => {
     setError(null);
-    liveTextRef.current = "";
-    setLiveSegments([]);
-    setInterimText("");
-
     try {
-      // ---- Audio capture ----
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = micStream;
-
-      let streamToRecord: MediaStream = micStream;
-
-      if (recordingMode === "call") {
-        try {
-          // Capture system audio (the other person's voice through speakers)
-          const displayStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true, // required to trigger the macOS picker
-            audio: {
-              echoCancellation: false,
-              noiseSuppression: false,
-            } as any,
-          });
-          displayStreamRef.current = displayStream;
-
-          // Stop video tracks immediately — we only need the audio
-          displayStream.getVideoTracks().forEach((t) => t.stop());
-
-          const displayAudioTrack = displayStream.getAudioTracks()[0];
-          if (displayAudioTrack) {
-            // Mix system audio + mic into one stream
-            const audioCtx = new AudioContext();
-            audioCtxRef.current = audioCtx;
-            const dest = audioCtx.createMediaStreamDestination();
-
-            audioCtx.createMediaStreamSource(new MediaStream([displayAudioTrack])).connect(dest);
-            audioCtx.createMediaStreamSource(micStream).connect(dest);
-
-            streamToRecord = dest.stream;
-          }
-        } catch (displayErr: any) {
-          // User cancelled screen share or it failed — fall back to mic only
-          if (displayErr.name === "NotAllowedError") {
-            setError("Screen recording permission denied. Falling back to mic only.");
-          }
-          // Continue with mic-only stream
-        }
-      }
-
-      chunksRef.current = [];
-
-      // ---- Web Speech API for live captions (mic only — API limitation) ----
-      const SpeechRecognitionAPI =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognitionAPI) {
-        const recognition: any = new SpeechRecognitionAPI();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "en-US";
-
-        recognition.onresult = (event: any) => {
-          let interim = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const result = event.results[i];
-            if (result.isFinal) {
-              const text = result[0].transcript.trim();
-              if (text) {
-                liveTextRef.current += (liveTextRef.current ? " " : "") + text;
-                setLiveSegments((prev) => [...prev, text]);
-              }
-            } else {
-              interim = result[0].transcript;
-            }
-          }
-          setInterimText(interim);
-        };
-
-        // Restart on end if still recording (Safari/WKWebView stops after ~60s silence)
-        recognition.onend = () => {
-          if (isRecordingRef.current) recognition.start();
-        };
-
-        recognition.onerror = (e: any) => {
-          if (e.error !== "no-speech" && e.error !== "aborted") {
-            console.warn("SpeechRecognition error:", e.error);
-          }
-        };
-
-        recognitionRef.current = recognition;
-        recognition.start();
-      }
-
-      // ---- MediaRecorder for audio blob (AssemblyAI diarization) ----
-      const recorder = new MediaRecorder(streamToRecord, { mimeType: "audio/webm" });
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.onstart = () => {
-        isRecordingRef.current = true;
-        setMode("recording");
-        setElapsedSeconds(0);
-        timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-      };
-
-      recorder.onstop = async () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        displayStreamRef.current?.getTracks().forEach((t) => t.stop());
-        audioCtxRef.current?.close();
-        audioCtxRef.current = null;
-        isRecordingRef.current = false;
-        recognitionRef.current?.stop();
-
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const now = new Date();
-
-        // Auto-save immediately with live transcript — never lose data
-        const recordId = generateId();
-        const savedRecord: TranscriptRecord = {
-          id: recordId,
-          title: `Recording ${now.toLocaleDateString("en-CA")}`,
-          date: now.toISOString().slice(0, 10),
-          rawTranscript: liveTextRef.current.trim() || "(no speech detected)",
-          utterances: [],
-          status: "processing",
-          createdAt: now.toISOString(),
-        };
-        addTranscript(savedRecord);
-        setSelectedId(recordId);
-        setLiveSegments([]);
-        setInterimText("");
-        setMode("viewing");
-
-        // AssemblyAI diarization in background
-        try {
-          const result = await transcribeWithDiarization(blob, () => {});
-          updateTranscript(recordId, {
-            rawTranscript: result.text,
-            utterances: result.utterances,
-            status: "done",
-          });
-        } catch {
-          // Keep the live transcript text, just mark done so the badge clears
-          updateTranscript(recordId, { status: "done" });
-        }
-      };
-
-      recorder.start();
+      await startRecording(recordingMode);
     } catch {
       setError("Microphone access denied. Check system permissions.");
     }
-  };
-
-  const stopRecording = () => {
-    isRecordingRef.current = false;
-    recognitionRef.current?.stop();
-    const r = mediaRecorderRef.current;
-    if (r && r.state !== "inactive") r.stop();
   };
 
   // ---- Speaker name assignment ----
@@ -479,7 +341,7 @@ export const TranscriptsView: React.FC = () => {
 
   const renderRightPanel = () => {
     // --- RECORDING — live captions ---
-    if (mode === "recording") {
+    if (session.isActive) {
       return (
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100">
@@ -489,7 +351,7 @@ export const TranscriptsView: React.FC = () => {
                 {formatDuration(elapsedSeconds)}
               </span>
               <span className="text-xs text-slate-400">
-                {recordingMode === "call" ? "Call recording…" : "Recording…"}
+                {session.mode === "call" ? "Call recording…" : "Recording…"}
               </span>
             </div>
             <button
@@ -501,14 +363,14 @@ export const TranscriptsView: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            {liveSegments.length === 0 && !interimText && (
+            {session.segments.length === 0 && !session.interimText && (
               <p className="text-sm text-slate-300 italic">Listening…</p>
             )}
-            {liveSegments.map((seg, i) => (
+            {session.segments.map((seg, i) => (
               <p key={i} className="text-sm text-slate-800 leading-relaxed mb-2">{seg}</p>
             ))}
-            {interimText && (
-              <p className="text-sm text-slate-400 italic">{interimText}</p>
+            {session.interimText && (
+              <p className="text-sm text-slate-400 italic">{session.interimText}</p>
             )}
             <div ref={liveBottomRef} />
           </div>
@@ -651,12 +513,12 @@ export const TranscriptsView: React.FC = () => {
             onClick={() => {
               setSelectedId(null);
               setError(null);
-              startRecording();
+              handleStartRecording();
             }}
-            disabled={mode === "recording"}
+            disabled={session.isActive}
             className={cn(
               "w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
-              mode === "recording"
+              session.isActive
                 ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                 : "bg-blue-600 text-white hover:bg-blue-700"
             )}
@@ -684,7 +546,7 @@ export const TranscriptsView: React.FC = () => {
                 record={r}
                 isActive={selectedId === r.id && mode === "viewing"}
                 onClick={() => {
-                  if (mode === "recording") return;
+                  if (session.isActive) return;
                   setSelectedId(r.id);
                   setMode("viewing");
                 }}
