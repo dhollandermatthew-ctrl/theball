@@ -230,6 +230,7 @@ export const TranscriptsView: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [exported, setExported] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recordingMode, setRecordingMode] = useState<"room" | "call">("room");
 
   // Live transcript (Web Speech API)
   const [liveSegments, setLiveSegments] = useState<string[]>([]);
@@ -243,6 +244,8 @@ export const TranscriptsView: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -266,11 +269,51 @@ export const TranscriptsView: React.FC = () => {
     setInterimText("");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      // ---- Audio capture ----
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = micStream;
+
+      let streamToRecord: MediaStream = micStream;
+
+      if (recordingMode === "call") {
+        try {
+          // Capture system audio (the other person's voice through speakers)
+          const displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true, // required to trigger the macOS picker
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+            } as any,
+          });
+          displayStreamRef.current = displayStream;
+
+          // Stop video tracks immediately — we only need the audio
+          displayStream.getVideoTracks().forEach((t) => t.stop());
+
+          const displayAudioTrack = displayStream.getAudioTracks()[0];
+          if (displayAudioTrack) {
+            // Mix system audio + mic into one stream
+            const audioCtx = new AudioContext();
+            audioCtxRef.current = audioCtx;
+            const dest = audioCtx.createMediaStreamDestination();
+
+            audioCtx.createMediaStreamSource(new MediaStream([displayAudioTrack])).connect(dest);
+            audioCtx.createMediaStreamSource(micStream).connect(dest);
+
+            streamToRecord = dest.stream;
+          }
+        } catch (displayErr: any) {
+          // User cancelled screen share or it failed — fall back to mic only
+          if (displayErr.name === "NotAllowedError") {
+            setError("Screen recording permission denied. Falling back to mic only.");
+          }
+          // Continue with mic-only stream
+        }
+      }
+
       chunksRef.current = [];
 
-      // ---- Web Speech API for live captions ----
+      // ---- Web Speech API for live captions (mic only — API limitation) ----
       const SpeechRecognitionAPI =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -313,7 +356,7 @@ export const TranscriptsView: React.FC = () => {
       }
 
       // ---- MediaRecorder for audio blob (AssemblyAI diarization) ----
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const recorder = new MediaRecorder(streamToRecord, { mimeType: "audio/webm" });
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -330,6 +373,9 @@ export const TranscriptsView: React.FC = () => {
       recorder.onstop = async () => {
         if (timerRef.current) clearInterval(timerRef.current);
         streamRef.current?.getTracks().forEach((t) => t.stop());
+        displayStreamRef.current?.getTracks().forEach((t) => t.stop());
+        audioCtxRef.current?.close();
+        audioCtxRef.current = null;
         isRecordingRef.current = false;
         recognitionRef.current?.stop();
 
@@ -375,6 +421,7 @@ export const TranscriptsView: React.FC = () => {
 
   const stopRecording = () => {
     isRecordingRef.current = false;
+    recognitionRef.current?.stop();
     const r = mediaRecorderRef.current;
     if (r && r.state !== "inactive") r.stop();
   };
@@ -441,7 +488,9 @@ export const TranscriptsView: React.FC = () => {
               <span className="text-sm font-mono font-semibold text-slate-700">
                 {formatDuration(elapsedSeconds)}
               </span>
-              <span className="text-xs text-slate-400">Recording…</span>
+              <span className="text-xs text-slate-400">
+                {recordingMode === "call" ? "Call recording…" : "Recording…"}
+              </span>
             </div>
             <button
               onClick={stopRecording}
@@ -570,7 +619,34 @@ export const TranscriptsView: React.FC = () => {
     <div className="flex h-full overflow-hidden">
       {/* Left panel — list */}
       <div className="w-72 flex-shrink-0 flex flex-col border-r border-slate-100 bg-slate-50/50 overflow-hidden">
-        <div className="px-4 py-4 border-b border-slate-100">
+        <div className="px-4 py-4 border-b border-slate-100 space-y-2">
+          {/* Recording mode toggle */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+            <button
+              onClick={() => setRecordingMode("room")}
+              className={cn(
+                "flex-1 py-1.5 transition-colors",
+                recordingMode === "room" ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              Room
+            </button>
+            <button
+              onClick={() => setRecordingMode("call")}
+              className={cn(
+                "flex-1 py-1.5 transition-colors border-l border-slate-200",
+                recordingMode === "call" ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              Call
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            {recordingMode === "room"
+              ? "Mic only — for in-person meetings"
+              : "System audio + mic — captures both sides of a call"}
+          </p>
+
           <button
             onClick={() => {
               setSelectedId(null);

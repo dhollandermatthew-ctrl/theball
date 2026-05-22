@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>The Ball needs microphone access so you can speak notes.</string>
+    <string>The Ball needs microphone access to record meetings and transcribe speech.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>The Ball needs screen recording access to capture call audio from both sides of a conversation.</string>
 </dict>
 </plist>
