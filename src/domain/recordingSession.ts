@@ -102,8 +102,9 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
         streamToRecord = dest.stream;
       }
     } catch (e: any) {
-      // User cancelled screen share or permission denied — continue with mic only
-      if (e.name !== "NotAllowedError" && e.name !== "AbortError") throw e;
+      // Any screen-share failure (denied, cancelled, unsupported) — fall back to mic only.
+      // Do NOT re-throw: the mic stream is already obtained and we can still record.
+      console.warn("getDisplayMedia failed, recording mic only:", (e as Error).name, (e as Error).message);
     }
   }
 
@@ -139,9 +140,17 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
       if (_isRecordingFlag) recognition.start();
     };
 
+    recognition.onstart = () => {
+      console.log("[SpeechRecognition] started");
+    };
+
     recognition.onerror = (e: any) => {
-      if (e.error !== "no-speech" && e.error !== "aborted") {
-        console.warn("SpeechRecognition error:", e.error);
+      // Log ALL errors so we can diagnose why live captions may not appear.
+      console.warn("[SpeechRecognition] error:", e.error);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        // Permission denied — push a visible hint into segments so the user knows
+        _state = { ..._state, segments: [..._state.segments, "⚠️ Live captions blocked — check Speech Recognition permission in System Preferences → Privacy & Security."] };
+        _notify();
       }
     };
 
@@ -165,11 +174,17 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
 
   recorder.onstop = async () => {
     _isRecordingFlag = false;
+
+    // Stop and release all media devices so the next recording can acquire them
     _stream?.getTracks().forEach((t) => t.stop());
+    _stream = null;
     _displayStream?.getTracks().forEach((t) => t.stop());
+    _displayStream = null;
     _audioCtx?.close();
     _audioCtx = null;
     _recognition?.stop();
+    _recognition = null;
+    _mediaRecorder = null;
 
     const blob = new Blob(_chunks, { type: "audio/webm" });
     const now = new Date();

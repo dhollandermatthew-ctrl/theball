@@ -283,8 +283,13 @@ export const TranscriptsView: React.FC = () => {
     setError(null);
     try {
       await startRecording(recordingMode);
-    } catch {
-      setError("Microphone access denied. Check system permissions.");
+    } catch (err: any) {
+      const name = err?.name ?? "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        setError("Microphone access denied. Open System Preferences → Privacy & Security → Microphone and allow The Ball.");
+      } else {
+        setError(`Recording failed: ${err?.message ?? "Unknown error. Check microphone permissions and try again."}`);
+      }
     }
   };
 
