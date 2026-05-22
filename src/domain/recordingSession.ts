@@ -71,7 +71,11 @@ export function clearPendingRecordId(): void {
 // Start recording
 // -------------------------------------------------------
 export async function startRecording(mode: "room" | "call"): Promise<void> {
-  if (_state.isActive) return;
+  console.log("[recording] startRecording called, mode:", mode, "isActive:", _state.isActive);
+  if (_state.isActive) {
+    console.log("[recording] already active, returning early");
+    return;
+  }
 
   // Reset
   _chunks = [];
@@ -79,7 +83,15 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
   _state = { isActive: false, mode, startedAt: 0, segments: [], interimText: "", pendingRecordId: null };
   _notify();
 
-  const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  console.log("[recording] requesting getUserMedia...");
+  let micStream: MediaStream;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log("[recording] getUserMedia OK, tracks:", micStream.getAudioTracks().length);
+  } catch (e: any) {
+    console.error("[recording] getUserMedia FAILED:", e.name, e.message, e);
+    throw e;
+  }
   _stream = micStream;
   let streamToRecord: MediaStream = micStream;
 
