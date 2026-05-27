@@ -1,11 +1,11 @@
-// v2 — fs:allow-download-write-recursive
-use tauri::Manager;
-
+// v3 — direct $HOME/Downloads, returns path string for confirmation
 #[tauri::command]
-fn save_to_downloads(app: tauri::AppHandle, filename: String, content: String) -> Result<(), String> {
-    let downloads = app.path().download_dir().map_err(|e| e.to_string())?;
-    let path = downloads.join(&filename);
-    std::fs::write(path, content).map_err(|e| e.to_string())
+fn save_to_downloads(filename: String, content: String) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|e| format!("HOME env not set: {}", e))?;
+    let path = std::path::PathBuf::from(&home).join("Downloads").join(&filename);
+    std::fs::write(&path, content.as_bytes())
+        .map_err(|e| format!("Write failed to {}: {}", path.display(), e))?;
+    Ok(path.display().to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

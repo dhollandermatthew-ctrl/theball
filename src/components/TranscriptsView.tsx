@@ -312,15 +312,21 @@ export const TranscriptsView: React.FC = () => {
 
   // ---- Export as Markdown to ~/Downloads via native Rust command ----
 
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportPath, setExportPath] = useState<string | null>(null);
+
   const handleExport = async (record: TranscriptRecord) => {
+    setExportError(null);
+    setExportPath(null);
     const safe = record.title.replace(/[^a-zA-Z0-9\s-]/g, "").trim().replace(/\s+/g, "-") || "transcript";
     const filename = `${safe}-${record.date}.md`;
     try {
-      await invoke("save_to_downloads", { filename, content: toMarkdown(record) });
+      const savedPath = await invoke<string>("save_to_downloads", { filename, content: toMarkdown(record) });
       setExported(true);
-      setTimeout(() => setExported(false), 2500);
+      setExportPath(savedPath);
+      setTimeout(() => { setExported(false); setExportPath(null); }, 4000);
     } catch (err: any) {
-      alert(`Export failed: ${err?.message ?? String(err)}`);
+      setExportError(String(err?.message ?? err));
     }
   };
 
@@ -446,9 +452,19 @@ export const TranscriptsView: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
             >
               {exported ? <Check size={13} className="text-green-500" /> : <Download size={13} />}
-              {exported ? "Saved to Downloads!" : "Export .md"}
+              {exported ? "Saved!" : "Export .md"}
             </button>
           </div>
+          {exportPath && (
+            <div className="px-6 py-1.5 text-[11px] text-green-700 bg-green-50 border-b border-green-100">
+              Saved to: {exportPath}
+            </div>
+          )}
+          {exportError && (
+            <div className="px-6 py-1.5 text-[11px] text-red-700 bg-red-50 border-b border-red-100">
+              Export failed: {exportError}
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {selectedRecord.utterances.length > 0 ? (
