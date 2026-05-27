@@ -1,7 +1,7 @@
 // FILE: src/components/TranscriptsView.tsx
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Mic, MicOff, Trash2, Clock, Users, Copy, Download, Check } from "lucide-react";
-import { writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 
 import { useAppStore } from "@/domain/state";
@@ -310,17 +310,17 @@ export const TranscriptsView: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ---- Export as Markdown to ~/Downloads ----
+  // ---- Export as Markdown to ~/Downloads via native Rust command ----
 
   const handleExport = async (record: TranscriptRecord) => {
     const safe = record.title.replace(/[^a-zA-Z0-9\s-]/g, "").trim().replace(/\s+/g, "-") || "transcript";
     const filename = `${safe}-${record.date}.md`;
     try {
-      await writeTextFile(filename, toMarkdown(record), { baseDir: BaseDirectory.Download });
+      await invoke("save_to_downloads", { filename, content: toMarkdown(record) });
       setExported(true);
       setTimeout(() => setExported(false), 2500);
     } catch (err: any) {
-      alert(`Export failed: ${err.message ?? err}`);
+      alert(`Export failed: ${err?.message ?? String(err)}`);
     }
   };
 
