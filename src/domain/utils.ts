@@ -11,9 +11,15 @@ export const generateId = () =>
   Math.random().toString(36).slice(2) +
   Math.random().toString(36).slice(2);
 
-// Convert Date → "YYYY-MM-DD"
-export const formatDateKey = (date: Date): string =>
-  date.toISOString().split("T")[0];
+// Convert Date → "YYYY-MM-DD" using LOCAL time (not UTC) so dates are
+// consistent regardless of timezone. toISOString() returns UTC which causes
+// a one-day shift in timezones east of UTC (e.g. BST, CEST).
+export const formatDateKey = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 
 // Random color for tags/person icons
 export const getRandomColor = () => {
