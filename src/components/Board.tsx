@@ -16,6 +16,7 @@ import {
   rectIntersection,
   useDndMonitor,
   useDroppable,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -58,6 +59,22 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
+// Always check the next-week zone first — if the card touches it at all, it wins.
+// Without this, rectIntersection picks the column (larger rect) over the zone.
+const collisionWithNextWeekPriority: CollisionDetection = (args) => {
+  const nextWeekContainer = args.droppableContainers.find(
+    (c) => c.id === "move-next-week-zone"
+  );
+  if (nextWeekContainer) {
+    const hits = rectIntersection({
+      ...args,
+      droppableContainers: [nextWeekContainer],
+    });
+    if (hits.length > 0) return hits;
+  }
+  return rectIntersection(args);
+};
+
 /* -------------------------------------------------- */
 /* Move-to-Next-Week Drop Zone                        */
 /* -------------------------------------------------- */
@@ -68,22 +85,34 @@ const MoveToNextWeekDropZone = ({ active }: { active: boolean }) => {
   });
 
   return (
+    // Droppable rect is the full viewport height — makes it easy to hit from anywhere on the board.
+    // The visual indicator is a smaller centered box so it doesn't feel intrusive.
     <div
       ref={setNodeRef}
       className={[
-        "fixed right-0 top-1/2 -translate-y-1/2 z-50",
-        "w-[96px] h-[180px] rounded-l-xl border-2 border-dashed",
-        "flex items-center justify-center text-xs font-semibold uppercase",
-        "transition-all",
-        active ? "opacity-100" : "opacity-0 pointer-events-none",
-        isOver
-          ? "bg-blue-100 border-blue-500 text-blue-700 scale-105"
-          : "bg-slate-50 border-slate-300 text-slate-500",
+        "fixed right-0 top-0 bottom-0 z-50 w-[130px]",
+        "flex items-center justify-center",
+        active ? "pointer-events-auto" : "opacity-0 pointer-events-none",
+        isOver ? "bg-blue-50/40" : "",
+        "transition-colors",
       ].join(" ")}
     >
-      <div className="flex flex-col items-center gap-2">
-        <ArrowRight size={24} />
-        Next Week
+      {/* Visual pill — only this part is styled, but the hit area is the full column */}
+      <div
+        className={[
+          "w-full mx-2 h-[220px] rounded-xl border-2 border-dashed",
+          "flex items-center justify-center text-xs font-semibold uppercase",
+          "transition-all",
+          isOver
+            ? "bg-blue-100 border-blue-500 text-blue-700 scale-105 shadow-lg"
+            : "bg-white/80 border-slate-300 text-slate-500",
+        ].join(" ")}
+      >
+        <div className="flex flex-col items-center gap-2">
+          <ArrowRight size={22} />
+          <span>Next</span>
+          <span>Week</span>
+        </div>
       </div>
     </div>
   );
@@ -420,7 +449,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick }) => {
       ) : (
         <DndContext
         sensors={sensors}
-        collisionDetection={rectIntersection}
+        collisionDetection={collisionWithNextWeekPriority}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         autoScroll={false}
