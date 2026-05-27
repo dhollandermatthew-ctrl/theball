@@ -122,18 +122,22 @@ const MonthTaskPill = ({ task, dateKey }: { task: Task; dateKey: string }) => {
       {...attributes}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "text-[10px] truncate px-1.5 py-2 rounded border shadow-sm select-none flex items-center",
+        "text-[10px] truncate px-1.5 py-2 rounded border shadow-sm select-none flex items-center gap-1",
         isDone
           ? "bg-slate-100 border-slate-200 text-slate-400"
-          : task.priority === "p1"
-            ? "bg-red-50 border-red-100 text-red-800"
-            : task.priority === "p2"
-              ? "bg-amber-50 border-amber-100 text-amber-800"
-              : "bg-white border-slate-100 text-slate-600",
+          : task.status === "missed"
+            ? "bg-red-50 border-red-200 text-red-700"
+            : "bg-white border-slate-100 text-slate-700",
         "w-full min-w-[130px] max-h-[40px]"
       )}
     >
-      <div className="mr-2 w-full truncate">{plainText}</div>
+      {!isDone && task.status !== "missed" && (
+        <span className={cn(
+          "shrink-0 w-1.5 h-1.5 rounded-full",
+          task.priority === "p1" ? "bg-red-500" : task.priority === "p2" ? "bg-amber-400" : "bg-slate-300"
+        )} />
+      )}
+      <div className="truncate">{plainText}</div>
     </div>
   );
 };
