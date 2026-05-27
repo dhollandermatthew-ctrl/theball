@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Mic, MicOff, Trash2, Clock, Users, Copy, Download, Check } from "lucide-react";
 import { writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
 
 import { useAppStore } from "@/domain/state";
 import {
@@ -535,7 +536,15 @@ export const TranscriptsView: React.FC = () => {
 
         {error && (
           <div className="mx-3 mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-            {error}
+            <p>{error}</p>
+            {error.toLowerCase().includes("microphone") && (
+              <button
+                onClick={() => shellOpen("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")}
+                className="mt-1.5 underline font-medium hover:opacity-70"
+              >
+                Open Privacy Settings →
+              </button>
+            )}
           </div>
         )}
 

@@ -4,6 +4,7 @@
       "core:default",
       "core:webview:allow-internal-toggle-devtools",
       "shell:allow-execute",
+      "shell:allow-open",
       "fs:allow-write-text-file",
       "fs:allow-exists",
       "fs:scope-download-recursive"
