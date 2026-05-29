@@ -494,10 +494,15 @@ export const TranscriptsView: React.FC = () => {
     <div className="flex h-full overflow-hidden">
       {/* Export toast */}
       {(exportPath || exportError) && (
-        <div className={cn(
-          "fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm max-w-sm",
-          exportPath ? "bg-white border-green-200 text-slate-800" : "bg-white border-red-200 text-slate-800"
-        )}>
+        <div
+          onClick={() => exportPath && shellOpen(exportPath.substring(0, exportPath.lastIndexOf("/")))}
+          className={cn(
+            "fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm max-w-sm",
+            exportPath
+              ? "bg-white border-green-200 text-slate-800 cursor-pointer hover:bg-green-50 transition-colors"
+              : "bg-white border-red-200 text-slate-800"
+          )}
+        >
           <span className={cn("text-lg leading-none mt-0.5", exportPath ? "text-green-500" : "text-red-500")}>
             {exportPath ? "✓" : "✕"}
           </span>
@@ -506,6 +511,7 @@ export const TranscriptsView: React.FC = () => {
             <span className="text-xs text-slate-500 break-all">
               {exportPath ? exportPath.split("/").pop() : exportError}
             </span>
+            {exportPath && <span className="text-xs text-blue-500 mt-0.5">Click to open folder →</span>}
           </div>
         </div>
       )}
