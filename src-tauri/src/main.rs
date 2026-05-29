@@ -94,6 +94,15 @@ async fn write_data_file(app: tauri::AppHandle, contents: String) -> Result<(), 
 // -------------------------------------------------------------
 // Tauri Entry
 // -------------------------------------------------------------
+#[tauri::command]
+fn save_to_downloads(filename: String, content: String) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|e| format!("HOME env not set: {}", e))?;
+    let path = std::path::PathBuf::from(&home).join("Downloads").join(&filename);
+    std::fs::write(&path, content.as_bytes())
+        .map_err(|e| format!("Write failed to {}: {}", path.display(), e))?;
+    Ok(path.display().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -109,7 +118,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             transcribe_audio,
             read_data_file,
-            write_data_file
+            write_data_file,
+            save_to_downloads
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
