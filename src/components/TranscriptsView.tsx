@@ -455,16 +455,7 @@ export const TranscriptsView: React.FC = () => {
               {exported ? "Saved!" : "Export .md"}
             </button>
           </div>
-          {exportPath && (
-            <div className="px-6 py-1.5 text-[11px] text-green-700 bg-green-50 border-b border-green-100">
-              Saved to: {exportPath}
-            </div>
-          )}
-          {exportError && (
-            <div className="px-6 py-1.5 text-[11px] text-red-700 bg-red-50 border-b border-red-100">
-              Export failed: {exportError}
-            </div>
-          )}
+
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {selectedRecord.utterances.length > 0 ? (
@@ -501,6 +492,23 @@ export const TranscriptsView: React.FC = () => {
   // -------------------------------------------------------
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Export toast */}
+      {(exportPath || exportError) && (
+        <div className={cn(
+          "fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm max-w-sm",
+          exportPath ? "bg-white border-green-200 text-slate-800" : "bg-white border-red-200 text-slate-800"
+        )}>
+          <span className={cn("text-lg leading-none mt-0.5", exportPath ? "text-green-500" : "text-red-500")}>
+            {exportPath ? "✓" : "✕"}
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold">{exportPath ? "Saved to Downloads" : "Export failed"}</span>
+            <span className="text-xs text-slate-500 break-all">
+              {exportPath ? exportPath.split("/").pop() : exportError}
+            </span>
+          </div>
+        </div>
+      )}
       {/* Left panel — list */}
       <div className="w-72 flex-shrink-0 flex flex-col border-r border-slate-100 bg-slate-50/50 overflow-hidden">
         <div className="px-4 py-4 border-b border-slate-100 space-y-2">
