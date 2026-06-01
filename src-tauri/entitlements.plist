@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Allow outgoing network connections (required for Groq/AssemblyAI API calls) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
     <!-- Allow microphone -->
     <key>com.apple.security.device.audio-input</key>
     <true/>

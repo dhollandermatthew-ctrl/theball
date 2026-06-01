@@ -17,6 +17,12 @@ import {
   transcripts,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { 
+  saveQueueToLocalStorage, 
+  loadQueueFromLocalStorage, 
+  isOnline,
+  type QueuedChange 
+} from "@/db/offlineStorage";
 
 type Change =
   // TASKS
@@ -65,27 +71,142 @@ type Change =
   | { type: "update"; table: "transcripts"; id: string; data: any }
   | { type: "delete"; table: "transcripts"; id: string };
 
-const queue: Change[] = [];
+// ==================== PERSISTENT SYNC QUEUE ====================
+
+let queue: QueuedChange[] = [];
 let flushing = false;
+let flushRetryTimeout: NodeJS.Timeout | null = null;
+
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 5000; // 5 seconds
+
+// Load persisted queue on module load
+if (typeof window !== 'undefined') {
+  queue = loadQueueFromLocalStorage();
+  if (queue.length > 0) {
+    console.log(`[Sync] Restored ${queue.length} pending operations from localStorage`);
+    // Try to flush restored queue after a short delay
+    setTimeout(() => flush(), 1000);
+  }
+}
+
+function generateChangeId(change: Change): string {
+  // Create a unique ID for each change to prevent duplicates
+  const base = `${change.table}-${change.type}`;
+  if ('id' in change) {
+    return `${base}-${change.id}`;
+  }
+  if ('data' in change && change.data.id) {
+    return `${base}-${change.data.id}`;
+  }
+  return `${base}-${Date.now()}-${Math.random()}`;
+}
 
 export function enqueue(change: Change) {
-  queue.push(change);
+  const queuedChange: QueuedChange = {
+    id: generateChangeId(change),
+    timestamp: Date.now(),
+    change,
+    retryCount: 0,
+  };
+  
+  // Deduplicate: remove older instances of the same change
+  queue = queue.filter(q => q.id !== queuedChange.id);
+  
+  queue.push(queuedChange);
+  saveQueueToLocalStorage(queue);
+  
+  console.log(`[Sync] Enqueued ${change.table} ${change.type} (queue size: ${queue.length})`);
+  
   flush();
 }
 
 async function flush() {
   if (flushing || queue.length === 0) return;
 
+  // Check if we're online before attempting sync
+  if (!isOnline()) {
+    console.log('[Sync] Offline - deferring sync until online');
+    scheduleRetry();
+    return;
+  }
+
   flushing = true;
 
   try {
-    while (queue.length > 0) {
-      const change = queue.shift()!;
-      await apply(change);
+    const itemsToProcess = [...queue];
+    
+    for (let i = 0; i < itemsToProcess.length; i++) {
+      const queuedChange = itemsToProcess[i];
+      
+      try {
+        await apply(queuedChange.change);
+        
+        // Success: remove from queue
+        queue = queue.filter(q => q.id !== queuedChange.id);
+        console.log(`[Sync] Successfully synced ${queuedChange.change.table} ${queuedChange.change.type}`);
+        
+      } catch (error) {
+        console.error(`[Sync] Failed to sync ${queuedChange.change.table}:`, error);
+        
+        // Increment retry count
+        const queueIndex = queue.findIndex(q => q.id === queuedChange.id);
+        if (queueIndex !== -1) {
+          queue[queueIndex].retryCount++;
+          
+          // If max retries exceeded, log error but keep in queue
+          if (queue[queueIndex].retryCount >= MAX_RETRIES) {
+            console.error(
+              `[Sync] Max retries (${MAX_RETRIES}) exceeded for ${queuedChange.change.table}. ` +
+              `Will retry when back online.`
+            );
+          }
+        }
+      }
     }
+    
+    // Persist updated queue
+    saveQueueToLocalStorage(queue);
+    
+    // If items remain, schedule retry
+    if (queue.length > 0) {
+      scheduleRetry();
+    }
+    
   } finally {
     flushing = false;
   }
+}
+
+function scheduleRetry() {
+  if (flushRetryTimeout) {
+    clearTimeout(flushRetryTimeout);
+  }
+  
+  flushRetryTimeout = setTimeout(() => {
+    console.log('[Sync] Retrying pending operations...');
+    flush();
+  }, RETRY_DELAY);
+}
+
+// Expose function to manually trigger sync (e.g., when coming back online)
+export function triggerSync() {
+  console.log('[Sync] Manual sync triggered');
+  flush();
+}
+
+// Get queue status for debugging
+export function getSyncStatus() {
+  return {
+    pending: queue.length,
+    online: isOnline(),
+    items: queue.map(q => ({
+      table: q.change.table,
+      type: q.change.type,
+      retries: q.retryCount,
+      age: Date.now() - q.timestamp,
+    })),
+  };
 }
 
 async function apply(change: Change) {

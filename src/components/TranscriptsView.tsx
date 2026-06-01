@@ -398,6 +398,7 @@ export const TranscriptsView: React.FC = () => {
           <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex-1 min-w-0">
               <input
+                key={selectedRecord.id}
                 type="text"
                 defaultValue={selectedRecord.title}
                 onBlur={(e) => handleTitleBlur(selectedRecord.id, e.target.value)}
@@ -495,7 +496,7 @@ export const TranscriptsView: React.FC = () => {
       {/* Export toast */}
       {(exportPath || exportError) && (
         <div
-          onClick={() => exportPath && shellOpen(exportPath.substring(0, exportPath.lastIndexOf("/")))}
+          onClick={() => exportPath && invoke("reveal_in_finder", { path: exportPath.substring(0, exportPath.lastIndexOf("/")) })}
           className={cn(
             "fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm max-w-sm",
             exportPath

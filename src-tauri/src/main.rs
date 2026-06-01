@@ -14,13 +14,16 @@ struct TranscriptionResponse {
     text: String,
 }
 
-//
 // -------------------------------------------------------------
 // Whisper Transcription Command (Groq)
 // -------------------------------------------------------------
 #[command]
 async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, String> {
-    let client = Client::new();
+    // Build client with timeout
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
     let part = reqwest::multipart::Part::bytes(audio)
         .file_name("audio.webm")
@@ -31,13 +34,24 @@ async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, Str
         .text("model", "whisper-large-v3")
         .part("file", part);
 
+    // Try to send request with better error handling
     let res = client
         .post("https://api.groq.com/openai/v1/audio/transcriptions")
         .bearer_auth(api_key)
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("Request error: {e}"))?;
+        .map_err(|e| {
+            if e.is_timeout() {
+                format!("Request timed out (30s). Check your internet connection.")
+            } else if e.is_connect() {
+                format!("Cannot connect to Groq API. Check your internet connection or try again later.")
+            } else if e.is_request() {
+                format!("Request failed: {}. You may be offline.", e)
+            } else {
+                format!("Network error: {}. Check your internet connection.", e)
+            }
+        })?;
 
     let status = res.status();
     let body = res
@@ -46,7 +60,7 @@ async fn transcribe_audio(audio: Vec<u8>, api_key: String) -> Result<String, Str
         .map_err(|e| format!("Response read error: {e}"))?;
 
     if !status.is_success() {
-        return Err(format!("Groq error {status}: {body}"));
+        return Err(format!("Groq API error {status}: {body}"));
     }
 
     let parsed: TranscriptionResponse =
@@ -103,6 +117,15 @@ fn save_to_downloads(filename: String, content: String) -> Result<String, String
     Ok(path.display().to_string())
 }
 
+#[tauri::command]
+fn reveal_in_finder(path: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open Finder: {}", e))?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -119,7 +142,8 @@ fn main() {
             transcribe_audio,
             read_data_file,
             write_data_file,
-            save_to_downloads
+            save_to_downloads,
+            reveal_in_finder
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

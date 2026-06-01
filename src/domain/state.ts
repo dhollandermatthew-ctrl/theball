@@ -3,9 +3,10 @@
   import { immer } from "zustand/middleware/immer";
   import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, TranscriptRecord, SpeakerUtterance } from "./types";
 
-  import { enqueue } from "@/db/sync";
+  import { enqueue, triggerSync } from "@/db/sync";
   import { db } from "@/db/client";
   import { eq } from "drizzle-orm";
+  import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange } from "@/db/offlineStorage";
 
   import {
     tasks as tasksTable,
@@ -221,7 +222,16 @@ export const defaultState: Pick<
           state.tasks.push(task);
         });
       
-        db.insert(tasksTable).values(task).catch(console.error);
+        // ✅ Backup to localStorage immediately (offline-first)
+        const currentState = useAppStore.getState();
+        backupToLocalStorage({ tasks: currentState.tasks });
+        
+        // Then enqueue for Turso sync (may fail if offline)
+        enqueue({
+          type: "insert",
+          table: "tasks",
+          data: task,
+        });
       },
 
         updateTask: (id, updates) =>
@@ -247,6 +257,9 @@ export const defaultState: Pick<
               t.id === id ? { ...t, ...finalUpdates } : t
             );
         
+            // ✅ Backup to localStorage immediately
+            backupToLocalStorage({ tasks: state.tasks });
+            
             enqueue({
               type: "update",
               table: "tasks",
@@ -258,6 +271,9 @@ export const defaultState: Pick<
       deleteTask: (id) =>
         set((state) => {
           state.tasks = state.tasks.filter((t) => t.id !== id);
+
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ tasks: state.tasks });
 
           enqueue({
             type: "delete",
@@ -304,6 +320,9 @@ export const defaultState: Pick<
             task.starredRank = nextRank;
           }
 
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ tasks: state.tasks });
+
           enqueue({
             type: "update",
             table: "tasks",
@@ -344,6 +363,9 @@ export const defaultState: Pick<
             });
           }
 
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ tasks: state.tasks });
+
           enqueue({
             type: "update",
             table: "tasks",
@@ -369,6 +391,9 @@ export const defaultState: Pick<
               });
             }
           });
+
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ tasks: state.tasks });
         }),
 
   // ---------------------- GOALS ----------------------
@@ -388,6 +413,9 @@ loadGoals: (goals) =>
     
         state.goals.push(next);
     
+        // ✅ Backup to localStorage immediately
+        backupToLocalStorage({ goals: state.goals });
+    
         enqueue({
           type: "insert",
           table: "goals",
@@ -404,6 +432,9 @@ loadGoals: (goals) =>
         updatedAt: new Date().toISOString(),
       });
 
+      // ✅ Backup to localStorage immediately
+      backupToLocalStorage({ goals: state.goals });
+
       enqueue({
         type: "update",
         table: "goals",
@@ -416,6 +447,9 @@ loadGoals: (goals) =>
     set((state) => {
       state.goals = state.goals.filter((g) => g.id !== id);
 
+      // ✅ Backup to localStorage immediately
+      backupToLocalStorage({ goals: state.goals });
+
       enqueue({
         type: "delete",
         table: "goals",
@@ -427,6 +461,9 @@ loadGoals: (goals) =>
       set((state) => {
         const next = assignGoalSortOrder(orderedGoals);
         state.goals = next;
+    
+        // ✅ Backup to localStorage immediately
+        backupToLocalStorage({ goals: state.goals });
     
         next.forEach((g) => {
           enqueue({
@@ -449,6 +486,9 @@ loadGoals: (goals) =>
           person.sortOrder = maxOrder + 1;
 
           state.people.push(person);
+
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ people: state.people });
 
           enqueue({
             type: "insert",
@@ -519,6 +559,9 @@ loadGoals: (goals) =>
         set((state) => {
           const list = state.oneOnOnes[item.personId] ?? [];
           state.oneOnOnes[item.personId] = [item, ...list];
+
+          // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ oneOnOnes: state.oneOnOnes });
 
           enqueue({
             type: "insert",
@@ -1022,8 +1065,36 @@ loadGoals: (goals) =>
     }
   
     isInitializing = true; // 🔒 LOCK hydration to prevent duplicate calls
-    console.log('[Init] Loading data from database...');
-  
+    
+    // ==================== STEP 1: Load from localStorage (instant, works offline) ====================
+    console.log('[Init] Loading from localStorage...');
+    const offlineData = loadFromLocalStorage();
+    
+    if (offlineData) {
+      console.log('[Init] Found offline data, hydrating from localStorage');
+      console.log(`[Init] Loaded: ${offlineData.tasks.length} tasks, ${offlineData.people.length} people, ${offlineData.goals.length} goals`);
+      
+      useAppStore.setState((state) => {
+        state.tasks = offlineData.tasks;
+        state.people = offlineData.people;
+        state.oneOnOnes = offlineData.oneOnOnes;
+        state.goals = offlineData.goals;
+        state.meetingSpaces = offlineData.meetingSpaces;
+        state.healthData = offlineData.healthData;
+        state.productKnowledge = offlineData.productKnowledge;
+        state.transcripts = offlineData.transcripts;
+        state.hydrated = true;
+      });
+      
+      console.log(`[Init] Hydrated from localStorage in ${Math.round(performance.now() - startTime)}ms`);
+    } else {
+      console.log('[Init] No offline data found');
+      useAppStore.getState().setHydrated();
+    }
+    
+    // ==================== STEP 2: Sync with Turso (background, may fail offline) ====================
+    console.log('[Init] Attempting to sync with Turso...');
+    
     try {
       // Run migration from localStorage → Turso (once)
       const migrationStart = performance.now();
@@ -1060,8 +1131,8 @@ loadGoals: (goals) =>
         db.select().from(transcriptsTable),
       ]);
       
-      console.log(`[Init] Database queries took ${Math.round(performance.now() - queryStart)}ms`);
-      console.log(`[Init] Loaded: ${taskRows.length} tasks, ${peopleRows.length} people, ${goalRows.length} goals`);
+      console.log(`[Init] Turso queries took ${Math.round(performance.now() - queryStart)}ms`);
+      console.log(`[Init] Turso data: ${taskRows.length} tasks, ${peopleRows.length} people, ${goalRows.length} goals`);
 
       // Group 1:1 notes by person
       const grouped: Record<string, OneOnOneItem[]> = {};
@@ -1203,18 +1274,52 @@ loadGoals: (goals) =>
         s.hydrated = true;
       });
       
-      const totalTime = Math.round(performance.now() - startTime);
-      console.log(`[Init] ✅ App state loaded successfully in ${totalTime}ms`);
-      console.log(`[Init] Final state: ${useAppStore.getState().tasks.length} tasks in memory`);
-    } catch (err) {
-      console.error("[Init] Failed to initialize app state:", err);
-      
-      // Set hydrated even on error so app can render (with empty state if needed)
-      useAppStore.setState((s) => {
-        s.hydrated = true;
+      // ✅ Backup fresh Turso data to localStorage
+      const currentState = useAppStore.getState();
+      backupToLocalStorage({
+        tasks: currentState.tasks,
+        people: currentState.people,
+        oneOnOnes: currentState.oneOnOnes,
+        goals: currentState.goals,
+        meetingSpaces: currentState.meetingSpaces,
+        healthData: currentState.healthData,
+        productKnowledge: currentState.productKnowledge,
+        transcripts: currentState.transcripts,
       });
+      
+      const totalTime = Math.round(performance.now() - startTime);
+      console.log(`[Init] ✅ App state synced with Turso in ${totalTime}ms`);
+      console.log(`[Init] Final state: ${useAppStore.getState().tasks.length} tasks in memory`);
+      
+      // Trigger any pending sync operations
+      triggerSync();
+      
+    } catch (err) {
+      console.error("[Init] ⚠️ Failed to sync with Turso (may be offline):", err);
+      console.log("[Init] Continuing with localStorage data");
+      
+      // If we didn't hydrate from localStorage earlier, set hydrated now
+      if (!useAppStore.getState().hydrated) {
+        useAppStore.setState((s) => {
+          s.hydrated = true;
+        });
+      }
     } finally {
       isInitializing = false;
+    }
+    
+    // ==================== STEP 3: Set up online/offline listeners ====================
+    if (typeof window !== 'undefined') {
+      onOnlineStatusChange((online) => {
+        if (online) {
+          console.log('[Init] 🌐 Network connection restored - triggering sync');
+          triggerSync();
+        } else {
+          console.log('[Init] 📵 Network connection lost - working offline');
+        }
+      });
+      
+      console.log(`[Init] Online/offline listener enabled (currently ${navigator.onLine ? 'online' : 'offline'})`);
     }
   }
 
