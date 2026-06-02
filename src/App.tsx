@@ -13,6 +13,7 @@ import { HealthView } from "./components/HealthView";
 import { ProductKnowledgeView } from "./components/ProductKnowledgeView";
 import { TranscriptsView } from "./components/TranscriptsView";
 import { AITaskEntryModal } from "./components/AITaskEntryModal";
+import { UpdateChecker } from "./components/UpdateChecker";
 
 import { generateId, getRandomColor } from "./domain/utils";
 import { ExtractedTask } from "./domain/ai/taskExtraction";
@@ -317,6 +318,8 @@ function App() {
         onClose={() => setIsAIEntryOpen(false)}
         onCreateTask={handleCreateAITask}
       />
+
+      <UpdateChecker />
     </div>
   );
 }

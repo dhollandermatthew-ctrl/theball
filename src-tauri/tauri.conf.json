@@ -28,9 +28,20 @@
           "identifier": "main-capability",
           "permissions": [
             "core:default",
-            "core:webview:allow-internal-toggle-devtools"
+            "core:webview:allow-internal-toggle-devtools",
+            "updater:default",
+            "process:default"
           ]
         }
+      ]
+    }
+  },
+
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGQjcxQzhFMTNFMTgzMDIKUldRQ2crRVRqaHkzejVCdUR4RDJjWHN3YUJFQjBZb211UldYLzNORnNZSTZRYm5xR2kwNHgwb0UK",
+      "endpoints": [
+        "https://github.com/dhollandermatthew-ctrl/theball/releases/latest/download/latest.json"
       ]
     }
   },
