@@ -111,7 +111,9 @@ async fn write_data_file(app: tauri::AppHandle, contents: String) -> Result<(), 
 #[tauri::command]
 fn save_to_downloads(filename: String, content: String) -> Result<String, String> {
     let home = std::env::var("HOME").map_err(|e| format!("HOME env not set: {}", e))?;
-    let path = std::path::PathBuf::from(&home).join("Downloads").join(&filename);
+    let path = std::path::PathBuf::from(&home)
+        .join("Downloads")
+        .join(&filename);
     std::fs::write(&path, content.as_bytes())
         .map_err(|e| format!("Write failed to {}: {}", path.display(), e))?;
     Ok(path.display().to_string())
