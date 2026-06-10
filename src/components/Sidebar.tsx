@@ -375,14 +375,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Header */}
         <div className="p-4 flex items-center justify-between border-b border-slate-200/50">
           <div className="flex items-center gap-2">
-          <img
-  src={AppIcon}
-  alt="The Ball Logo"
-  className="w-6 h-6 object-contain"
-/>
-            <span className="font-semibold text-slate-700 truncate">
-              The Ball
-            </span>
+            <img src={AppIcon} alt="The Ball Logo" className="w-6 h-6 object-contain" />
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-700 leading-tight">The Ball</span>
+              <VersionIndicator />
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -391,8 +388,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <X size={20} />
           </button>
         </div>
-
-        <VersionIndicator />
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex flex-col">
