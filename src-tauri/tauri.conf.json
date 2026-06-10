@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "The Ball",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "identifier": "com.theball.app",
 
   "build": {

@@ -1,6 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { readFileSync } from "fs";
+
+const tauriConf = JSON.parse(readFileSync("./src-tauri/tauri.conf.json", "utf-8"));
+const APP_VERSION = tauriConf.version;
 
 // Tauri dev host support (optional)
 const host = process.env.TAURI_DEV_HOST;
@@ -13,6 +17,10 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+  },
+
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
 
   clearScreen: false,
