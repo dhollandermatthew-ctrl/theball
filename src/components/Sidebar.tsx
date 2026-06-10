@@ -36,6 +36,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import AppIcon from "../assets/icon.png";
+import { VersionIndicator } from "./UpdateChecker";
 
 /* -----------------------------------------------------
    Sidebar Props (FIXED)
@@ -390,6 +391,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <X size={20} />
           </button>
         </div>
+
+        <VersionIndicator />
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex flex-col">
