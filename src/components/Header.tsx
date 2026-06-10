@@ -18,7 +18,6 @@ import { TaskCategory } from '@/domain/types';
 import { cn } from '@/domain/utils';
 import { tokenTracker } from '@/domain/tokenTracker';
 import { TokenStatsModal } from './TokenStatsModal';
-import { SyncStatusIndicator } from './SyncStatusIndicator';
 
 // Helper to replace missing startOfWeek from date-fns
 const getStartOfWeek = (date: Date) => {
@@ -205,9 +204,6 @@ export const Header: React.FC<HeaderProps> = ({
             {totalTokens.toLocaleString()} tokens
           </span>
         </button>
-
-        {/* Sync Status Indicator */}
-        <SyncStatusIndicator />
 
         <button
             onClick={onToggleInbox}
