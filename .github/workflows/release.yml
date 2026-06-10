@@ -36,7 +36,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
           # Pass through your app env vars
           VITE_TURSO_DB_URL: ${{ secrets.VITE_TURSO_DB_URL }}
           VITE_TURSO_DB_TOKEN: ${{ secrets.VITE_TURSO_DB_TOKEN }}
