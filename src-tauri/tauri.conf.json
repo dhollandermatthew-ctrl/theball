@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "The Ball",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "identifier": "com.theball.app",
 
   "build": {
@@ -49,6 +49,7 @@
   "bundle": {
     "active": true,
     "targets": ["dmg", "app"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.icns",
       "icons/icon.png",
