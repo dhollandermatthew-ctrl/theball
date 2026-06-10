@@ -14,6 +14,7 @@ import {
   defaultDropAnimationSideEffects,
   DropAnimation,
   rectIntersection,
+  pointerWithin,
   useDndMonitor,
   useDroppable,
   type CollisionDetection,
@@ -59,14 +60,15 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
-// Always check the next-week zone first — if the card touches it at all, it wins.
-// Without this, rectIntersection picks the column (larger rect) over the zone.
+// Check next-week zone using pointer position only — prevents accidental triggers
+// when dragging between adjacent days (e.g. Thu → Fri). The cursor must be
+// physically inside the zone strip for it to fire.
 const collisionWithNextWeekPriority: CollisionDetection = (args) => {
   const nextWeekContainer = args.droppableContainers.find(
     (c) => c.id === "move-next-week-zone"
   );
   if (nextWeekContainer) {
-    const hits = rectIntersection({
+    const hits = pointerWithin({
       ...args,
       droppableContainers: [nextWeekContainer],
     });

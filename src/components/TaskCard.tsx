@@ -1,6 +1,7 @@
 // FILE: src/components/TaskCard.tsx
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { addWeeks } from "date-fns";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -12,10 +13,11 @@ import {
   Sparkles,
   Loader2,
   Star,
+  ArrowRight,
 } from "lucide-react";
 
 import { Task, TaskStatus, TaskPriority } from "@/domain/types";
-import { cn, DEFAULT_TASK_BODY } from "@/domain/utils";
+import { cn, DEFAULT_TASK_BODY, formatDateKey } from "@/domain/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { WysiwygEditor } from "@/components/WysiwygEditor";
 import { runAI } from "@/domain/ai/ai";
@@ -266,6 +268,40 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const normalizedStatus = normalizeStatus(task.status);
   const starTask = useAppStore((s) => s.starTask);
   const unstarTask = useAppStore((s) => s.unstarTask);
+  const updateTask = useAppStore((s) => s.updateTask);
+
+  /* CONTEXT MENU */
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!task.date) return; // only calendar tasks
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, [task.date]);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleMoveToNextWeek = useCallback(() => {
+    if (!task.date) return;
+    const taskDate = new Date(`${task.date}T12:00:00`);
+    const startOfThisWeek = new Date(taskDate);
+    startOfThisWeek.setDate(taskDate.getDate() - taskDate.getDay());
+    const nextWeekStart = addWeeks(startOfThisWeek, 1);
+    updateTask(task.id, { date: formatDateKey(nextWeekStart) });
+    setContextMenu(null);
+  }, [task.date, task.id, updateTask]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => closeContextMenu();
+    window.addEventListener("click", handler);
+    window.addEventListener("contextmenu", handler);
+    return () => {
+      window.removeEventListener("click", handler);
+      window.removeEventListener("contextmenu", handler);
+    };
+  }, [contextMenu, closeContextMenu]);
 
   const initialBody =
     !task.content || task.content === DEFAULT_TASK_BODY
@@ -457,6 +493,7 @@ const handleContentBlur = () => {
     if (cardRef) cardRef.current = el;
   }}
   style={style}
+  onContextMenu={handleContextMenu}
   className={cn(
     "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
     "hover:shadow-md hover:-translate-y-[1px]",
@@ -652,6 +689,23 @@ const handleContentBlur = () => {
             <Trash2 size={14} />
           </button>
         </div>
+
+      {/* CONTEXT MENU */}
+      {contextMenu && (
+        <div
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+            onClick={handleMoveToNextWeek}
+          >
+            <ArrowRight size={14} className="text-slate-400" />
+            Move to next week
+          </button>
+        </div>
+      )}
       </div>
     );
   };
