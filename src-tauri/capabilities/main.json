@@ -5,6 +5,8 @@
       "core:webview:allow-internal-toggle-devtools",
       "shell:allow-execute",
       "shell:allow-open",
-      "fs:allow-download-write-recursive"
+      "fs:allow-download-write-recursive",
+      "updater:default",
+      "process:default"
     ]
   }
