@@ -1,4 +1,27 @@
 // FILE: src/domain/fileStorage.ts
+import { invoke } from '@tauri-apps/api/core';
+
+// -------------------------------------------------------------
+// Tauri-backed disk storage for Knowledge files
+// Files live at: ~/Documents/The Ball/Knowledge/
+// -------------------------------------------------------------
+
+export async function saveKnowledgeFile(filename: string, data: Uint8Array): Promise<string> {
+  return invoke<string>('save_knowledge_file', { filename, data: Array.from(data) });
+}
+
+export async function readKnowledgeFile(path: string): Promise<Uint8Array> {
+  const bytes = await invoke<number[]>('read_knowledge_file', { path });
+  return new Uint8Array(bytes);
+}
+
+export async function deleteKnowledgeFile(path: string): Promise<void> {
+  return invoke('delete_knowledge_file', { path });
+}
+
+export async function openKnowledgeFile(path: string): Promise<void> {
+  return invoke('open_knowledge_file', { path });
+}
 
 /**
  * Convert File to Base64 string for storage

@@ -4,7 +4,7 @@
   import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, TranscriptRecord, SpeakerUtterance } from "./types";
 
   import { enqueue, triggerSync } from "@/db/sync";
-  import { db } from "@/db/client";
+  import { db, client } from "@/db/client";
   import { eq } from "drizzle-orm";
   import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange } from "@/db/offlineStorage";
 
@@ -934,7 +934,8 @@ loadGoals: (goals) =>
               title: item.title,
               type: item.type,
               content: item.content || null,
-              fileData: item.fileData || null,
+              filePath: item.filePath || null,
+              fileData: null,
               fileName: item.fileName || null,
               fileType: item.fileType || null,
               fileSize: item.fileSize || null,
@@ -1103,6 +1104,11 @@ loadGoals: (goals) =>
       await migrateLocalStorageToTurso();
       console.log(`[Init] Migration check took ${Math.round(performance.now() - migrationStart)}ms`);
 
+      // Add filePath column if it doesn't exist yet (idempotent — libSQL ignores duplicate ALTER TABLE)
+      try {
+        await client.execute("ALTER TABLE product_knowledge ADD COLUMN filePath TEXT");
+      } catch (_) { /* column already exists */ }
+
       const queryStart = performance.now();
       const [
         taskRows,
@@ -1238,6 +1244,7 @@ loadGoals: (goals) =>
         title: r.title,
         type: r.type as 'note' | 'document',
         content: r.content || undefined,
+        filePath: r.filePath || undefined,
         fileData: r.fileData || undefined,
         fileName: r.fileName || undefined,
         fileType: r.fileType || undefined,

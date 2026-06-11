@@ -171,7 +171,8 @@ export const productKnowledge = sqliteTable("product_knowledge", {
   content: text("content"), // Extracted text for search
   
   // File Storage (for documents only)
-  fileData: text("fileData"), // Base64 encoded file bytes
+  filePath: text("filePath"), // Absolute path on disk: ~/Documents/The Ball/Knowledge/
+  fileData: text("fileData"), // Legacy: base64 bytes (kept for migration, no longer written)
   fileName: text("fileName"), // Original filename
   fileType: text("fileType"), // MIME type
   fileSize: integer("fileSize"), // Bytes

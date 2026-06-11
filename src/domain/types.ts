@@ -220,7 +220,8 @@
     collection?: KnowledgeCollection;
 
     // File metadata (documents only)
-    fileData?: string; // Base64 encoded file bytes
+    filePath?: string; // Absolute path on disk: ~/Documents/The Ball/Knowledge/
+    fileData?: string; // Legacy base64 — only present on old items imported before disk storage
     fileName?: string;
     fileType?: string; // MIME type
     fileSize?: number; // Bytes

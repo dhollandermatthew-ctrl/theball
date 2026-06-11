@@ -28,7 +28,7 @@ import { useAppStore } from '@/domain/state';
 import { ProductKnowledgeItem, KnowledgeCollection, KNOWLEDGE_COLLECTIONS } from '@/domain/types';
 import { generateId } from '@/domain/utils';
 import { extractText } from '@/domain/extractText';
-import { fileToBase64, formatFileSize, downloadFile } from '@/domain/fileStorage';
+import { formatFileSize, saveKnowledgeFile, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
 import { suggestTags } from '@/domain/ai/suggestTags';
 import { askKnowledgeBase, KnowledgeAnswer } from '@/domain/ai/knowledgeAsk';
 import { WysiwygEditor } from './WysiwygEditor';
@@ -340,14 +340,42 @@ interface ReadingModeProps {
 function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
 
   const isPdf = item.fileType === 'application/pdf';
   const isDocument = item.type === 'document';
-  const fileUrl = item.fileData ? `data:${item.fileType};base64,${item.fileData}` : null;
   const ftInfo = fileTypeInfo(item.fileType, item.fileName);
 
-  const handleDownload = () => {
-    if (item.fileData && item.fileName && item.fileType) {
+  // Load file bytes from disk (new items) or legacy base64 (old items)
+  useEffect(() => {
+    if (!isDocument) return;
+    let revoke: string | null = null;
+
+    async function load() {
+      let blob: Blob | null = null;
+      if (item.filePath) {
+        try {
+          const bytes = await readKnowledgeFile(item.filePath);
+          blob = new Blob([bytes], { type: item.fileType || 'application/octet-stream' });
+        } catch (e) {
+          console.error('Failed to read knowledge file from disk:', e);
+        }
+      } else if (item.fileData && item.fileType) {
+        blob = base64ToBlob(item.fileData, item.fileType);
+      }
+      if (blob) {
+        revoke = URL.createObjectURL(blob);
+        setFileObjectUrl(revoke);
+      }
+    }
+    load();
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [item.id, item.filePath, item.fileData]);
+
+  const handleOpen = () => {
+    if (item.filePath) {
+      openKnowledgeFile(item.filePath);
+    } else if (item.fileData && item.fileName && item.fileType) {
       downloadFile(item.fileData, item.fileName, item.fileType);
     }
   };
@@ -374,12 +402,12 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isDocument && item.fileData && (
+          {isDocument && (item.filePath || item.fileData) && (
             <button
-              onClick={handleDownload}
+              onClick={handleOpen}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
             >
-              <Download size={14} /> Download
+              <Download size={14} /> {item.filePath ? 'Open in app' : 'Download'}
             </button>
           )}
           {item.type === 'note' && (
@@ -395,10 +423,10 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {isPdf && fileUrl ? (
+        {isPdf && fileObjectUrl ? (
           <div className="flex flex-col items-center py-8 px-4">
             <Document
-              file={fileUrl}
+              file={fileObjectUrl}
               onLoadSuccess={({ numPages }) => setNumPages(numPages)}
               className="shadow-lg"
             >
@@ -421,9 +449,9 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
             <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: item.content || '' }} />
           </div>
         ) : (
-          // Non-PDF document: show extracted text + download prompt
+          // Non-PDF document: show file card + extracted text
           <div className="max-w-3xl mx-auto py-8 px-8">
-            {item.fileData && (
+            {(item.filePath || item.fileData) && (
               <div className={`flex items-center gap-4 p-4 rounded-xl border mb-8 ${ftInfo.bg} border-opacity-50`}>
                 <div className={`p-3 rounded-lg bg-white shadow-sm ${ftInfo.color}`}>
                   <FileText size={24} />
@@ -431,12 +459,13 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800 truncate">{item.fileName}</p>
                   <p className="text-sm text-slate-500">{ftInfo.label} document{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</p>
+                  {item.filePath && <p className="text-xs text-slate-400 mt-0.5 truncate">{item.filePath}</p>}
                 </div>
                 <button
-                  onClick={handleDownload}
+                  onClick={handleOpen}
                   className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm shrink-0"
                 >
-                  <Download size={14} /> Download original
+                  <Download size={14} /> {item.filePath ? 'Open in app' : 'Download original'}
                 </button>
               </div>
             )}
@@ -578,13 +607,15 @@ const KnowledgeViewInner: React.FC = () => {
   ) => {
     if (!pendingFile) return;
     try {
-      const fileData = await fileToBase64(pendingFile);
+      const arrayBuffer = await pendingFile.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const filePath = await saveKnowledgeFile(pendingFile.name, bytes);
       const item: ProductKnowledgeItem = {
         id: generateId(),
         title,
         type: 'document',
         content: pendingContent,
-        fileData,
+        filePath,
         fileName: pendingFile.name,
         fileType: pendingFile.type,
         fileSize: pendingFile.size,
@@ -625,6 +656,10 @@ const KnowledgeViewInner: React.FC = () => {
   const handleDelete = (id: string) => setPendingDeleteId(id);
   const confirmDelete = () => {
     if (!pendingDeleteId) return;
+    const item = productKnowledge.find((i) => i.id === pendingDeleteId);
+    if (item?.filePath) {
+      deleteKnowledgeFile(item.filePath).catch(() => {});
+    }
     deleteKnowledgeItem(pendingDeleteId);
     if (readingItem?.id === pendingDeleteId) setReadingItem(null);
     setPendingDeleteId(null);
@@ -982,10 +1017,13 @@ function KnowledgeCard({
     >
       {/* Actions */}
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-        {item.type === 'document' && item.fileData && (
+        {item.type === 'document' && (item.filePath || item.fileData) && (
           <button
-            onClick={() => downloadFile(item.fileData!, item.fileName!, item.fileType!)}
-            title="Download original file"
+            onClick={() => item.filePath
+              ? openKnowledgeFile(item.filePath)
+              : downloadFile(item.fileData!, item.fileName!, item.fileType!)
+            }
+            title={item.filePath ? 'Open in native app' : 'Download original file'}
             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"
           >
             <Download size={13} />

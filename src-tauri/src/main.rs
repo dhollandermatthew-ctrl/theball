@@ -128,6 +128,82 @@ fn reveal_in_finder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// -------------------------------------------------------------
+// Knowledge file storage: ~/Documents/The Ball/Knowledge/
+// -------------------------------------------------------------
+
+fn knowledge_dir() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|e| format!("HOME env not set: {}", e))?;
+    let dir = std::path::PathBuf::from(&home)
+        .join("Documents")
+        .join("The Ball")
+        .join("Knowledge");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create Knowledge dir: {}", e))?;
+    Ok(dir)
+}
+
+#[tauri::command]
+fn save_knowledge_file(filename: String, data: Vec<u8>) -> Result<String, String> {
+    let dir = knowledge_dir()?;
+    let desired = dir.join(&filename);
+
+    // Avoid overwriting: append a counter suffix if the file already exists
+    let final_path = if !desired.exists() {
+        desired
+    } else {
+        let stem = std::path::Path::new(&filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&filename)
+            .to_string();
+        let ext = std::path::Path::new(&filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let mut counter = 1u32;
+        loop {
+            let candidate = if ext.is_empty() {
+                dir.join(format!("{} ({})", stem, counter))
+            } else {
+                dir.join(format!("{} ({}).{}", stem, counter, ext))
+            };
+            if !candidate.exists() {
+                break candidate;
+            }
+            counter += 1;
+        }
+    };
+
+    std::fs::write(&final_path, &data)
+        .map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn read_knowledge_file(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
+#[tauri::command]
+fn delete_knowledge_file(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if p.exists() {
+        std::fs::remove_file(p).map_err(|e| format!("Failed to delete file: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn open_knowledge_file(path: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open file: {}", e))?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -150,7 +226,11 @@ fn main() {
             read_data_file,
             write_data_file,
             save_to_downloads,
-            reveal_in_finder
+            reveal_in_finder,
+            save_knowledge_file,
+            read_knowledge_file,
+            delete_knowledge_file,
+            open_knowledge_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
