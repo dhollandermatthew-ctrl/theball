@@ -15,6 +15,8 @@ import {
   Heart,
   BookOpen,
   Mic,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 import { OneOnOnePerson } from "@/domain/state";
@@ -260,6 +262,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
+  const [showMore, setShowMore] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<OneOnOnePerson | null>(null);
 
@@ -403,8 +407,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-{/* Calendar */}
-<div className="px-2">
+{/* ── Primary nav ── */}
+<div className="px-2 space-y-0.5">
+  {/* Calendar */}
   <button
     onClick={() => onNavigate("calendar")}
     className={cn(
@@ -414,115 +419,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
     )}
   >
-    <Calendar
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "calendar" ? "text-blue-600" : "text-slate-400"
-      )}
-    />
+    <Calendar size={18} className={cn("transition-colors", currentView === "calendar" ? "text-blue-600" : "text-slate-400")} />
     Calendar
   </button>
-</div>
 
-{/* Goals */}
-<div className="px-2 mt-1">
-  <button
-    onClick={() => onNavigate("goals")}
-    className={cn(
-      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-      currentView === "goals"
-        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-    )}
-  >
-    <Target
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "goals"
-          ? "text-red-500"
-          : "text-slate-400"
-      )}
-    />
-    Goals
-  </button>
-</div>
-
-{/* Meetings */}
-<div className="px-2 mt-1">
-  <button
-    onClick={() => onNavigate("meetings")}
-    className={cn(
-      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-      currentView === "meetings"
-        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-    )}
-  >
-    <CalendarClock
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "meetings"
-          ? "text-indigo-600"
-          : "text-slate-400"
-      )}
-    />
-    Meetings
-  </button>
-</div>
-
-{/* Health */}
-<div className="px-2 mt-1">
-  <button
-    onClick={() => onNavigate("health")}
-    className={cn(
-      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-      currentView === "health"
-        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-    )}
-  >
-    <Heart
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "health"
-          ? "text-rose-500"
-          : "text-slate-400"
-      )}
-    />
-    Health
-  </button>
-</div>
-
-{/* Product Knowledge */}
-<div className="px-2 mt-1">
-  <button
-    onClick={() => onNavigate("product-knowledge")}
-    className={cn(
-      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-      currentView === "product-knowledge"
-        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-    )}
-  >
-    <BookOpen
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "product-knowledge"
-          ? "text-purple-600"
-          : "text-slate-400"
-      )}
-    />
-    Knowledge
-  </button>
-</div>
-
-{/* Transcripts */}
-<div className="px-2 mt-1">
+  {/* Transcripts */}
   <button
     onClick={() => onNavigate("transcripts")}
     className={cn(
@@ -532,17 +433,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
         : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
     )}
   >
-    <Mic
-      size={18}
-      className={cn(
-        "transition-colors",
-        currentView === "transcripts"
-          ? "text-green-600"
-          : "text-slate-400"
-      )}
-    />
+    <Mic size={18} className={cn("transition-colors", currentView === "transcripts" ? "text-green-600" : "text-slate-400")} />
     Transcripts
   </button>
+
+  {/* Knowledge */}
+  <button
+    onClick={() => onNavigate("product-knowledge")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "product-knowledge"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <BookOpen size={18} className={cn("transition-colors", currentView === "product-knowledge" ? "text-purple-600" : "text-slate-400")} />
+    Knowledge
+  </button>
+
+  {/* More toggle */}
+  <button
+    onClick={() => setShowMore((v) => !v)}
+    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition-colors"
+  >
+    {showMore ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+    {showMore ? "Less" : "More"}
+  </button>
+
+  {/* Collapsible: Goals, Meetings, Health */}
+  {showMore && (
+    <div className="space-y-0.5">
+      <button
+        onClick={() => onNavigate("goals")}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+          currentView === "goals"
+            ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+            : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+        )}
+      >
+        <Target size={18} className={cn("transition-colors", currentView === "goals" ? "text-red-500" : "text-slate-400")} />
+        Goals
+      </button>
+
+      <button
+        onClick={() => onNavigate("meetings")}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+          currentView === "meetings"
+            ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+            : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+        )}
+      >
+        <CalendarClock size={18} className={cn("transition-colors", currentView === "meetings" ? "text-indigo-600" : "text-slate-400")} />
+        Meetings
+      </button>
+
+      <button
+        onClick={() => onNavigate("health")}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+          currentView === "health"
+            ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+            : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+        )}
+      >
+        <Heart size={18} className={cn("transition-colors", currentView === "health" ? "text-rose-500" : "text-slate-400")} />
+        Health
+      </button>
+    </div>
+  )}
 </div>
 
           {/* Section Title */}
