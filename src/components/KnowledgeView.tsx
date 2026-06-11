@@ -1,8 +1,25 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, Component } from 'react';
+
+class KnowledgeErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-8 text-red-600 text-sm font-mono whitespace-pre-wrap">
+          <strong>Knowledge view error:</strong>{'\n'}
+          {(this.state.error as Error).message}{'\n\n'}
+          {(this.state.error as Error).stack}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import {
-  Search, Upload, FileText, Plus, Tag, Trash2, X, Sparkles,
+  Search, Upload, FileText, Plus, Trash2, X, Sparkles,
   ChevronLeft, ChevronRight, BookOpen, Briefcase, Brain, Wrench,
-  Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft,
+  Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft, Mic,
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -50,6 +67,7 @@ const COLLECTION_META: Record<KnowledgeCollection, { label: string; icon: React.
 function CollectionBadge({ collection }: { collection?: KnowledgeCollection }) {
   if (!collection) return null;
   const m = COLLECTION_META[collection];
+  if (!m) return null;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${m.bg} ${m.text} ${m.border}`}>
       {m.icon}{m.label}
@@ -374,7 +392,11 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
 
 // ── main view ─────────────────────────────────────────────────────────────────
 
-export const KnowledgeView: React.FC = () => {
+export const KnowledgeView: React.FC = () => (
+  <KnowledgeErrorBoundary><KnowledgeViewInner /></KnowledgeErrorBoundary>
+);
+
+const KnowledgeViewInner: React.FC = () => {
   const productKnowledge = useAppStore((s) => s.productKnowledge);
   const addKnowledgeItem = useAppStore((s) => s.addKnowledgeItem);
   const updateKnowledgeItem = useAppStore((s) => s.updateKnowledgeItem);
@@ -403,6 +425,35 @@ export const KnowledgeView: React.FC = () => {
   const [isAsking, setIsAsking] = useState(false);
   const [answer, setAnswer] = useState<KnowledgeAnswer | null>(null);
   const questionRef = useRef<HTMLInputElement>(null);
+
+  // Mic / speech-to-text
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const handleMic = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    rec.onstart = () => setIsListening(true);
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setQuestion((prev) => (prev ? prev + ' ' + transcript : transcript));
+      questionRef.current?.focus();
+    };
+    recognitionRef.current = rec;
+    rec.start();
+  }, [isListening]);
+
+  // Delete confirmation (no confirm() — Tauri blocks it)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // ── filtered items ──
   const filtered = productKnowledge.filter((item) => {
@@ -512,11 +563,12 @@ export const KnowledgeView: React.FC = () => {
   };
 
   // ── delete ──
-  const handleDelete = (id: string) => {
-    if (confirm('Delete this item?')) {
-      deleteKnowledgeItem(id);
-      if (readingItem?.id === id) setReadingItem(null);
-    }
+  const handleDelete = (id: string) => setPendingDeleteId(id);
+  const confirmDelete = () => {
+    if (!pendingDeleteId) return;
+    deleteKnowledgeItem(pendingDeleteId);
+    if (readingItem?.id === pendingDeleteId) setReadingItem(null);
+    setPendingDeleteId(null);
   };
 
   // ── AI ask ──
@@ -658,6 +710,17 @@ export const KnowledgeView: React.FC = () => {
                 </button>
               )}
               <button
+                onClick={handleMic}
+                title={isListening ? 'Stop listening' : 'Speak your question'}
+                className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+                  isListening
+                    ? 'bg-red-100 text-red-500 animate-pulse'
+                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Mic size={15} />
+              </button>
+              <button
                 onClick={handleAsk}
                 disabled={!question.trim() || isAsking}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-medium hover:bg-violet-700 disabled:opacity-40 transition-colors"
@@ -788,6 +851,25 @@ export const KnowledgeView: React.FC = () => {
         />
       )}
 
+      {pendingDeleteId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-base font-semibold text-slate-800">Delete this item?</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {productKnowledge.find(i => i.id === pendingDeleteId)?.title}
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setPendingDeleteId(null)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={confirmDelete} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange}
         accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md" />
     </div>
@@ -824,12 +906,19 @@ function KnowledgeCard({
   }, [showCollectionPicker]);
 
   const preview = item.type === 'note'
-    ? stripHtml(item.content || '').substring(0, 160)
-    : (item.content || '').substring(0, 160);
+    ? stripHtml(item.content || '').substring(0, 200)
+    : (item.content || '').substring(0, 200);
+
+  const accentColor = item.collection ? {
+    'product': 'border-l-blue-400',
+    'personal-growth': 'border-l-emerald-400',
+    'ai-tools': 'border-l-violet-400',
+    'work-docs': 'border-l-amber-400',
+  }[item.collection] : 'border-l-slate-200';
 
   return (
     <div
-      className="group bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col gap-3"
+      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 hover:border-l-4 transition-all relative flex flex-col gap-2.5`}
       onClick={onClick}
     >
       {/* Actions */}
@@ -844,13 +933,8 @@ function KnowledgeCard({
         </button>
       </div>
 
-      {/* Header row */}
-      <div className="flex items-start gap-2 pr-12">
-        <div className={`mt-0.5 shrink-0 ${item.type === 'document' ? 'text-blue-500' : 'text-emerald-500'}`}>
-          {item.type === 'document' ? <FileText size={16} /> : <FileIcon size={16} />}
-        </div>
-        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h3>
-      </div>
+      {/* Title */}
+      <h3 className="text-sm font-semibold text-slate-800 leading-snug pr-12 line-clamp-2">{item.title}</h3>
 
       {/* Preview */}
       {preview && (
