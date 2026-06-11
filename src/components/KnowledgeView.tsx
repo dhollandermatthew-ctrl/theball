@@ -19,7 +19,7 @@ class KnowledgeErrorBoundary extends Component<{ children: React.ReactNode }, { 
 import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
   ChevronLeft, ChevronRight, BookOpen, Briefcase, Brain, Wrench,
-  Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft, Mic,
+  Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft, Mic, Download,
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -28,7 +28,7 @@ import { useAppStore } from '@/domain/state';
 import { ProductKnowledgeItem, KnowledgeCollection, KNOWLEDGE_COLLECTIONS } from '@/domain/types';
 import { generateId } from '@/domain/utils';
 import { extractText } from '@/domain/extractText';
-import { fileToBase64, formatFileSize } from '@/domain/fileStorage';
+import { fileToBase64, formatFileSize, downloadFile } from '@/domain/fileStorage';
 import { suggestTags } from '@/domain/ai/suggestTags';
 import { askKnowledgeBase, KnowledgeAnswer } from '@/domain/ai/knowledgeAsk';
 import { WysiwygEditor } from './WysiwygEditor';
@@ -63,6 +63,30 @@ const COLLECTION_META: Record<KnowledgeCollection, { label: string; icon: React.
     bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200',
   },
 };
+
+// ── file type helpers ─────────────────────────────────────────────────────────
+
+function fileTypeInfo(fileType?: string, fileName?: string): { label: string; color: string; bg: string } {
+  const ext = fileName?.split('.').pop()?.toLowerCase();
+  if (fileType === 'application/pdf' || ext === 'pdf')
+    return { label: 'PDF', color: 'text-red-600', bg: 'bg-red-50' };
+  if (fileType?.includes('wordprocessingml') || ext === 'docx' || ext === 'doc')
+    return { label: 'Word', color: 'text-blue-600', bg: 'bg-blue-50' };
+  if (fileType?.includes('presentationml') || ext === 'pptx' || ext === 'ppt')
+    return { label: 'PPT', color: 'text-orange-600', bg: 'bg-orange-50' };
+  if (fileType?.includes('spreadsheet') || ext === 'xlsx' || ext === 'xls')
+    return { label: 'Excel', color: 'text-green-600', bg: 'bg-green-50' };
+  return { label: 'File', color: 'text-slate-600', bg: 'bg-slate-50' };
+}
+
+function FileTypeBadge({ fileType, fileName }: { fileType?: string; fileName?: string }) {
+  const { label, color, bg } = fileTypeInfo(fileType, fileName);
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${color} ${bg}`}>
+      {label}
+    </span>
+  );
+}
 
 function CollectionBadge({ collection }: { collection?: KnowledgeCollection }) {
   if (!collection) return null;
@@ -318,7 +342,15 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const isPdf = item.fileType === 'application/pdf';
+  const isDocument = item.type === 'document';
   const fileUrl = item.fileData ? `data:${item.fileType};base64,${item.fileData}` : null;
+  const ftInfo = fileTypeInfo(item.fileType, item.fileName);
+
+  const handleDownload = () => {
+    if (item.fileData && item.fileName && item.fileType) {
+      downloadFile(item.fileData, item.fileName, item.fileType);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[150] bg-white flex flex-col">
@@ -328,12 +360,28 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500">
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <h2 className="text-base font-semibold text-slate-800">{item.title}</h2>
-            {item.collection && <CollectionBadge collection={item.collection} />}
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-800">{item.title}</h2>
+              {isDocument && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
+            </div>
+            <div className="flex items-center gap-2">
+              {item.collection && <CollectionBadge collection={item.collection} />}
+              {item.fileName && (
+                <span className="text-xs text-slate-400">{item.fileName}{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isDocument && item.fileData && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
+            >
+              <Download size={14} /> Download
+            </button>
+          )}
           {item.type === 'note' && (
             <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
               <Edit3 size={14} /> Edit
@@ -358,19 +406,11 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
             </Document>
             {numPages > 1 && (
               <div className="flex items-center gap-4 mt-6">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50"
-                >
+                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm text-slate-600">{currentPage} / {numPages}</span>
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
-                  disabled={currentPage === numPages}
-                  className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50"
-                >
+                <button onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))} disabled={currentPage === numPages} className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -381,8 +421,27 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
             <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: item.content || '' }} />
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto py-10 px-8">
-            <pre className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{item.content}</pre>
+          // Non-PDF document: show extracted text + download prompt
+          <div className="max-w-3xl mx-auto py-8 px-8">
+            {item.fileData && (
+              <div className={`flex items-center gap-4 p-4 rounded-xl border mb-8 ${ftInfo.bg} border-opacity-50`}>
+                <div className={`p-3 rounded-lg bg-white shadow-sm ${ftInfo.color}`}>
+                  <FileText size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-800 truncate">{item.fileName}</p>
+                  <p className="text-sm text-slate-500">{ftInfo.label} document{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</p>
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm shrink-0"
+                >
+                  <Download size={14} /> Download original
+                </button>
+              </div>
+            )}
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Extracted text</div>
+            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{item.content}</div>
           </div>
         )}
       </div>
@@ -923,6 +982,15 @@ function KnowledgeCard({
     >
       {/* Actions */}
       <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+        {item.type === 'document' && item.fileData && (
+          <button
+            onClick={() => downloadFile(item.fileData!, item.fileName!, item.fileType!)}
+            title="Download original file"
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"
+          >
+            <Download size={13} />
+          </button>
+        )}
         {item.type === 'note' && (
           <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
             <Edit3 size={13} />
@@ -933,8 +1001,11 @@ function KnowledgeCard({
         </button>
       </div>
 
-      {/* Title */}
-      <h3 className="text-sm font-semibold text-slate-800 leading-snug pr-12 line-clamp-2">{item.title}</h3>
+      {/* Title row with file type badge */}
+      <div className="flex items-start gap-2 pr-16">
+        {item.type === 'document' && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
+        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h3>
+      </div>
 
       {/* Preview */}
       {preview && (
@@ -1005,7 +1076,7 @@ function KnowledgeCard({
       </div>
 
       {item.type === 'document' && item.fileName && (
-        <p className="text-xs text-slate-400 truncate -mt-1">{item.fileName} · {item.fileSize ? formatFileSize(item.fileSize) : ''}</p>
+        <p className="text-xs text-slate-400 truncate">{item.fileName}{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</p>
       )}
     </div>
   );
