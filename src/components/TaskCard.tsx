@@ -287,10 +287,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   
+  const cardDomRef = useRef<HTMLElement | null>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
+
   useEffect(() => {
-    if (isNewTask) {
-      setEditMode("title");
-    }
+    if (!isNewTask) return;
+    setEditMode("title");
+
+    // Scroll into view and flash
+    const t = setTimeout(() => {
+      cardDomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 1400);
+    }, 100);
+    return () => clearTimeout(t);
   }, [isNewTask]);
 
   const {
@@ -460,12 +470,13 @@ const handleContentBlur = () => {
   ref={(el) => {
     setNodeRef(el);
     if (cardRef) cardRef.current = el;
+    cardDomRef.current = el;
   }}
   style={style}
-
   className={cn(
     "group relative flex flex-col rounded-lg border shadow-sm transition-all duration-200",
     "hover:shadow-md hover:-translate-y-[1px]",
+    isFlashing && "animate-task-flash",
     styles.cardGap,
     task.status === "done"
       ? "bg-slate-50/60 border-slate-200"

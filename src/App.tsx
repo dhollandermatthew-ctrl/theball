@@ -78,6 +78,7 @@ function App() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAIEntryOpen, setIsAIEntryOpen] = useState(false);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   const sidebarOpen = settings.sidebarOpen;
@@ -203,6 +204,8 @@ function App() {
     if (currentView !== "calendar") {
       setCurrentView("calendar");
     }
+
+    setHighlightTaskId(taskId);
   };
 
   /* -------------------------------------------------- */
@@ -250,7 +253,11 @@ function App() {
         )}
 
         {currentView === "calendar" ? (
-          <Board onAIEntryClick={() => setIsAIEntryOpen(true)} />
+          <Board
+            onAIEntryClick={() => setIsAIEntryOpen(true)}
+            highlightTaskId={highlightTaskId}
+            onHighlightDone={() => setHighlightTaskId(null)}
+          />
         ) : currentView === "goals" ? (
           <GoalView
             goals={sortedGoals}

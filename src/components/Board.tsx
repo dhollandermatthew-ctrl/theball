@@ -263,9 +263,11 @@ const ScrollMonitor = ({
 
 interface BoardProps {
   onAIEntryClick?: () => void;
+  highlightTaskId?: string | null;
+  onHighlightDone?: () => void;
 }
 
-export const Board: React.FC<BoardProps> = ({ onAIEntryClick }) => {
+export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, onHighlightDone }) => {
   const tasks = useAppStore((s) => s.tasks);
   const addTask = useAppStore((s: AppState) => s.addTask);
   const updateTask = useAppStore((s: AppState) => s.updateTask);
@@ -282,13 +284,22 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick }) => {
 
   useEffect(() => {
     if (newTaskId) {
-      const t = setTimeout(() => {
-        setNewTaskId(null);
-      }, 0);
-  
+      const t = setTimeout(() => setNewTaskId(null), 0);
       return () => clearTimeout(t);
     }
   }, [newTaskId]);
+
+  // When a task is created via AI quick-add, navigate week to its date
+  useEffect(() => {
+    if (!highlightTaskId) return;
+    const task = tasks.find((t) => t.id === highlightTaskId);
+    if (task?.date) {
+      const taskDate = new Date(task.date + 'T12:00:00');
+      setCurrentDate(taskDate);
+    }
+    const t = setTimeout(() => onHighlightDone?.(), 1800);
+    return () => clearTimeout(t);
+  }, [highlightTaskId]);
 
   /* ---------------- Sensors ---------------- */
 
@@ -486,7 +497,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick }) => {
   date={day}
   tasks={dayTasks}
   category={category}
-  newTaskId={newTaskId}   // ✅ ADD THIS
+  newTaskId={highlightTaskId || newTaskId}
   onAddTask={(date) => {
     const id = generateId();
     addTask({
