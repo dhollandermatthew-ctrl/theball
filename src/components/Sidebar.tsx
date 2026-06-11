@@ -517,7 +517,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : "text-slate-400"
       )}
     />
-    Product
+    Knowledge
   </button>
 </div>
 

@@ -939,6 +939,7 @@ loadGoals: (goals) =>
               fileType: item.fileType || null,
               fileSize: item.fileSize || null,
               tags: item.tags ? JSON.stringify(item.tags) : null,
+              collection: item.collection || null,
               createdAt: item.createdAt,
               updatedAt: item.updatedAt,
             },
@@ -1242,6 +1243,7 @@ loadGoals: (goals) =>
         fileType: r.fileType || undefined,
         fileSize: r.fileSize || undefined,
         tags: r.tags ? JSON.parse(r.tags) : undefined,
+        collection: r.collection || undefined,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       }));

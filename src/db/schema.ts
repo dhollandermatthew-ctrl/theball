@@ -178,6 +178,7 @@ export const productKnowledge = sqliteTable("product_knowledge", {
   
   // Organization
   tags: text("tags"), // JSON array of tag strings
+  collection: text("collection"), // product | personal-growth | ai-tools | work-docs
   
   // Metadata
   createdAt: text("createdAt").notNull(),

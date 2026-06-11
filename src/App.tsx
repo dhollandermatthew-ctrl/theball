@@ -10,7 +10,7 @@ import { OneOnOneTaskView } from "./components/OneOnOneTaskView";
 import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
 import { HealthView } from "./components/HealthView";
-import { ProductKnowledgeView } from "./components/ProductKnowledgeView";
+import { KnowledgeView } from "./components/KnowledgeView";
 import { TranscriptsView } from "./components/TranscriptsView";
 import { AITaskEntryModal } from "./components/AITaskEntryModal";
 
@@ -278,7 +278,7 @@ function App() {
         ) : currentView === "health" ? (
           <HealthView />
         ) : currentView === "product-knowledge" ? (
-          <ProductKnowledgeView />
+          <KnowledgeView />
         ) : currentView === "transcripts" ? (
           <TranscriptsView />
         ) : activePerson ? (
