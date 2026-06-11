@@ -757,6 +757,7 @@ export const KnowledgeView: React.FC = () => {
                       setShowNoteModal(true);
                     }
                   }}
+                  onCollectionChange={(col) => updateKnowledgeItem(item.id, { collection: col })}
                 />
               ))}
             </div>
@@ -800,12 +801,28 @@ function KnowledgeCard({
   onClick,
   onDelete,
   onEdit,
+  onCollectionChange,
 }: {
   item: ProductKnowledgeItem;
   onClick: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onCollectionChange: (col: KnowledgeCollection | undefined) => void;
 }) {
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCollectionPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowCollectionPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCollectionPicker]);
+
   const preview = item.type === 'note'
     ? stripHtml(item.content || '').substring(0, 160)
     : (item.content || '').substring(0, 160);
@@ -842,8 +859,55 @@ function KnowledgeCard({
 
       {/* Footer */}
       <div className="mt-auto flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex flex-wrap gap-1">
-          {item.collection && <CollectionBadge collection={item.collection} />}
+        <div className="flex flex-wrap gap-1 items-center relative" onClick={(e) => e.stopPropagation()}>
+          {/* Collection badge — click to change */}
+          <div className="relative" ref={pickerRef}>
+            <button
+              onClick={() => setShowCollectionPicker((v) => !v)}
+              className="transition-opacity"
+              title="Change collection"
+            >
+              {item.collection
+                ? <CollectionBadge collection={item.collection} />
+                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500">
+                    + collection
+                  </span>
+              }
+            </button>
+
+            {showCollectionPicker && (
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 min-w-[160px]">
+                {KNOWLEDGE_COLLECTIONS.map((c) => {
+                  const m = COLLECTION_META[c.id];
+                  const active = item.collection === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        onCollectionChange(active ? undefined : c.id);
+                        setShowCollectionPicker(false);
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        active ? `${m.bg} ${m.text}` : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {m.icon}{m.label}
+                      {active && <span className="ml-auto text-slate-400">✓</span>}
+                    </button>
+                  );
+                })}
+                {item.collection && (
+                  <button
+                    onClick={() => { onCollectionChange(undefined); setShowCollectionPicker(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-50 mt-1 border-t border-slate-100 pt-2"
+                  >
+                    <X size={11} /> Remove
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {(item.tags || []).slice(0, 2).map((tag) => (
             <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-xs">{tag}</span>
           ))}
