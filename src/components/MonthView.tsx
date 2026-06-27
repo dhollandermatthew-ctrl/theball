@@ -9,8 +9,10 @@ import {
   isSameMonth,
   isToday as isTodayFn,
 } from "date-fns";
-import { Task, TaskCategory } from "@/domain/types"; // Ensure this path is correct
+import { Task, TaskCategory } from "@/domain/types";
 import { cn } from "@/domain/utils";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
+import { X } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -22,6 +24,87 @@ import {
   DragStartEvent,
   DragEndEvent,
 } from "@dnd-kit/core";
+
+/* -------------------- Task Preview Modal -------------------- */
+interface TaskPreviewModalProps {
+  task: Task;
+  onClose: () => void;
+}
+
+const TaskPreviewModal: React.FC<TaskPreviewModalProps> = ({ task, onClose }) => {
+  const isDone = task.status === "done";
+  const isMissed = task.status === "missed";
+
+  const priorityLabel =
+    task.priority === "p1" ? "P1" : task.priority === "p2" ? "P2" : "P3";
+  const priorityColor =
+    task.priority === "p1"
+      ? "bg-red-100 text-red-700"
+      : task.priority === "p2"
+      ? "bg-amber-100 text-amber-700"
+      : "bg-slate-100 text-slate-500";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+      <div
+        className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", priorityColor)}>
+              {priorityLabel}
+            </span>
+            {isDone && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                Done
+              </span>
+            )}
+            {isMissed && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                Missed
+              </span>
+            )}
+            {task.date && (
+              <span className="text-[10px] text-slate-400">
+                {formatDate(new Date(task.date + "T12:00:00"), "MMM d, yyyy")}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Title */}
+        <h2 className={cn("text-base font-bold text-slate-800 leading-snug", isDone && "line-through text-slate-400")}>
+          {task.title || "Untitled Task"}
+        </h2>
+
+        {/* Body */}
+        {task.content ? (
+          <div className="text-sm text-slate-600 max-h-64 overflow-y-auto pr-1">
+            <RichTextRenderer
+              text={task.content}
+              isCompleted={isDone}
+              className="prose prose-sm max-w-none"
+            />
+          </div>
+        ) : (
+          <p className="text-sm italic text-slate-400">No details added.</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
 /* -------------------- Props -------------------- */
 interface MonthViewProps {
@@ -57,9 +140,10 @@ interface DayCellProps {
   isCurrentMonth: boolean;
   isTodayFlag: boolean;
   onDateClick: (date: Date) => void;
+  onPreviewTask: (task: Task) => void;
 }
 
-const DayCell = ({ day, dateKey, tasks, isCurrentMonth, isTodayFlag, onDateClick }: DayCellProps) => {
+const DayCell = ({ day, dateKey, tasks, isCurrentMonth, isTodayFlag, onDateClick, onPreviewTask }: DayCellProps) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${dateKey}`,
     data: { type: "day", dateKey },
@@ -89,7 +173,7 @@ const DayCell = ({ day, dateKey, tasks, isCurrentMonth, isTodayFlag, onDateClick
       {/* TASK LIST WITH SCROLL */}
       <div className="flex flex-col gap-1 w-full overflow-y-auto max-h-[300px] pr-1">
         {tasks.map((task) => (
-          <MonthTaskPill key={task.id} task={task} dateKey={dateKey} />
+          <MonthTaskPill key={task.id} task={task} dateKey={dateKey} onPreview={onPreviewTask} />
         ))}
       </div>
     </div>
@@ -97,7 +181,7 @@ const DayCell = ({ day, dateKey, tasks, isCurrentMonth, isTodayFlag, onDateClick
 };
 
 /* -------------------- Task Pill -------------------- */
-const MonthTaskPill = ({ task, dateKey }: { task: Task; dateKey: string }) => {
+const MonthTaskPill = ({ task, dateKey, onPreview }: { task: Task; dateKey: string; onPreview: (task: Task) => void }) => {
   const isDone = task.status === "done";
   const plainText = task.title || "Untitled Task";
   const { setNodeRef, listeners, attributes, transform, isDragging } =
@@ -120,14 +204,17 @@ const MonthTaskPill = ({ task, dateKey }: { task: Task; dateKey: string }) => {
       style={style}
       {...listeners}
       {...attributes}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onPreview(task);
+      }}
       className={cn(
-        "text-[10px] truncate px-1.5 py-2 rounded border shadow-sm select-none flex items-center gap-1",
+        "text-[10px] truncate px-1.5 py-2 rounded border shadow-sm select-none flex items-center gap-1 cursor-pointer hover:shadow-md hover:ring-1 transition-all",
         isDone
-          ? "bg-slate-100 border-slate-200 text-slate-400"
+          ? "bg-slate-100 border-slate-200 text-slate-400 hover:ring-slate-300"
           : task.status === "missed"
-            ? "bg-red-50 border-red-200 text-red-700"
-            : "bg-white border-slate-100 text-slate-700",
+            ? "bg-red-50 border-red-200 text-red-700 hover:ring-red-300"
+            : "bg-white border-slate-100 text-slate-700 hover:ring-blue-200",
         "w-full min-w-[130px] max-h-[40px]"
       )}
     >
@@ -151,7 +238,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
   onUpdateTask,
 }) => {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  
+  const [previewTask, setPreviewTask] = useState<Task | null>(null);
+
   const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const monthEnd = endOfMonth(monthStart);
   const startDate = new Date(monthStart);
@@ -162,10 +250,10 @@ export const MonthView: React.FC<MonthViewProps> = ({
   // Group tasks by date
   const tasksByDate: Record<string, Task[]> = {};
   for (const t of tasks) {
-    if (t.taskType === "oneonone") continue; // 🔥 HARD BLOCK 1:1
-    if (!t.date) continue;                   // 🔥 HARD GUARD
+    if (t.taskType === "oneonone") continue;
+    if (!t.date) continue;
     if (t.category !== category) continue;
-  
+
     if (!tasksByDate[t.date]) tasksByDate[t.date] = [];
     tasksByDate[t.date].push(t);
   }
@@ -177,8 +265,14 @@ export const MonthView: React.FC<MonthViewProps> = ({
     sortedTasksByPriority[date] = dayTasks;
   }
 
-  // Drag context setup
-  const sensors = useSensors(useSensor(PointerSensor));
+  // Drag context setup with activation constraint to prevent clicks from starting drags
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === "task") {
@@ -229,6 +323,12 @@ export const MonthView: React.FC<MonthViewProps> = ({
 
   return (
     <>
+      {previewTask && (
+        <TaskPreviewModal
+          task={previewTask}
+          onClose={() => setPreviewTask(null)}
+        />
+      )}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         {/* WEEKDAY HEADER */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 shrink-0">
@@ -255,7 +355,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
                 tasks={dayTasks}
                 isCurrentMonth={isSameMonth(day, monthStart)}
                 isTodayFlag={isTodayFn(day)}
-                onDateClick={() => {}} // Prevent actual click action
+                onDateClick={() => {}}
+                onPreviewTask={setPreviewTask}
               />
             );
           })}
