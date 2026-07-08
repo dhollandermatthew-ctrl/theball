@@ -316,6 +316,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
         <MonthTaskPill
           task={activeTask}
           dateKey={activeTask.date}
+          onPreview={() => {}}
         />
       )}
     </div>

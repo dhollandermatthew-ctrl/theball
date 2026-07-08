@@ -45,34 +45,46 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
   mode = "accordion",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const normalizedStatus =
   mode === "checkbox" && status === "missed"
     ? "todo"
     : normalizeStatus(status);
+
+  const handleDone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const goingDone = normalizedStatus !== "done";
+    if (goingDone) {
+      setJustCompleted(true);
+      setTimeout(() => setJustCompleted(false), 500);
+    }
+    onSelect(goingDone ? "done" : "todo");
+    setIsOpen(false);
+  };
+
   // ✅ SIMPLE CHECKBOX MODE (1:1)
   if (mode === "checkbox") {
     const isDone = normalizedStatus === "done";
 
     return (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(isDone ? "todo" : "done");
-        }}
-        className={cn(
-          "w-6 h-6 flex items-center justify-center rounded-md transition",
-          isDone
-            ? "bg-green-500 text-white"
-            : "border-2 border-slate-300 hover:bg-slate-100"
+      <div className="relative">
+        <button
+          onClick={handleDone}
+          className={cn(
+            "w-6 h-6 flex items-center justify-center rounded-md transition",
+            isDone ? "bg-green-500 text-white" : "border-2 border-slate-300 hover:bg-slate-100",
+            justCompleted && "animate-check-pop"
+          )}
+        >
+          {isDone && <Check className="w-3.5 h-3.5" />}
+        </button>
+        {justCompleted && (
+          <div className="absolute inset-0 rounded-md bg-green-400 animate-check-ring pointer-events-none" />
         )}
-      >
-        {isDone && <Check className="w-3.5 h-3.5" />}
-      </button>
+      </div>
     );
   }
-
-
 
   const baseIcon = () => {
     switch (normalizedStatus) {
@@ -99,11 +111,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
         <div className="absolute left-0 flex items-center gap-1 bg-white shadow-lg ring-1 ring-slate-200 rounded-full p-0.5">
           <button
             className="p-1 hover:bg-slate-100 rounded-full"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect("done");
-              setIsOpen(false);
-            }}
+            onClick={handleDone}
           >
             <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
               <Check className="text-white w-3 h-3" />
@@ -137,15 +145,21 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
           </button>
         </div>
       ) : (
-        <div
-          className={cn(
-            "flex items-center justify-center w-6 h-6 rounded-md cursor-pointer hover:bg-slate-100",
-            normalizedStatus === "done" && "bg-green-500",
-            normalizedStatus === "missed" && "bg-red-500"
+        <div className="relative">
+          <div
+            className={cn(
+              "flex items-center justify-center w-6 h-6 rounded-md cursor-pointer hover:bg-slate-100",
+              normalizedStatus === "done" && "bg-green-500",
+              normalizedStatus === "missed" && "bg-red-500",
+              justCompleted && "animate-check-pop"
+            )}
+            onClick={() => setIsOpen(true)}
+          >
+            {baseIcon()}
+          </div>
+          {justCompleted && (
+            <div className="absolute inset-0 rounded-md bg-green-400 animate-check-ring pointer-events-none" />
           )}
-          onClick={() => setIsOpen(true)}
-        >
-          {baseIcon()}
         </div>
       )}
     </div>
@@ -161,11 +175,30 @@ interface PriorityAccordionProps {
   onSelect: (p: TaskPriority) => void;
 }
 
+const PRIORITY_DEFS: Record<TaskPriority, { short: string; detail: string; color: string }> = {
+  p1: {
+    short: 'Do today',
+    detail: 'Someone is waiting, hard deadline today/tomorrow, or another person/project is blocked.',
+    color: 'text-red-600',
+  },
+  p2: {
+    short: 'Do this week',
+    detail: 'Meaningful to a goal or relationship, but no one is blocked today. Can wait 2–3 days.',
+    color: 'text-amber-500',
+  },
+  p3: {
+    short: 'Do when ready',
+    detail: 'Low urgency, no one waiting. Can slip a week with no real consequence.',
+    color: 'text-slate-400',
+  },
+};
+
 const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
   priority,
   onSelect,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -188,6 +221,8 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
         return <span className="text-[10px] font-bold text-slate-400">P3</span>;
     }
   };
+
+  const def = PRIORITY_DEFS[priority];
 
   return (
     <div
@@ -214,11 +249,21 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
           ))}
         </div>
       ) : (
-        <div
-          className="w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-slate-100 rounded-md"
-          onClick={() => setIsOpen(true)}
-        >
-          {label(priority)}
+        <div className="relative">
+          <div
+            className="w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-slate-100 rounded-md"
+            onClick={() => setIsOpen(true)}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+          >
+            {label(priority)}
+          </div>
+          {showTooltip && (
+            <div className="absolute left-7 top-1/2 -translate-y-1/2 z-50 w-52 bg-slate-900 text-white rounded-lg p-2.5 shadow-xl pointer-events-none">
+              <div className={cn("text-[11px] font-bold mb-1", def.color)}>{priority.toUpperCase()} — {def.short}</div>
+              <div className="text-[11px] text-slate-300 leading-snug">{def.detail}</div>
+            </div>
+          )}
         </div>
       )}
     </div>

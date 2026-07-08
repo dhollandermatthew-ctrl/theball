@@ -11,7 +11,8 @@ import {
   CalendarDays,
   CheckCircle2,
   Zap,
-  Sparkles
+  Sparkles,
+  HelpCircle,
 } from 'lucide-react';
 
 import { TaskCategory } from '@/domain/types';
@@ -66,6 +67,19 @@ export const Header: React.FC<HeaderProps> = ({
   
   const [totalTokens, setTotalTokens] = React.useState(0);
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
+  const [showPriorityGuide, setShowPriorityGuide] = React.useState(false);
+  const priorityGuideRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showPriorityGuide) return;
+    const handler = (e: MouseEvent) => {
+      if (priorityGuideRef.current && !priorityGuideRef.current.contains(e.target as Node)) {
+        setShowPriorityGuide(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPriorityGuide]);
 
   React.useEffect(() => {
     const updateTokens = () => {
@@ -179,6 +193,53 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                 {weeklyStats.done} Completed
             </span>
+        </div>
+
+        {/* Priority Guide */}
+        <div ref={priorityGuideRef} className="relative">
+          <button
+            onClick={() => setShowPriorityGuide((v) => !v)}
+            className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
+            title="Priority guide"
+          >
+            <HelpCircle size={15} className="text-slate-500" />
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide hidden xl:inline">Priority</span>
+          </button>
+
+          {showPriorityGuide && (
+            <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-4">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">How to rank tasks</div>
+              <div className="text-[11px] text-slate-500 mb-4 leading-relaxed">
+                Ask two questions: <span className="font-semibold text-slate-700">Is someone waiting, or is there a hard deadline?</span> Then: <span className="font-semibold text-slate-700">Does this significantly advance a goal or relationship?</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-3 items-start">
+                  <span className="text-[11px] font-bold text-red-600 w-5 shrink-0 mt-0.5">P1</span>
+                  <div>
+                    <div className="text-[12px] font-semibold text-slate-800">Do today</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Someone is waiting, there's a hard deadline today or tomorrow, or another person/project is blocked without this.</div>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-[11px] font-bold text-amber-500 w-5 shrink-0 mt-0.5">P2</span>
+                  <div>
+                    <div className="text-[12px] font-semibold text-slate-800">Do this week</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Meaningful to a goal or relationship, but no one is blocked today. Can wait 2–3 days without real consequence.</div>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-[11px] font-bold text-slate-400 w-5 shrink-0 mt-0.5">P3</span>
+                  <div>
+                    <div className="text-[12px] font-semibold text-slate-800">Do when ready</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Low urgency, no one waiting. Can slip a week with no consequence. Nice to do, not must-do.</div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400 leading-relaxed">
+                Hover any P badge on a card for a quick reminder.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* AI Quick Add Button */}
