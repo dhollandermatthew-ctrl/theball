@@ -210,28 +210,28 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-4">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">How to rank tasks</div>
               <div className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                Ask two questions: <span className="font-semibold text-slate-700">Is someone waiting, or is there a hard deadline?</span> Then: <span className="font-semibold text-slate-700">Does this significantly advance a goal or relationship?</span>
+                Ask one question: <span className="font-semibold text-slate-700">"Is this connected to something active, or just important in the abstract?"</span>
               </div>
               <div className="space-y-3">
                 <div className="flex gap-3 items-start">
                   <span className="text-[11px] font-bold text-red-600 w-5 shrink-0 mt-0.5">P1</span>
                   <div>
                     <div className="text-[12px] font-semibold text-slate-800">Do today</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Someone is waiting, there's a hard deadline today or tomorrow, or another person/project is blocked without this.</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Real external clock (deadline, someone waiting) — OR directly compounds your capability on something you're actively working on right now.</div>
                   </div>
                 </div>
                 <div className="flex gap-3 items-start">
                   <span className="text-[11px] font-bold text-amber-500 w-5 shrink-0 mt-0.5">P2</span>
                   <div>
                     <div className="text-[12px] font-semibold text-slate-800">Do this week</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Meaningful to a goal or relationship, but no one is blocked today. Can wait 2–3 days without real consequence.</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Important — a relationship, deliverable, or project — but not time-pressured today and not directly tied to an active problem.</div>
                   </div>
                 </div>
                 <div className="flex gap-3 items-start">
                   <span className="text-[11px] font-bold text-slate-400 w-5 shrink-0 mt-0.5">P3</span>
                   <div>
                     <div className="text-[12px] font-semibold text-slate-800">Do when ready</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Low urgency, no one waiting. Can slip a week with no consequence. Nice to do, not must-do.</div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">No clock, no active relevance, no one waiting. Good idea — nothing breaks if it waits.</div>
                   </div>
                 </div>
               </div>

@@ -178,17 +178,17 @@ interface PriorityAccordionProps {
 const PRIORITY_DEFS: Record<TaskPriority, { short: string; detail: string; color: string }> = {
   p1: {
     short: 'Do today',
-    detail: 'Someone is waiting, hard deadline today/tomorrow, or another person/project is blocked.',
+    detail: 'Real deadline or someone waiting — OR directly compounds your capability on something active right now.',
     color: 'text-red-600',
   },
   p2: {
     short: 'Do this week',
-    detail: 'Meaningful to a goal or relationship, but no one is blocked today. Can wait 2–3 days.',
+    detail: 'Important relationship, deliverable, or project — but not time-pressured today and not tied to an active problem.',
     color: 'text-amber-500',
   },
   p3: {
     short: 'Do when ready',
-    detail: 'Low urgency, no one waiting. Can slip a week with no real consequence.',
+    detail: 'No clock, no active relevance, no one waiting. Nothing breaks if this waits.',
     color: 'text-slate-400',
   },
 };
