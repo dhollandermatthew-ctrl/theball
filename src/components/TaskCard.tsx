@@ -252,7 +252,7 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
         <div className="relative">
           <div
             className="w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-slate-100 rounded-md"
-            onClick={() => setIsOpen(true)}
+            onClick={() => { setIsOpen(true); setShowTooltip(false); }}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
           >
