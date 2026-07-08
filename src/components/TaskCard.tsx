@@ -259,9 +259,8 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
             {label(priority)}
           </div>
           {showTooltip && (
-            <div className="absolute left-7 top-1/2 -translate-y-1/2 z-50 w-52 bg-slate-900 text-white rounded-lg p-2.5 shadow-xl pointer-events-none">
-              <div className={cn("text-[11px] font-bold mb-1", def.color)}>{priority.toUpperCase()} — {def.short}</div>
-              <div className="text-[11px] text-slate-300 leading-snug">{def.detail}</div>
+            <div className="absolute left-7 top-1/2 -translate-y-1/2 z-50 bg-slate-900 text-white rounded-md px-2 py-1 shadow-lg pointer-events-none whitespace-nowrap">
+              <span className={cn("text-[11px] font-semibold", def.color)}>{def.short}</span>
             </div>
           )}
         </div>
