@@ -28,6 +28,47 @@ const normalizeStatus = (status: TaskStatus): TaskStatus =>
   status === "in_progress" ? "todo" : status;
 
 /* --------------------------------------------------
+ * CELEBRATION BURST
+ * Add/remove packs below to change which moods appear.
+ * -------------------------------------------------- */
+const CELEBRATION_PACKS = [
+  ['✨', '⭐', '💫', '✨', '⭐'],      // sparkle (calm)
+  ['✨', '⭐', '💫', '✨', '⭐'],      // doubled → 2× frequency
+  ['🎉', '🎊', '🎈', '✨', '⭐'],     // party
+  ['🔥', '💪', '⚡', '🔥', '✨'],     // power
+  ['🌟', '⭐', '💫', '🌟', '✨'],     // stars
+  ['🚀', '⭐', '✨', '💫', '🌟'],     // rocket (rare)
+];
+
+const CelebrationBurst: React.FC = () => {
+  const pack = CELEBRATION_PACKS[Math.floor(Math.random() * CELEBRATION_PACKS.length)];
+  const particles = pack.map((emoji, i) => {
+    const angle = (i / pack.length) * 360 + (Math.random() * 30 - 15);
+    const dist = 38 + Math.random() * 20;
+    const rad = (angle * Math.PI) / 180;
+    return {
+      emoji,
+      tx: Math.cos(rad) * dist,
+      ty: Math.sin(rad) * dist,
+      delay: i * 25,
+    };
+  });
+  return (
+    <div className="absolute inset-0 pointer-events-none" style={{ overflow: 'visible' }}>
+      {particles.map(({ emoji, tx, ty, delay }, i) => (
+        <div
+          key={i}
+          className="absolute text-sm leading-none animate-particle-fly"
+          style={{ '--tx': `${tx}px`, '--ty': `${ty}px`, top: '50%', left: '50%', animationDelay: `${delay}ms` } as React.CSSProperties}
+        >
+          {emoji}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* --------------------------------------------------
  * STATUS ACCORDION
  * -------------------------------------------------- */
 
@@ -57,7 +98,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
     const goingDone = normalizedStatus !== "done";
     if (goingDone) {
       setJustCompleted(true);
-      setTimeout(() => setJustCompleted(false), 500);
+      setTimeout(() => setJustCompleted(false), 900);
     }
     onSelect(goingDone ? "done" : "todo");
     setIsOpen(false);
@@ -82,6 +123,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
         {justCompleted && (
           <div className="absolute inset-0 rounded-md bg-green-400 animate-check-ring pointer-events-none" />
         )}
+        {justCompleted && <CelebrationBurst />}
       </div>
     );
   }
@@ -160,6 +202,7 @@ const StatusAccordion: React.FC<StatusAccordionProps> = ({
           {justCompleted && (
             <div className="absolute inset-0 rounded-md bg-green-400 animate-check-ring pointer-events-none" />
           )}
+          {justCompleted && <CelebrationBurst />}
         </div>
       )}
     </div>
