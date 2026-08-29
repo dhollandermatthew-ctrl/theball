@@ -204,6 +204,19 @@ fn open_knowledge_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// -------------------------------------------------------------
+// Claude Code slash command sync: writes to ~/.claude/commands/
+// -------------------------------------------------------------
+#[tauri::command]
+fn write_claude_command(filename: String, content: String) -> Result<String, String> {
+    let home = std::env::var("HOME").map_err(|e| format!("HOME env not set: {}", e))?;
+    let dir = std::path::PathBuf::from(&home).join(".claude").join("commands");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create ~/.claude/commands: {}", e))?;
+    let path = dir.join(&filename);
+    std::fs::write(&path, content.as_bytes()).map_err(|e| format!("Write failed: {}", e))?;
+    Ok(path.display().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -230,7 +243,8 @@ fn main() {
             save_knowledge_file,
             read_knowledge_file,
             delete_knowledge_file,
-            open_knowledge_file
+            open_knowledge_file,
+            write_claude_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

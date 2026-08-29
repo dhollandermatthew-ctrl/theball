@@ -18,21 +18,24 @@ class KnowledgeErrorBoundary extends Component<{ children: React.ReactNode }, { 
 }
 import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
-  ChevronLeft, ChevronRight, BookOpen, Briefcase, Brain, Wrench,
-  Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft, Mic, Download,
-  Terminal, Zap, Copy, Check, Link2,
+  ChevronLeft, ChevronRight, BookOpen,
+  Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
+  Terminal, Zap, Copy, Check, Link2, Share2,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { Document, Page, pdfjs } from 'react-pdf';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 import { useAppStore } from '@/domain/state';
-import { ProductKnowledgeItem, KnowledgeCollection, KNOWLEDGE_COLLECTIONS, KnowledgeCommand } from '@/domain/types';
+import { ProductKnowledgeItem, KnowledgeCommand, UserCollection } from '@/domain/types';
 import { generateId } from '@/domain/utils';
 import { extractText } from '@/domain/extractText';
-import { formatFileSize, saveKnowledgeFile, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
+import { formatFileSize, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
 import { suggestTags } from '@/domain/ai/suggestTags';
 import { askKnowledgeBase, KnowledgeAnswer } from '@/domain/ai/knowledgeAsk';
 import { WysiwygEditor } from './WysiwygEditor';
+import MDEditor from '@uiw/react-md-editor';
+import { sharpenPlaybook } from '@/domain/ai/sharpenPlaybook';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,28 +45,17 @@ function stripHtml(html: string) {
   return d.textContent || d.innerText || '';
 }
 
-const COLLECTION_META: Record<KnowledgeCollection, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
-  'product': {
-    label: 'Product',
-    icon: <BookOpen size={14} />,
-    bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200',
-  },
-  'personal-growth': {
-    label: 'Personal Growth',
-    icon: <Brain size={14} />,
-    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200',
-  },
-  'ai-tools': {
-    label: 'AI & Tools',
-    icon: <Wrench size={14} />,
-    bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200',
-  },
-  'work-docs': {
-    label: 'Work Docs',
-    icon: <Briefcase size={14} />,
-    bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200',
-  },
+// Static color presets for user-defined collections (full tailwind classes for PurgeCSS safety)
+const COLOR_PRESETS: Record<string, { border: string; badge: string; swatch: string }> = {
+  blue:    { border: 'border-l-blue-400',    badge: 'bg-blue-50 text-blue-700 border-blue-200',         swatch: 'bg-blue-400' },
+  emerald: { border: 'border-l-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', swatch: 'bg-emerald-400' },
+  violet:  { border: 'border-l-violet-400',  badge: 'bg-violet-50 text-violet-700 border-violet-200',    swatch: 'bg-violet-400' },
+  amber:   { border: 'border-l-amber-400',   badge: 'bg-amber-50 text-amber-700 border-amber-200',       swatch: 'bg-amber-400' },
+  rose:    { border: 'border-l-rose-400',    badge: 'bg-rose-50 text-rose-700 border-rose-200',          swatch: 'bg-rose-400' },
+  indigo:  { border: 'border-l-indigo-400',  badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',    swatch: 'bg-indigo-400' },
+  slate:   { border: 'border-l-slate-400',   badge: 'bg-slate-100 text-slate-600 border-slate-300',      swatch: 'bg-slate-400' },
 };
+const COLOR_NAMES = Object.keys(COLOR_PRESETS);
 
 // ── file type helpers ─────────────────────────────────────────────────────────
 
@@ -89,13 +81,14 @@ function FileTypeBadge({ fileType, fileName }: { fileType?: string; fileName?: s
   );
 }
 
-function CollectionBadge({ collection }: { collection?: KnowledgeCollection }) {
+function CollectionBadge({ collection, userCollections }: { collection?: string; userCollections: UserCollection[] }) {
   if (!collection) return null;
-  const m = COLLECTION_META[collection];
-  if (!m) return null;
+  const col = userCollections.find((c) => c.id === collection);
+  if (!col) return null;
+  const preset = COLOR_PRESETS[col.color] || COLOR_PRESETS.slate;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${m.bg} ${m.text} ${m.border}`}>
-      {m.icon}{m.label}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${preset.badge}`}>
+      {col.label}
     </span>
   );
 }
@@ -104,14 +97,15 @@ function CollectionBadge({ collection }: { collection?: KnowledgeCollection }) {
 
 interface UploadModalProps {
   file: File;
-  onSave: (title: string, collection: KnowledgeCollection | undefined, tags: string[]) => void;
+  onSave: (title: string, collection: string | undefined, tags: string[]) => void;
   onCancel: () => void;
   extractedContent: string;
+  userCollections: UserCollection[];
 }
 
-function UploadModal({ file, onSave, onCancel, extractedContent }: UploadModalProps) {
+function UploadModal({ file, onSave, onCancel, extractedContent, userCollections }: UploadModalProps) {
   const [title, setTitle] = useState(file.name.replace(/\.[^.]+$/, ''));
-  const [collection, setCollection] = useState<KnowledgeCollection | ''>('');
+  const [collection, setCollection] = useState<string>('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [loadingTags, setLoadingTags] = useState(false);
@@ -151,27 +145,30 @@ function UploadModal({ file, onSave, onCancel, extractedContent }: UploadModalPr
           </div>
 
           {/* Collection */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Collection</label>
-            <div className="grid grid-cols-2 gap-2">
-              {KNOWLEDGE_COLLECTIONS.map((c) => {
-                const m = COLLECTION_META[c.id];
-                const selected = collection === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCollection(selected ? '' : c.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-                      selected ? `${m.bg} ${m.text} ${m.border} border-2` : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {m.icon}{m.label}
-                  </button>
-                );
-              })}
+          {userCollections.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Collection</label>
+              <div className="flex flex-wrap gap-2">
+                {userCollections.map((c) => {
+                  const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
+                  const selected = collection === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCollection(selected ? '' : c.id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                        selected ? `${preset.badge} border-2` : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${preset.swatch}`} />
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tags */}
           <div>
@@ -214,7 +211,7 @@ function UploadModal({ file, onSave, onCancel, extractedContent }: UploadModalPr
             Cancel
           </button>
           <button
-            onClick={() => onSave(title.trim() || file.name, collection as KnowledgeCollection | undefined || undefined, tags)}
+            onClick={() => onSave(title.trim() || file.name, collection || undefined, tags)}
             disabled={!title.trim()}
             className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-medium"
           >
@@ -229,15 +226,17 @@ function UploadModal({ file, onSave, onCancel, extractedContent }: UploadModalPr
 // ── note modal ────────────────────────────────────────────────────────────────
 
 interface NoteModalProps {
-  initial?: { title: string; content: string; tags: string[]; collection?: KnowledgeCollection };
-  onSave: (title: string, content: string, tags: string[], collection?: KnowledgeCollection) => void;
+  initial?: { title: string; content: string; tags: string[]; collection?: string };
+  onSave: (title: string, content: string, tags: string[], collection?: string) => void;
   onCancel: () => void;
+  userCollections: UserCollection[];
+  isDocument?: boolean;
 }
 
-function NoteModal({ initial, onSave, onCancel }: NoteModalProps) {
+function NoteModal({ initial, onSave, onCancel, userCollections, isDocument }: NoteModalProps) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [content, setContent] = useState(initial?.content ?? '');
-  const [collection, setCollection] = useState<KnowledgeCollection | ''>(initial?.collection ?? '');
+  const [collection, setCollection] = useState<string>(initial?.collection ?? '');
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
 
@@ -250,7 +249,7 @@ function NoteModal({ initial, onSave, onCancel }: NoteModalProps) {
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-[640px] max-h-[90vh] flex flex-col">
         <div className="p-6 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-800">{initial ? 'Edit Note' : 'New Note'}</h2>
+          <h2 className="text-lg font-semibold text-slate-800">{initial ? (isDocument ? 'Edit Document' : 'Edit Note') : 'New Note'}</h2>
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto space-y-4">
@@ -264,24 +263,27 @@ function NoteModal({ initial, onSave, onCancel }: NoteModalProps) {
           />
 
           {/* Collection */}
-          <div className="grid grid-cols-4 gap-2">
-            {KNOWLEDGE_COLLECTIONS.map((c) => {
-              const m = COLLECTION_META[c.id];
-              const selected = collection === c.id;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCollection(selected ? '' : c.id)}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                    selected ? `${m.bg} ${m.text} ${m.border} border-2` : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {m.icon}{m.label}
-                </button>
-              );
-            })}
-          </div>
+          {userCollections.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {userCollections.map((c) => {
+                const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
+                const selected = collection === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCollection(selected ? '' : c.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      selected ? `${preset.badge} border-2` : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${preset.swatch}`} />
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="border border-slate-200 rounded-lg overflow-hidden min-h-[200px]">
             <WysiwygEditor initialContent={content} onChange={setContent} onBlur={() => {}} />
@@ -317,14 +319,239 @@ function NoteModal({ initial, onSave, onCancel }: NoteModalProps) {
         <div className="p-6 pt-0 flex justify-end gap-2 border-t border-slate-100">
           <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
           <button
-            onClick={() => onSave(title.trim(), content, tags, collection as KnowledgeCollection | undefined || undefined)}
+            onClick={() => onSave(title.trim(), content, tags, collection || undefined)}
             disabled={!title.trim()}
             className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-medium"
           >
-            Save Note
+            {isDocument ? 'Save Document' : 'Save Note'}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── document editor modal (full-screen markdown) ─────────────────────────────
+
+interface DocumentEditorModalProps {
+  item: ProductKnowledgeItem;
+  userCollections: UserCollection[];
+  onSave: (updates: Partial<ProductKnowledgeItem>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}
+
+function DocumentEditorModal({ item, userCollections, onSave, onDelete, onClose }: DocumentEditorModalProps) {
+  const [title, setTitle] = useState(item.title);
+  const [content, setContent] = useState(item.editableContent || item.content || '');
+  const [collection, setCollection] = useState(item.collection ?? '');
+  const [tags, setTags] = useState<string[]>(item.tags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [preview, setPreview] = useState<'edit' | 'live' | 'preview'>('live');
+  const [synced, setSynced] = useState(false);
+  const [sharpening, setSharpening] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const handleSave = () => {
+    onSave({ title, editableContent: content, collection: collection || undefined, tags });
+  };
+
+  const handleDownload = async () => {
+    await invoke('save_to_downloads', { filename: `${slug}.md`, content });
+  };
+
+  const handleSharpen = async () => {
+    if (sharpening || !content.trim()) return;
+    setSharpening(true);
+    try {
+      const sharpened = await sharpenPlaybook(title, content);
+      setContent(sharpened);
+    } catch (e) {
+      console.error('Sharpen failed:', e);
+    } finally {
+      setSharpening(false);
+    }
+  };
+
+  const handleSyncToClaude = async () => {
+    try {
+      await invoke('write_claude_command', { filename: `${slug}.md`, content });
+      setSynced(true);
+      setTimeout(() => setSynced(false), 2000);
+    } catch (e) {
+      console.error('Sync to Claude failed:', e);
+    }
+  };
+
+  const addTag = (t: string) => {
+    const clean = t.trim().toLowerCase();
+    if (clean && !tags.includes(clean)) setTags((prev) => [...prev, clean]);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col bg-[#1e1e1e]" data-color-mode="dark">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-[#252526] border-b border-[#3c3c3c] shrink-0">
+        <button
+          onClick={() => { handleSave(); onClose(); }}
+          className="p-1.5 rounded hover:bg-white/10 text-[#cccccc] transition-colors"
+          title="Close"
+        >
+          <ArrowLeft size={16} />
+        </button>
+
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="flex-1 bg-transparent text-sm font-medium text-[#cccccc] focus:outline-none placeholder:text-[#6e6e6e]"
+          placeholder="Document title"
+        />
+
+        {/* View toggle */}
+        <div className="flex bg-[#3c3c3c] rounded overflow-hidden text-xs font-medium">
+          {(['edit', 'live', 'preview'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setPreview(mode)}
+              className={`px-3 py-1.5 transition-colors capitalize ${
+                preview === mode ? 'bg-[#0e639c] text-white' : 'text-[#cccccc] hover:bg-white/10'
+              }`}
+            >
+              {mode === 'live' ? 'Split' : mode === 'preview' ? 'Preview' : 'Edit'}
+            </button>
+          ))}
+        </div>
+
+        <div className="w-px h-5 bg-[#3c3c3c]" />
+
+        <button
+          onClick={handleSharpen}
+          disabled={sharpening}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-[#cccccc] hover:bg-white/10 disabled:opacity-50 transition-colors"
+          title="Restructure into a field guide with Quick Reference block"
+        >
+          {sharpening
+            ? <><Loader2 size={13} className="animate-spin" /> Sharpening…</>
+            : <><Sparkles size={13} className="text-violet-400" /> Sharpen</>
+          }
+        </button>
+
+        <div className="w-px h-5 bg-[#3c3c3c]" />
+
+        <button
+          onClick={handleDownload}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-[#cccccc] hover:bg-white/10 transition-colors"
+          title="Download as .md"
+        >
+          <Download size={13} /> Download
+        </button>
+
+        <button
+          onClick={handleSyncToClaude}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+            synced ? 'text-emerald-400' : 'text-[#cccccc] hover:bg-white/10'
+          }`}
+          title="Sync to Claude as slash command"
+        >
+          {synced ? <><Check size={13} /> Synced</> : <><Share2 size={13} /> → Claude</>}
+        </button>
+
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="p-1.5 rounded hover:bg-red-900/40 text-[#cccccc] hover:text-red-400 transition-colors"
+          title="Delete"
+        >
+          <Trash2 size={14} />
+        </button>
+
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-[#0e639c] hover:bg-[#1177bb] text-white transition-colors"
+        >
+          Save
+        </button>
+      </div>
+
+      {/* Collection + tags row */}
+      <div className="flex items-center gap-2 px-4 py-1.5 bg-[#252526] border-b border-[#3c3c3c] shrink-0 overflow-x-auto">
+        <span className="text-xs text-[#6e6e6e] shrink-0">Collection:</span>
+        <button
+          onClick={() => setCollection('')}
+          className={`px-2 py-0.5 rounded text-xs transition-colors ${!collection ? 'bg-[#0e639c] text-white' : 'text-[#9d9d9d] hover:text-[#cccccc]'}`}
+        >
+          None
+        </button>
+        {userCollections.map((c) => {
+          const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
+          return (
+            <button
+              key={c.id}
+              onClick={() => setCollection(collection === c.id ? '' : c.id)}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+                collection === c.id ? 'bg-[#0e639c] text-white' : 'text-[#9d9d9d] hover:text-[#cccccc]'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${preset.swatch}`} />
+              {c.label}
+            </button>
+          );
+        })}
+        <div className="w-px h-3.5 bg-[#3c3c3c] mx-1 shrink-0" />
+        <span className="text-xs text-[#6e6e6e] shrink-0">Tags:</span>
+        {tags.map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#3c3c3c] text-[#9d9d9d] rounded text-xs shrink-0">
+            {tag}
+            <button onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-red-400"><X size={9} /></button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); setTagInput(''); }
+          }}
+          placeholder="+ tag"
+          className="bg-transparent text-xs text-[#cccccc] focus:outline-none placeholder:text-[#6e6e6e] w-16 min-w-0"
+        />
+      </div>
+
+      {/* Editor */}
+      <div className="flex-1 overflow-hidden" data-color-mode="dark">
+        <MDEditor
+          value={content}
+          onChange={(val) => setContent(val ?? '')}
+          preview={preview}
+          height="100%"
+          style={{ height: '100%', backgroundColor: '#1e1e1e' }}
+          visibleDragbar={false}
+          hideToolbar={false}
+        />
+      </div>
+
+      {/* Slash command hint */}
+      <div className="px-4 py-1.5 bg-[#252526] border-t border-[#3c3c3c] shrink-0">
+        <p className="text-[10px] text-[#6e6e6e]">
+          Slash command: <span className="text-[#9d9d9d] font-mono">/{slug}</span> · Sync to make available in Claude Code
+        </p>
+      </div>
+
+      {/* Delete confirm */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60">
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-sm font-semibold text-[#cccccc]">Delete "{title}"?</h2>
+            <p className="text-xs text-[#6e6e6e] mt-1">This cannot be undone.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setConfirmDelete(false)} className="px-4 py-2 text-xs rounded border border-[#3c3c3c] text-[#9d9d9d] hover:bg-white/5">Cancel</button>
+              <button onClick={() => { onDelete(); onClose(); }} className="px-4 py-2 text-xs rounded bg-red-700 hover:bg-red-600 text-white font-medium">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -339,6 +566,7 @@ interface ReadingModeProps {
 }
 
 function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
+  const userCollections = useAppStore((s) => s.userCollections);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
@@ -396,7 +624,7 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
               {isDocument && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
             </div>
             <div className="flex items-center gap-2">
-              {item.collection && <CollectionBadge collection={item.collection} />}
+              {item.collection && <CollectionBadge collection={item.collection} userCollections={userCollections} />}
               {item.fileName && (
                 <span className="text-xs text-slate-400">{item.fileName}{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</span>
               )}
@@ -514,13 +742,22 @@ const KnowledgeViewInner: React.FC = () => {
   const updateKnowledgeCommand = useAppStore((s) => s.updateKnowledgeCommand);
   const deleteKnowledgeCommand = useAppStore((s) => s.deleteKnowledgeCommand);
 
+  const userCollections = useAppStore((s) => s.userCollections);
+  const addUserCollection = useAppStore((s) => s.addUserCollection);
+  const deleteUserCollection = useAppStore((s) => s.deleteUserCollection);
+
   const [activeTab, setActiveTab] = useState<'documents' | 'commands'>('commands');
   const [showCommandModal, setShowCommandModal] = useState(false);
   const [editingCommand, setEditingCommand] = useState<KnowledgeCommand | null>(null);
   const [runningCommand, setRunningCommand] = useState<KnowledgeCommand | null>(null);
   const [pendingDeleteCommandId, setPendingDeleteCommandId] = useState<string | null>(null);
 
-  const [activeCollection, setActiveCollection] = useState<KnowledgeCollection | 'all'>('all');
+  const [activeCollection, setActiveCollection] = useState<string | 'all'>('all');
+
+  // New collection inline creation
+  const [showNewCollection, setShowNewCollection] = useState(false);
+  const [newColName, setNewColName] = useState('');
+  const [newColColor, setNewColColor] = useState('blue');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -535,7 +772,10 @@ const KnowledgeViewInner: React.FC = () => {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ProductKnowledgeItem | null>(null);
 
-  // Reading mode
+  // Document editor (full-screen markdown)
+  const [editingDocument, setEditingDocument] = useState<ProductKnowledgeItem | null>(null);
+
+  // Reading mode (legacy — only used for notes that haven't switched yet)
   const [readingItem, setReadingItem] = useState<ProductKnowledgeItem | null>(null);
 
   // AI ask
@@ -590,7 +830,7 @@ const KnowledgeViewInner: React.FC = () => {
 
   const allTags = Array.from(new Set(productKnowledge.flatMap((i) => i.tags || []))).sort();
 
-  const countFor = (col: KnowledgeCollection) => productKnowledge.filter((i) => i.collection === col).length;
+  const countFor = (col: string) => productKnowledge.filter((i) => i.collection === col).length;
 
   // ── drag & drop ──
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -629,43 +869,34 @@ const KnowledgeViewInner: React.FC = () => {
     e.target.value = '';
   }, [processFile]);
 
-  // ── save uploaded doc ──
-  const handleUploadSave = async (
-    title: string,
-    collection: KnowledgeCollection | undefined,
-    tags: string[]
-  ) => {
+  // ── save uploaded doc — extract text only, no binary storage ──
+  const handleUploadSave = (title: string, collection: string | undefined, tags: string[]) => {
     if (!pendingFile) return;
-    try {
-      const arrayBuffer = await pendingFile.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const filePath = await saveKnowledgeFile(pendingFile.name, bytes);
-      const item: ProductKnowledgeItem = {
-        id: generateId(),
-        title,
-        type: 'document',
-        content: pendingContent,
-        filePath,
-        fileName: pendingFile.name,
-        fileType: pendingFile.type,
-        fileSize: pendingFile.size,
-        tags,
-        collection,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      addKnowledgeItem(item);
-    } catch (err) {
-      console.error('Upload failed:', err);
-    }
+    const item: ProductKnowledgeItem = {
+      id: generateId(),
+      title,
+      type: 'document',
+      content: pendingContent,
+      fileName: pendingFile.name,
+      fileType: pendingFile.type,
+      fileSize: pendingFile.size,
+      tags,
+      collection,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    addKnowledgeItem(item);
     setPendingFile(null);
     setPendingContent('');
   };
 
-  // ── save note ──
-  const handleNoteSave = (title: string, content: string, tags: string[], collection?: KnowledgeCollection) => {
+  // ── save note/document ──
+  const handleNoteSave = (title: string, content: string, tags: string[], collection?: string) => {
     if (editingItem) {
-      updateKnowledgeItem(editingItem.id, { title, content, tags, collection });
+      const updates = editingItem.type === 'document'
+        ? { title, editableContent: content, tags, collection }
+        : { title, content, tags, collection };
+      updateKnowledgeItem(editingItem.id, updates);
       setEditingItem(null);
     } else {
       addKnowledgeItem({
@@ -777,8 +1008,8 @@ const KnowledgeViewInner: React.FC = () => {
           <span className="text-xs text-slate-400">{productKnowledge.length}</span>
         </button>
 
-        {KNOWLEDGE_COLLECTIONS.map((c) => {
-          const m = COLLECTION_META[c.id];
+        {userCollections.map((c) => {
+          const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
           const count = countFor(c.id);
           const active = activeCollection === c.id;
           return (
@@ -787,17 +1018,80 @@ const KnowledgeViewInner: React.FC = () => {
               onClick={() => setActiveCollection(c.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
                 active
-                  ? `bg-white text-slate-900 shadow-sm border border-slate-200 font-medium`
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200 font-medium'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <span className={`flex items-center gap-2 ${active ? m.text : ''}`}>
-                {m.icon}{m.label}
+              <span className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${preset.swatch}`} />
+                {c.label}
               </span>
               <span className="text-xs text-slate-400">{count}</span>
             </button>
           );
         })}
+
+        {/* Inline new-collection form */}
+        {showNewCollection ? (
+          <div className="mt-1 p-2 bg-white border border-slate-200 rounded-lg space-y-2">
+            <input
+              autoFocus
+              type="text"
+              value={newColName}
+              onChange={(e) => setNewColName(e.target.value)}
+              placeholder="Collection name"
+              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newColName.trim()) {
+                  addUserCollection({ id: generateId(), label: newColName.trim(), color: newColColor });
+                  setNewColName('');
+                  setNewColColor('blue');
+                  setShowNewCollection(false);
+                } else if (e.key === 'Escape') {
+                  setShowNewCollection(false);
+                }
+              }}
+            />
+            <div className="flex gap-1.5 flex-wrap">
+              {COLOR_NAMES.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setNewColColor(name)}
+                  className={`w-4 h-4 rounded-full ${COLOR_PRESETS[name].swatch} ${newColColor === name ? 'ring-2 ring-offset-1 ring-slate-500' : ''}`}
+                />
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  if (newColName.trim()) {
+                    addUserCollection({ id: generateId(), label: newColName.trim(), color: newColColor });
+                    setNewColName('');
+                    setNewColColor('blue');
+                    setShowNewCollection(false);
+                  }
+                }}
+                className="flex-1 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setShowNewCollection(false)}
+                className="px-2 py-1 text-xs border border-slate-200 text-slate-500 rounded hover:bg-slate-50"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowNewCollection(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <Plus size={12} /> New collection
+          </button>
+        )}
 
         <div className="mt-auto pt-3 border-t border-slate-200 space-y-1">
           <button
@@ -892,7 +1186,9 @@ const KnowledgeViewInner: React.FC = () => {
                           key={c.id}
                           onClick={() => {
                             const item = productKnowledge.find((i) => i.id === c.id);
-                            if (item) setReadingItem(item);
+                            if (!item) return;
+                            if (item.type === 'document') setEditingDocument(item);
+                            else { setEditingItem(item); setShowNoteModal(true); }
                           }}
                           className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-violet-200 text-violet-700 rounded-full text-xs hover:bg-violet-100 transition-colors"
                         >
@@ -979,10 +1275,20 @@ const KnowledgeViewInner: React.FC = () => {
                 <KnowledgeCard
                   key={item.id}
                   item={item}
-                  onClick={() => setReadingItem(item)}
+                  userCollections={userCollections}
+                  onClick={() => {
+                    if (item.type === 'document') {
+                      setEditingDocument(item);
+                    } else {
+                      setEditingItem(item);
+                      setShowNoteModal(true);
+                    }
+                  }}
                   onDelete={() => handleDelete(item.id)}
                   onEdit={() => {
-                    if (item.type === 'note') {
+                    if (item.type === 'document') {
+                      setEditingDocument(item);
+                    } else {
                       setEditingItem(item);
                       setShowNoteModal(true);
                     }
@@ -995,11 +1301,26 @@ const KnowledgeViewInner: React.FC = () => {
         </div>
       </div>
 
+      {/* Document editor (full-screen markdown) */}
+      {editingDocument && (
+        <DocumentEditorModal
+          item={editingDocument}
+          userCollections={userCollections}
+          onSave={(updates) => updateKnowledgeItem(editingDocument.id, updates)}
+          onDelete={() => {
+            deleteKnowledgeItem(editingDocument.id);
+            setEditingDocument(null);
+          }}
+          onClose={() => setEditingDocument(null)}
+        />
+      )}
+
       {/* Modals */}
       {pendingFile && (
         <UploadModal
           file={pendingFile}
           extractedContent={pendingContent}
+          userCollections={userCollections}
           onSave={handleUploadSave}
           onCancel={() => { setPendingFile(null); setPendingContent(''); }}
         />
@@ -1009,10 +1330,12 @@ const KnowledgeViewInner: React.FC = () => {
         <NoteModal
           initial={editingItem ? {
             title: editingItem.title,
-            content: editingItem.content || '',
+            content: editingItem.editableContent || editingItem.content || '',
             tags: editingItem.tags || [],
             collection: editingItem.collection,
           } : undefined}
+          isDocument={editingItem?.type === 'document'}
+          userCollections={userCollections}
           onSave={handleNoteSave}
           onCancel={() => { setShowNoteModal(false); setEditingItem(null); }}
         />
@@ -1067,6 +1390,9 @@ const KnowledgeViewInner: React.FC = () => {
             } else {
               addKnowledgeCommand({ id: generateId(), ...data, createdAt: now, updatedAt: now });
             }
+            const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            const content = data.description ? `${data.description}\n\n${data.prompt}` : data.prompt;
+            invoke('write_claude_command', { filename: `${slug}.md`, content }).catch(() => {});
             setShowCommandModal(false);
             setEditingCommand(null);
           }}
@@ -1096,12 +1422,14 @@ function KnowledgeCard({
   onDelete,
   onEdit,
   onCollectionChange,
+  userCollections,
 }: {
   item: ProductKnowledgeItem;
   onClick: () => void;
   onDelete: () => void;
   onEdit: () => void;
-  onCollectionChange: (col: KnowledgeCollection | undefined) => void;
+  onCollectionChange: (col: string | undefined) => void;
+  userCollections: UserCollection[];
 }) {
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -1121,12 +1449,10 @@ function KnowledgeCard({
     ? stripHtml(item.content || '').substring(0, 200)
     : (item.content || '').substring(0, 200);
 
-  const accentColor = item.collection ? {
-    'product': 'border-l-blue-400',
-    'personal-growth': 'border-l-emerald-400',
-    'ai-tools': 'border-l-violet-400',
-    'work-docs': 'border-l-amber-400',
-  }[item.collection] : 'border-l-slate-200';
+  const colEntry = item.collection ? userCollections.find((c) => c.id === item.collection) : undefined;
+  const accentColor = colEntry
+    ? (COLOR_PRESETS[colEntry.color] || COLOR_PRESETS.slate).border
+    : 'border-l-slate-200';
 
   return (
     <div
@@ -1179,7 +1505,7 @@ function KnowledgeCard({
               title="Change collection"
             >
               {item.collection
-                ? <CollectionBadge collection={item.collection} />
+                ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
                 : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500">
                     + collection
                   </span>
@@ -1188,8 +1514,11 @@ function KnowledgeCard({
 
             {showCollectionPicker && (
               <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 min-w-[160px]">
-                {KNOWLEDGE_COLLECTIONS.map((c) => {
-                  const m = COLLECTION_META[c.id];
+                {userCollections.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-slate-400">No collections yet</p>
+                )}
+                {userCollections.map((c) => {
+                  const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
                   const active = item.collection === c.id;
                   return (
                     <button
@@ -1199,11 +1528,12 @@ function KnowledgeCard({
                         setShowCollectionPicker(false);
                       }}
                       className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        active ? `${m.bg} ${m.text}` : 'text-slate-600 hover:bg-slate-50'
+                        active ? preset.badge : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      {m.icon}{m.label}
-                      {active && <span className="ml-auto text-slate-400">✓</span>}
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${preset.swatch}`} />
+                      {c.label}
+                      {active && <span className="ml-auto">✓</span>}
                     </button>
                   );
                 })}
@@ -1263,6 +1593,19 @@ function CommandsPanel({
   onDuplicate: (cmd: KnowledgeCommand) => void;
 }) {
   const [search, setSearch] = useState('');
+  const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
+
+  async function syncToClaudeCommand(cmd: KnowledgeCommand) {
+    const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const content = cmd.description ? `${cmd.description}\n\n${cmd.prompt}` : cmd.prompt;
+    try {
+      await invoke('write_claude_command', { filename: `${slug}.md`, content });
+      setSyncedIds((prev) => new Set(prev).add(cmd.id));
+      setTimeout(() => setSyncedIds((prev) => { const n = new Set(prev); n.delete(cmd.id); return n; }), 2000);
+    } catch (e) {
+      console.error('Failed to sync command to Claude:', e);
+    }
+  }
   const filtered = commands.filter((c) =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.description.toLowerCase().includes(search.toLowerCase())
   );
@@ -1325,6 +1668,13 @@ function CommandsPanel({
                       <p className="text-[11px] text-slate-400 font-mono line-clamp-2 mt-1.5 leading-relaxed">{cmd.prompt}</p>
                     </div>
                     <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => syncToClaudeCommand(cmd)}
+                        title="Sync to Claude Code as slash command"
+                        className={`p-1.5 rounded-lg transition-colors ${syncedIds.has(cmd.id) ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}
+                      >
+                        {syncedIds.has(cmd.id) ? <Check size={13} /> : <Share2 size={13} />}
+                      </button>
                       <button onClick={() => onDuplicate(cmd)} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
                         <Copy size={13} />
                       </button>

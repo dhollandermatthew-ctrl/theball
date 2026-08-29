@@ -1,12 +1,12 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance, UserCollection } from "./types";
 
   import { enqueue, triggerSync } from "@/db/sync";
   import { db, client } from "@/db/client";
   import { eq } from "drizzle-orm";
-  import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange } from "@/db/offlineStorage";
+  import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange, saveUserCollections, loadUserCollections } from "@/db/offlineStorage";
 
   import {
     tasks as tasksTable,
@@ -90,6 +90,7 @@ export interface AppState {
   healthData: HealthData;
   productKnowledge: ProductKnowledgeItem[];
   knowledgeCommands: KnowledgeCommand[];
+  userCollections: UserCollection[];
   transcripts: TranscriptRecord[];
 
   settings: Settings;
@@ -156,6 +157,11 @@ export interface AppState {
     updateKnowledgeCommand: (id: string, updates: Partial<KnowledgeCommand>) => void;
     deleteKnowledgeCommand: (id: string) => void;
 
+    // User Collections
+    addUserCollection: (col: UserCollection) => void;
+    updateUserCollection: (id: string, updates: Partial<UserCollection>) => void;
+    deleteUserCollection: (id: string) => void;
+
     // Transcripts
     addTranscript: (record: TranscriptRecord) => void;
     updateTranscript: (id: string, updates: Partial<TranscriptRecord>) => void;
@@ -182,6 +188,7 @@ export const defaultState: Pick<
   | "healthData"
   | "productKnowledge"
   | "knowledgeCommands"
+  | "userCollections"
   | "transcripts"
   | "settings"
   | "hydrated"
@@ -199,6 +206,7 @@ export const defaultState: Pick<
   },
   productKnowledge: [],
   knowledgeCommands: [],
+  userCollections: loadUserCollections(),
   transcripts: [],
 
     settings: {
@@ -1041,6 +1049,31 @@ loadGoals: (goals) =>
           state.knowledgeCommands = state.knowledgeCommands.filter((c) => c.id !== id);
           backupToLocalStorage({ knowledgeCommands: state.knowledgeCommands });
           enqueue({ type: "delete", table: "knowledgeCommands", id });
+        }),
+
+      // ---------------------- USER COLLECTIONS ----------------------
+      addUserCollection: (col) =>
+        set((state) => {
+          state.userCollections = [...state.userCollections, col];
+          saveUserCollections(state.userCollections);
+        }),
+
+      updateUserCollection: (id, updates) =>
+        set((state) => {
+          const idx = state.userCollections.findIndex((c) => c.id === id);
+          if (idx !== -1) state.userCollections[idx] = { ...state.userCollections[idx], ...updates };
+          saveUserCollections(state.userCollections);
+        }),
+
+      deleteUserCollection: (id) =>
+        set((state) => {
+          state.userCollections = state.userCollections.filter((c) => c.id !== id);
+          // Clear collection from any items that had it
+          state.productKnowledge = state.productKnowledge.map((item) =>
+            item.collection === id ? { ...item, collection: undefined } : item
+          );
+          saveUserCollections(state.userCollections);
+          backupToLocalStorage({ productKnowledge: state.productKnowledge });
         }),
 
       // ---------------------- TRANSCRIPTS ----------------------

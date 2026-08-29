@@ -423,6 +423,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     Calendar
   </button>
 
+  {/* Playbook */}
+  <button
+    onClick={() => onNavigate("product-knowledge")}
+    className={cn(
+      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+      currentView === "product-knowledge"
+        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )}
+  >
+    <BookOpen size={18} className={cn("transition-colors", currentView === "product-knowledge" ? "text-purple-600" : "text-slate-400")} />
+    Playbook
+  </button>
+
   {/* Transcripts */}
   <button
     onClick={() => onNavigate("transcripts")}
@@ -435,20 +449,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   >
     <Mic size={18} className={cn("transition-colors", currentView === "transcripts" ? "text-green-600" : "text-slate-400")} />
     Transcripts
-  </button>
-
-  {/* Knowledge */}
-  <button
-    onClick={() => onNavigate("product-knowledge")}
-    className={cn(
-      "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-      currentView === "product-knowledge"
-        ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-        : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-    )}
-  >
-    <BookOpen size={18} className={cn("transition-colors", currentView === "product-knowledge" ? "text-purple-600" : "text-slate-400")} />
-    Knowledge
   </button>
 
   {/* More toggle */}

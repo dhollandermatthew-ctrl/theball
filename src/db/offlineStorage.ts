@@ -11,6 +11,7 @@ import type {
   ProductKnowledgeItem,
   KnowledgeCommand,
   TranscriptRecord,
+  UserCollection,
 } from "@/domain/types";
 
 const STORAGE_KEYS = {
@@ -23,6 +24,7 @@ const STORAGE_KEYS = {
   KNOWLEDGE: 'theball-offline-knowledge',
   TRANSCRIPTS: 'theball-offline-transcripts',
   COMMANDS: 'theball-offline-commands',
+  USER_COLLECTIONS: 'theball-user-collections',
   SYNC_QUEUE: 'theball-sync-queue',
   LAST_SYNC: 'theball-last-sync',
 } as const;
@@ -162,6 +164,25 @@ export function clearSyncQueue() {
 
 export function isOnline(): boolean {
   return navigator.onLine;
+}
+
+// ==================== USER COLLECTIONS (localStorage-only) ====================
+
+export function saveUserCollections(collections: UserCollection[]) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.USER_COLLECTIONS, JSON.stringify(collections));
+  } catch (e) {
+    console.error('[Offline] Failed to save user collections:', e);
+  }
+}
+
+export function loadUserCollections(): UserCollection[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.USER_COLLECTIONS);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function onOnlineStatusChange(callback: (online: boolean) => void) {

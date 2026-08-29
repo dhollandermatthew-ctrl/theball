@@ -203,21 +203,20 @@
   // PRODUCT KNOWLEDGE
   // --------------------------------------------------
 
-  export type KnowledgeCollection = 'product' | 'personal-growth' | 'ai-tools' | 'work-docs';
 
-  export const KNOWLEDGE_COLLECTIONS: { id: KnowledgeCollection; label: string; color: string }[] = [
-    { id: 'product', label: 'Product', color: 'text-blue-600' },
-    { id: 'personal-growth', label: 'Personal Growth', color: 'text-emerald-600' },
-    { id: 'ai-tools', label: 'AI & Tools', color: 'text-violet-600' },
-    { id: 'work-docs', label: 'Work Docs', color: 'text-amber-600' },
-  ];
+  export interface UserCollection {
+    id: string;
+    label: string;
+    color: string; // tailwind text color class e.g. 'text-blue-600'
+  }
 
   export interface ProductKnowledgeItem {
     id: string;
     title: string;
     type: 'note' | 'document';
-    content?: string; // Extracted text for search
-    collection?: KnowledgeCollection;
+    content?: string;        // Extracted text for search / original file text
+    editableContent?: string; // User-edited rich text (HTML from Wysiwyg)
+    collection?: string;     // UserCollection id
 
     // File metadata (documents only)
     filePath?: string; // Absolute path on disk: ~/Documents/The Ball/Knowledge/
