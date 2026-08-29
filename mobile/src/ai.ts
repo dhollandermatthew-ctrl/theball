@@ -46,6 +46,7 @@ Priority:
   }
 
   const data = await res.json();
+  if (!data.choices?.length) throw new Error('429 no choices returned');
   const text = (data.choices[0].message.content as string).trim().replace(/```json\n?|\n?```/g, '');
   return JSON.parse(text) as ParsedTask;
 }

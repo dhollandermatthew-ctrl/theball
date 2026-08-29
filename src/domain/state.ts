@@ -1001,6 +1001,7 @@ loadGoals: (goals) =>
       addKnowledgeCommand: (cmd) =>
         set((state) => {
           state.knowledgeCommands = [cmd, ...state.knowledgeCommands];
+          backupToLocalStorage({ knowledgeCommands: state.knowledgeCommands });
           enqueue({
             type: "insert",
             table: "knowledgeCommands",
@@ -1022,6 +1023,7 @@ loadGoals: (goals) =>
           if (!cmd) return;
           Object.assign(cmd, updates);
           cmd.updatedAt = new Date().toISOString();
+          backupToLocalStorage({ knowledgeCommands: state.knowledgeCommands });
           enqueue({
             type: "update",
             table: "knowledgeCommands",
@@ -1037,6 +1039,7 @@ loadGoals: (goals) =>
       deleteKnowledgeCommand: (id) =>
         set((state) => {
           state.knowledgeCommands = state.knowledgeCommands.filter((c) => c.id !== id);
+          backupToLocalStorage({ knowledgeCommands: state.knowledgeCommands });
           enqueue({ type: "delete", table: "knowledgeCommands", id });
         }),
 
@@ -1161,6 +1164,19 @@ loadGoals: (goals) =>
       try {
         await client.execute("ALTER TABLE product_knowledge ADD COLUMN filePath TEXT");
       } catch (_) { /* column already exists */ }
+
+      // Create knowledge_commands table if it doesn't exist yet (new in v0.1.23)
+      try {
+        await client.execute(`CREATE TABLE IF NOT EXISTS knowledge_commands (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          prompt TEXT NOT NULL,
+          linkedDocumentIds TEXT NOT NULL DEFAULT '[]',
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        )`);
+      } catch (_) { /* table already exists */ }
 
       const queryStart = performance.now();
       const [

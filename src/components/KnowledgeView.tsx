@@ -342,6 +342,7 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const isPdf = item.fileType === 'application/pdf';
   const isDocument = item.type === 'document';
@@ -416,7 +417,7 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
               <Edit3 size={14} /> Edit
             </button>
           )}
-          <button onClick={onDelete} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+          <button onClick={() => setConfirmingDelete(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
             <Trash2 size={14} /> Delete
           </button>
         </div>
@@ -475,6 +476,23 @@ function ReadingMode({ item, onClose, onEdit, onDelete }: ReadingModeProps) {
           </div>
         )}
       </div>
+
+      {confirmingDelete && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-base font-semibold text-slate-800">Delete this item?</h2>
+            <p className="text-sm text-slate-500 mt-1">{item.title}</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setConfirmingDelete(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={onDelete} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -510,7 +510,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await db.execute({ sql, args: params });
         const rows = result.rows.map((r) => {
           const row = r as Record<string, unknown>;
-          const linkedDocumentIds: string[] = tryParse(row.linkedDocumentIds as string) ?? [];
+          const parsed = tryParse(row.linkedDocumentIds as string);
+          const linkedDocumentIds: string[] = Array.isArray(parsed) ? parsed : [];
           const vars = extractVariables(row.prompt as string);
           return {
             id: row.id,
@@ -544,7 +545,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (!row) return text('Command not found. Use get_commands to list available commands.');
 
-        const linkedDocumentIds: string[] = tryParse(row.linkedDocumentIds as string) ?? [];
+        const parsedIds = tryParse(row.linkedDocumentIds as string);
+        const linkedDocumentIds: string[] = Array.isArray(parsedIds) ? parsedIds : [];
         const variables = args?.variables as Record<string, string> | undefined;
 
         // Fill {{variable}} placeholders
