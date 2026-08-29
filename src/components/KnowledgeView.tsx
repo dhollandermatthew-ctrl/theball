@@ -514,7 +514,7 @@ const KnowledgeViewInner: React.FC = () => {
   const updateKnowledgeCommand = useAppStore((s) => s.updateKnowledgeCommand);
   const deleteKnowledgeCommand = useAppStore((s) => s.deleteKnowledgeCommand);
 
-  const [activeTab, setActiveTab] = useState<'documents' | 'commands'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'commands'>('commands');
   const [showCommandModal, setShowCommandModal] = useState(false);
   const [editingCommand, setEditingCommand] = useState<KnowledgeCommand | null>(null);
   const [runningCommand, setRunningCommand] = useState<KnowledgeCommand | null>(null);
@@ -761,8 +761,8 @@ const KnowledgeViewInner: React.FC = () => {
         </div>
       )}
 
-      {/* Collections sidebar — documents only */}
-      {activeTab === 'documents' && <div className="w-52 shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col p-3 gap-1">
+      {/* Collections sidebar — kept mounted to avoid layout shift; collapses on commands tab */}
+      <div className={`shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col overflow-hidden transition-[width,padding] duration-200 ${activeTab === 'documents' ? 'w-52 p-3 gap-1' : 'w-0 p-0 border-r-0'}`}>
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 mb-1">Collections</p>
 
         <button
@@ -813,7 +813,7 @@ const KnowledgeViewInner: React.FC = () => {
             <Upload size={14} /> Upload File
           </button>
         </div>
-      </div>}
+      </div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -950,6 +950,18 @@ const KnowledgeViewInner: React.FC = () => {
               onEdit={(cmd) => { setEditingCommand(cmd); setShowCommandModal(true); }}
               onRun={(cmd) => setRunningCommand(cmd)}
               onDelete={(id) => setPendingDeleteCommandId(id)}
+              onDuplicate={(cmd) => {
+                const now = new Date().toISOString();
+                addKnowledgeCommand({
+                  id: generateId(),
+                  name: cmd.name + ' (copy)',
+                  description: cmd.description,
+                  prompt: cmd.prompt,
+                  linkedDocumentIds: [...cmd.linkedDocumentIds],
+                  createdAt: now,
+                  updatedAt: now,
+                });
+              }}
             />
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1240,6 +1252,7 @@ function CommandsPanel({
   onEdit,
   onRun,
   onDelete,
+  onDuplicate,
 }: {
   commands: KnowledgeCommand[];
   documents: ProductKnowledgeItem[];
@@ -1247,6 +1260,7 @@ function CommandsPanel({
   onEdit: (cmd: KnowledgeCommand) => void;
   onRun: (cmd: KnowledgeCommand) => void;
   onDelete: (id: string) => void;
+  onDuplicate: (cmd: KnowledgeCommand) => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = commands.filter((c) =>
@@ -1279,9 +1293,17 @@ function CommandsPanel({
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Terminal size={40} className="text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">{commands.length === 0 ? 'No commands yet' : 'No commands match your search'}</p>
-          {commands.length === 0 && (
-            <p className="text-slate-400 text-sm mt-1">Commands are reusable AI prompts with variables and linked documents</p>
-          )}
+          {commands.length === 0 ? (
+            <>
+              <p className="text-slate-400 text-sm mt-1 mb-5">Commands are reusable AI prompts with variables and linked documents</p>
+              <button
+                onClick={onNew}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+              >
+                <Plus size={14} /> Create your first command
+              </button>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -1298,10 +1320,14 @@ function CommandsPanel({
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
                       {cmd.description && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{cmd.description}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{cmd.description}</p>
                       )}
+                      <p className="text-[11px] text-slate-400 font-mono line-clamp-2 mt-1.5 leading-relaxed">{cmd.prompt}</p>
                     </div>
                     <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => onDuplicate(cmd)} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+                        <Copy size={13} />
+                      </button>
                       <button onClick={() => onEdit(cmd)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
                         <Edit3 size={13} />
                       </button>
@@ -1310,25 +1336,27 @@ function CommandsPanel({
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    {vars.length > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs">
-                        <Zap size={10} />
-                        {vars.length} variable{vars.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {linkedDocs.length > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
-                        <Link2 size={10} />
-                        {linkedDocs.length} doc{linkedDocs.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {vars.length > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs">
+                          <Zap size={10} />
+                          {vars.length} variable{vars.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {linkedDocs.length > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
+                          <Link2 size={10} />
+                          {linkedDocs.length} doc{linkedDocs.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={() => onRun(cmd)}
-                      className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors shrink-0"
                     >
                       <Zap size={11} />
-                      Run
+                      Use
                     </button>
                   </div>
                 </div>
@@ -1402,9 +1430,8 @@ function CommandModal({
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              rows={6}
               placeholder="Write your prompt here… e.g. Summarise the following for {{audience}}: {{content}}"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono min-h-[160px]"
             />
             {detectedVars.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -1421,7 +1448,7 @@ function CommandModal({
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Linked Documents <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
               <p className="text-xs text-slate-400 mt-0.5 mb-2">These documents will be included as context when the command runs</p>
-              <div className="flex flex-col gap-1 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2">
+              <div className="flex flex-col gap-1 max-h-64 overflow-y-auto border border-slate-200 rounded-lg p-2">
                 {documents.map((doc) => (
                   <label key={doc.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
                     <input
@@ -1479,8 +1506,10 @@ function RunCommandModal({
 
   const linkedDocs = documents.filter((d) => command.linkedDocumentIds.includes(d.id));
   const fullPrompt = linkedDocs.length > 0
-    ? `${filled}\n\n---\n\n${linkedDocs.map((d) => `**${d.title}**\n${d.content || ''}`).join('\n\n')}`
+    ? `${filled}\n\n=== Context ===\n\n${linkedDocs.map((d) => `=== ${d.title} ===\n${d.content || ''}`).join('\n\n')}`
     : filled;
+
+  const approxTokens = Math.round(fullPrompt.length / 4);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(fullPrompt);
@@ -1488,13 +1517,28 @@ function RunCommandModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Cmd+Enter / Ctrl+Enter to copy
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleCopy();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [fullPrompt]);
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <Terminal size={16} className="text-slate-500" />
-            <h2 className="text-base font-semibold text-slate-800">{command.name}</h2>
+            <Terminal size={16} className="text-slate-500 shrink-0" />
+            <div>
+              <h2 className="text-base font-semibold text-slate-800">{command.name}</h2>
+              {command.description && <p className="text-xs text-slate-400 mt-0.5">{command.description}</p>}
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
         </div>
@@ -1520,13 +1564,6 @@ function RunCommandModal({
             </div>
           )}
 
-          <div>
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Filled prompt</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
-              {fullPrompt}
-            </div>
-          </div>
-
           {linkedDocs.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <p className="w-full text-xs font-semibold text-slate-600 uppercase tracking-wider">Context documents</p>
@@ -1537,19 +1574,35 @@ function RunCommandModal({
               ))}
             </div>
           )}
+
+          <div>
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+              {vars.length > 0 ? 'Filled prompt' : 'Prompt'}
+            </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
+              {fullPrompt}
+            </div>
+            <p className={`text-xs mt-1.5 text-right ${approxTokens > 4000 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+              ~{approxTokens.toLocaleString()} tokens
+              {approxTokens > 4000 && ' — may exceed some AI context limits'}
+            </p>
+          </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
-            Close
-          </button>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 transition-colors"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? 'Copied!' : 'Copy to clipboard'}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+          <p className="text-xs text-slate-400">⌘ Enter to copy</p>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+              Close
+            </button>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 transition-colors"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'Copied!' : 'Copy prompt'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
