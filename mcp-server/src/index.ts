@@ -208,6 +208,37 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: 'get_commands',
+      description:
+        "List all of Matthew's saved Playbook commands — reusable AI prompt templates with optional fill-in variables and linked knowledge documents. Use this to discover what commands exist before running one.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: {
+            type: 'string',
+            description: 'Partial match on command name or description (optional)',
+          },
+        },
+      },
+    },
+    {
+      name: 'get_command_with_context',
+      description:
+        "Fetch a specific Playbook command by ID or name and return its full prompt plus the content of any linked knowledge documents. Use this to execute a command: get the filled template and context, then run it.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Command ID (from get_commands)' },
+          name: { type: 'string', description: 'Command name (partial match, used if id not provided)' },
+          variables: {
+            type: 'object',
+            description: 'Key-value pairs to fill {{variable}} placeholders in the prompt (e.g. {"audience": "board", "topic": "Q3 results"})',
+            additionalProperties: { type: 'string' },
+          },
+        },
+      },
+    },
   ],
 }));
 
@@ -466,6 +497,88 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }, null, 2));
       }
 
+      // ── get_commands ──────────────────────────
+      case 'get_commands': {
+        const params: (string | number)[] = [];
+        let sql = `SELECT id, name, description, prompt, linkedDocumentIds, createdAt FROM knowledge_commands`;
+        if (args?.search) {
+          sql += ` WHERE name LIKE ? OR description LIKE ?`;
+          params.push(`%${args.search}%`, `%${args.search}%`);
+        }
+        sql += ` ORDER BY createdAt DESC`;
+
+        const result = await db.execute({ sql, args: params });
+        const rows = result.rows.map((r) => {
+          const row = r as Record<string, unknown>;
+          const linkedDocumentIds: string[] = tryParse(row.linkedDocumentIds as string) ?? [];
+          const vars = extractVariables(row.prompt as string);
+          return {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            variables: vars,
+            linkedDocumentCount: linkedDocumentIds.length,
+            createdAt: row.createdAt,
+          };
+        });
+        return text(rows.length ? JSON.stringify(rows, null, 2) : 'No commands found.');
+      }
+
+      // ── get_command_with_context ──────────────
+      case 'get_command_with_context': {
+        let row: Record<string, unknown> | null = null;
+
+        if (args?.id) {
+          const result = await db.execute({
+            sql: `SELECT id, name, description, prompt, linkedDocumentIds FROM knowledge_commands WHERE id = ?`,
+            args: [args.id as string],
+          });
+          row = result.rows[0] as Record<string, unknown> ?? null;
+        } else if (args?.name) {
+          const result = await db.execute({
+            sql: `SELECT id, name, description, prompt, linkedDocumentIds FROM knowledge_commands WHERE name LIKE ? LIMIT 1`,
+            args: [`%${args.name}%`],
+          });
+          row = result.rows[0] as Record<string, unknown> ?? null;
+        }
+
+        if (!row) return text('Command not found. Use get_commands to list available commands.');
+
+        const linkedDocumentIds: string[] = tryParse(row.linkedDocumentIds as string) ?? [];
+        const variables = args?.variables as Record<string, string> | undefined;
+
+        // Fill {{variable}} placeholders
+        let filledPrompt = row.prompt as string;
+        if (variables) {
+          filledPrompt = filledPrompt.replace(/\{\{([^}]+)\}\}/g, (_, key) => variables[key.trim()] ?? `{{${key.trim()}}}`);
+        }
+
+        // Fetch linked document content
+        let docs: { title: string; content: string }[] = [];
+        if (linkedDocumentIds.length > 0) {
+          const placeholders = linkedDocumentIds.map(() => '?').join(', ');
+          const docsResult = await db.execute({
+            sql: `SELECT title, content FROM product_knowledge WHERE id IN (${placeholders})`,
+            args: linkedDocumentIds,
+          });
+          docs = docsResult.rows.map((r) => {
+            const dr = r as Record<string, unknown>;
+            return { title: dr.title as string, content: (dr.content as string) || '' };
+          });
+        }
+
+        const unfilled = extractVariables(filledPrompt);
+
+        return text(JSON.stringify({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          prompt: filledPrompt,
+          unfilled_variables: unfilled.length > 0 ? unfilled : undefined,
+          linked_documents: docs,
+        }, null, 2));
+      }
+
       default:
         return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
     }
@@ -490,6 +603,11 @@ function today() {
 
 function tryParse(s: string) {
   try { return JSON.parse(s); } catch { return s; }
+}
+
+function extractVariables(prompt: string): string[] {
+  const matches = prompt.match(/\{\{([^}]+)\}\}/g) || [];
+  return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
 }
 
 // ─────────────────────────────────────────────

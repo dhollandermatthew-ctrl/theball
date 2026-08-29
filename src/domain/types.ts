@@ -233,6 +233,20 @@
   }
 
   // --------------------------------------------------
+  // KNOWLEDGE COMMANDS
+  // --------------------------------------------------
+
+  export interface KnowledgeCommand {
+    id: string;
+    name: string;
+    description: string;
+    prompt: string;
+    linkedDocumentIds: string[]; // product_knowledge ids
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  // --------------------------------------------------
   // TRANSCRIPTS
   // --------------------------------------------------
 

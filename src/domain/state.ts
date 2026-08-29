@@ -1,7 +1,7 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, TranscriptRecord, SpeakerUtterance } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance } from "./types";
 
   import { enqueue, triggerSync } from "@/db/sync";
   import { db, client } from "@/db/client";
@@ -20,6 +20,7 @@
     healthWorkouts as healthWorkoutsTable,
     healthProfile as healthProfileTable,
     productKnowledge as productKnowledgeTable,
+    knowledgeCommands as knowledgeCommandsTable,
     transcripts as transcriptsTable,
   } from "@/db/schema";
 
@@ -88,6 +89,7 @@ export interface AppState {
   meetingSpaces: MeetingSpace[];
   healthData: HealthData;
   productKnowledge: ProductKnowledgeItem[];
+  knowledgeCommands: KnowledgeCommand[];
   transcripts: TranscriptRecord[];
 
   settings: Settings;
@@ -149,6 +151,11 @@ export interface AppState {
     updateKnowledgeItem: (id: string, updates: Partial<ProductKnowledgeItem>) => void;
     deleteKnowledgeItem: (id: string) => void;
 
+    // Knowledge Commands
+    addKnowledgeCommand: (cmd: KnowledgeCommand) => void;
+    updateKnowledgeCommand: (id: string, updates: Partial<KnowledgeCommand>) => void;
+    deleteKnowledgeCommand: (id: string) => void;
+
     // Transcripts
     addTranscript: (record: TranscriptRecord) => void;
     updateTranscript: (id: string, updates: Partial<TranscriptRecord>) => void;
@@ -174,6 +181,7 @@ export const defaultState: Pick<
   | "meetingSpaces"
   | "healthData"
   | "productKnowledge"
+  | "knowledgeCommands"
   | "transcripts"
   | "settings"
   | "hydrated"
@@ -190,6 +198,7 @@ export const defaultState: Pick<
     workoutRecords: [],
   },
   productKnowledge: [],
+  knowledgeCommands: [],
   transcripts: [],
 
     settings: {
@@ -988,6 +997,49 @@ loadGoals: (goals) =>
           console.log('[State] Delete operation enqueued for sync');
         }),
 
+      // ---------------------- KNOWLEDGE COMMANDS ----------------------
+      addKnowledgeCommand: (cmd) =>
+        set((state) => {
+          state.knowledgeCommands = [cmd, ...state.knowledgeCommands];
+          enqueue({
+            type: "insert",
+            table: "knowledgeCommands",
+            data: {
+              id: cmd.id,
+              name: cmd.name,
+              description: cmd.description,
+              prompt: cmd.prompt,
+              linkedDocumentIds: JSON.stringify(cmd.linkedDocumentIds),
+              createdAt: cmd.createdAt,
+              updatedAt: cmd.updatedAt,
+            },
+          });
+        }),
+
+      updateKnowledgeCommand: (id, updates) =>
+        set((state) => {
+          const cmd = state.knowledgeCommands.find((c) => c.id === id);
+          if (!cmd) return;
+          Object.assign(cmd, updates);
+          cmd.updatedAt = new Date().toISOString();
+          enqueue({
+            type: "update",
+            table: "knowledgeCommands",
+            id,
+            data: {
+              ...updates,
+              linkedDocumentIds: updates.linkedDocumentIds ? JSON.stringify(updates.linkedDocumentIds) : undefined,
+              updatedAt: cmd.updatedAt,
+            },
+          });
+        }),
+
+      deleteKnowledgeCommand: (id) =>
+        set((state) => {
+          state.knowledgeCommands = state.knowledgeCommands.filter((c) => c.id !== id);
+          enqueue({ type: "delete", table: "knowledgeCommands", id });
+        }),
+
       // ---------------------- TRANSCRIPTS ----------------------
       addTranscript: (record) =>
         set((state) => {
@@ -1084,6 +1136,7 @@ loadGoals: (goals) =>
         state.meetingSpaces = offlineData.meetingSpaces;
         state.healthData = offlineData.healthData;
         state.productKnowledge = offlineData.productKnowledge;
+        state.knowledgeCommands = offlineData.knowledgeCommands ?? [];
         state.transcripts = offlineData.transcripts;
         state.hydrated = true;
       });
@@ -1122,6 +1175,7 @@ loadGoals: (goals) =>
         workoutRows,
         profileRows,
         knowledgeRows,
+        commandRows,
         transcriptRows,
       ] = await Promise.all([
         db.select().from(tasksTable),
@@ -1135,6 +1189,7 @@ loadGoals: (goals) =>
         db.select().from(healthWorkoutsTable),
         db.select().from(healthProfileTable),
         db.select().from(productKnowledgeTable),
+        db.select().from(knowledgeCommandsTable),
         db.select().from(transcriptsTable),
       ]);
       
@@ -1255,6 +1310,17 @@ loadGoals: (goals) =>
         updatedAt: r.updatedAt,
       }));
 
+      // Build knowledge commands
+      const knowledgeCommandRecords: KnowledgeCommand[] = commandRows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        prompt: r.prompt,
+        linkedDocumentIds: r.linkedDocumentIds ? JSON.parse(r.linkedDocumentIds) : [],
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      }));
+
       // Build transcripts
       const transcriptRecords: TranscriptRecord[] = transcriptRows.map((r: any) => ({
         id: r.id,
@@ -1279,6 +1345,7 @@ loadGoals: (goals) =>
         s.meetingSpaces = meetingSpaces;
         s.healthData = healthData;
         s.productKnowledge = productKnowledge;
+        s.knowledgeCommands = knowledgeCommandRecords;
         s.transcripts = transcriptRecords;
         s.hydrated = true;
       });
@@ -1293,6 +1360,7 @@ loadGoals: (goals) =>
         meetingSpaces: currentState.meetingSpaces,
         healthData: currentState.healthData,
         productKnowledge: currentState.productKnowledge,
+        knowledgeCommands: currentState.knowledgeCommands,
         transcripts: currentState.transcripts,
       });
       

@@ -139,6 +139,7 @@ export function App() {
 
   // Manual fields (also used as editable after AI parse)
   const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
   const [date, setDate] = useState(todayKey());
   const [priority, setPriority] = useState<'p1' | 'p2' | 'p3'>('p2');
   const [category, setCategory] = useState<'work' | 'personal'>('work');
@@ -155,27 +156,34 @@ export function App() {
       const result = await parseTask(input.trim());
       setParsed(result);
       setTitle(result.title);
+      setContent(result.description || '');
       setDate(result.date || todayKey());
       setPriority(result.priority);
       setCategory(result.category);
-    } catch {
-      setError('Could not parse — try manual mode');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate')) {
+        setError('AI rate limit reached — tap Manual to add the task');
+      } else {
+        setError('Could not parse — tap Manual to add the task');
+      }
     } finally {
       setLoading(false);
     }
   }
 
   async function handleAdd() {
-    const taskTitle = (mode === 'ai' ? title : title).trim();
+    const taskTitle = title.trim();
     if (!taskTitle) return;
     setSaving(true);
     setError('');
     try {
-      await insertTask({ id: generateId(), title: taskTitle, date, priority, category });
+      await insertTask({ id: generateId(), title: taskTitle, content: content.trim(), date, priority, category });
       setSuccess(taskTitle);
       setInput('');
       setParsed(null);
       setTitle('');
+      setContent('');
       setDate(todayKey());
       setPriority('p2');
       setCategory('work');
@@ -273,6 +281,17 @@ export function App() {
               </div>
 
               <div>
+                <div style={S.fieldLabel}>Details</div>
+                <textarea
+                  style={{ ...S.textInput, marginTop: 6, minHeight: 72, resize: 'none', lineHeight: 1.5 }}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Additional details, context, notes…"
+                  rows={3}
+                />
+              </div>
+
+              <div>
                 <div style={S.fieldLabel}>Date</div>
                 <input
                   type="date"
@@ -317,9 +336,6 @@ export function App() {
             </>
           )}
 
-          {/* Manual mode — show title field directly */}
-          {mode === 'manual' && !showFields && null}
-
           {error && (
             <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 500 }}>{error}</div>
           )}
@@ -334,47 +350,6 @@ export function App() {
           >
             {saving ? 'Adding…' : '+ Add Task'}
           </button>
-        )}
-
-        {mode === 'manual' && !parsed && (
-          <div style={S.card}>
-            <div>
-              <div style={S.fieldLabel}>Title</div>
-              <input
-                style={{ ...S.textInput, marginTop: 6 }}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Task title"
-                autoFocus
-              />
-            </div>
-            <div>
-              <div style={S.fieldLabel}>Date</div>
-              <input type="date" style={{ ...S.textInput, marginTop: 6 }} value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div>
-              <div style={S.fieldLabel}>Priority</div>
-              <div style={{ ...S.pillRow, marginTop: 6, flexWrap: 'wrap' }}>
-                {(['p1', 'p2', 'p3'] as const).map((p) => (
-                  <Pill key={p} label={P_LABELS[p]} active={priority === p} color={P_COLORS[p]} onClick={() => setPriority(p)} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <div style={S.fieldLabel}>Category</div>
-              <div style={{ ...S.pillRow, marginTop: 6 }}>
-                <Pill label="Work" active={category === 'work'} color={{ bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' }} onClick={() => setCategory('work')} />
-                <Pill label="Personal" active={category === 'personal'} color={{ bg: '#f5f3ff', text: '#7c3aed', border: '#ddd6fe' }} onClick={() => setCategory('personal')} />
-              </div>
-            </div>
-            <button
-              style={{ ...S.addBtn, opacity: saving || !title.trim() ? 0.5 : 1 }}
-              onClick={handleAdd}
-              disabled={saving || !title.trim()}
-            >
-              {saving ? 'Adding…' : '+ Add Task'}
-            </button>
-          </div>
         )}
 
         {/* Recent tasks */}

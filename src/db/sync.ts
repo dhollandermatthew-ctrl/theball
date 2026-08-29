@@ -14,6 +14,7 @@ import {
   healthWorkouts,
   healthProfile,
   productKnowledge,
+  knowledgeCommands,
   transcripts,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -66,6 +67,10 @@ type Change =
   | { type: "insert"; table: "productKnowledge"; data: any }
   | { type: "update"; table: "productKnowledge"; id: string; data: any }
   | { type: "delete"; table: "productKnowledge"; id: string }
+  // KNOWLEDGE COMMANDS
+  | { type: "insert"; table: "knowledgeCommands"; data: any }
+  | { type: "update"; table: "knowledgeCommands"; id: string; data: any }
+  | { type: "delete"; table: "knowledgeCommands"; id: string }
   // TRANSCRIPTS
   | { type: "insert"; table: "transcripts"; data: any }
   | { type: "update"; table: "transcripts"; id: string; data: any }
@@ -402,6 +407,22 @@ async function apply(change: Change) {
       if (change.type === "delete") {
         console.log('[Sync] Deleting product knowledge item from DB:', change.id);
         return db.delete(productKnowledge).where(eq(productKnowledge.id, change.id));
+      }
+      break;
+
+    // ---------------- KNOWLEDGE COMMANDS ----------------
+    case "knowledgeCommands":
+      if (change.type === "insert") {
+        return db.insert(knowledgeCommands).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(knowledgeCommands)
+          .set(change.data)
+          .where(eq(knowledgeCommands.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(knowledgeCommands).where(eq(knowledgeCommands.id, change.id));
       }
       break;
 

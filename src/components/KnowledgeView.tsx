@@ -20,12 +20,13 @@ import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
   ChevronLeft, ChevronRight, BookOpen, Briefcase, Brain, Wrench,
   Layers, Send, Loader2, FileIcon, Edit3, ArrowLeft, Mic, Download,
+  Terminal, Zap, Copy, Check, Link2,
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 import { useAppStore } from '@/domain/state';
-import { ProductKnowledgeItem, KnowledgeCollection, KNOWLEDGE_COLLECTIONS } from '@/domain/types';
+import { ProductKnowledgeItem, KnowledgeCollection, KNOWLEDGE_COLLECTIONS, KnowledgeCommand } from '@/domain/types';
 import { generateId } from '@/domain/utils';
 import { extractText } from '@/domain/extractText';
 import { formatFileSize, saveKnowledgeFile, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
@@ -490,6 +491,17 @@ const KnowledgeViewInner: React.FC = () => {
   const updateKnowledgeItem = useAppStore((s) => s.updateKnowledgeItem);
   const deleteKnowledgeItem = useAppStore((s) => s.deleteKnowledgeItem);
 
+  const knowledgeCommands = useAppStore((s) => s.knowledgeCommands);
+  const addKnowledgeCommand = useAppStore((s) => s.addKnowledgeCommand);
+  const updateKnowledgeCommand = useAppStore((s) => s.updateKnowledgeCommand);
+  const deleteKnowledgeCommand = useAppStore((s) => s.deleteKnowledgeCommand);
+
+  const [activeTab, setActiveTab] = useState<'documents' | 'commands'>('documents');
+  const [showCommandModal, setShowCommandModal] = useState(false);
+  const [editingCommand, setEditingCommand] = useState<KnowledgeCommand | null>(null);
+  const [runningCommand, setRunningCommand] = useState<KnowledgeCommand | null>(null);
+  const [pendingDeleteCommandId, setPendingDeleteCommandId] = useState<string | null>(null);
+
   const [activeCollection, setActiveCollection] = useState<KnowledgeCollection | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -665,6 +677,12 @@ const KnowledgeViewInner: React.FC = () => {
     setPendingDeleteId(null);
   };
 
+  const confirmDeleteCommand = () => {
+    if (!pendingDeleteCommandId) return;
+    deleteKnowledgeCommand(pendingDeleteCommandId);
+    setPendingDeleteCommandId(null);
+  };
+
   // ── AI ask ──
   const handleAsk = async () => {
     if (!question.trim() || isAsking) return;
@@ -725,8 +743,8 @@ const KnowledgeViewInner: React.FC = () => {
         </div>
       )}
 
-      {/* Collections sidebar */}
-      <div className="w-52 shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col p-3 gap-1">
+      {/* Collections sidebar — documents only */}
+      {activeTab === 'documents' && <div className="w-52 shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col p-3 gap-1">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 mb-1">Collections</p>
 
         <button
@@ -777,124 +795,149 @@ const KnowledgeViewInner: React.FC = () => {
             <Upload size={14} /> Upload File
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-          <h1 className="text-2xl font-bold text-slate-800 mb-4">Knowledge</h1>
-
-          {/* AI Ask bar */}
-          <div className="relative">
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-400">
-              <Sparkles size={16} className="text-violet-500 shrink-0" />
-              <input
-                ref={questionRef}
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-                placeholder="Ask your knowledge base anything…"
-                className="flex-1 text-sm bg-transparent focus:outline-none text-slate-700 placeholder:text-slate-400"
-              />
-              {answer && (
-                <button onClick={() => { setAnswer(null); setQuestion(''); }} className="text-slate-400 hover:text-slate-600 shrink-0">
-                  <X size={14} />
-                </button>
-              )}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-slate-800">Playbooks</h1>
+            <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
               <button
-                onClick={handleMic}
-                title={isListening ? 'Stop listening' : 'Speak your question'}
-                className={`shrink-0 p-1.5 rounded-lg transition-colors ${
-                  isListening
-                    ? 'bg-red-100 text-red-500 animate-pulse'
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                onClick={() => setActiveTab('documents')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'documents' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <Mic size={15} />
+                Documents{productKnowledge.length > 0 ? ` (${productKnowledge.length})` : ''}
               </button>
               <button
-                onClick={handleAsk}
-                disabled={!question.trim() || isAsking}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-medium hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                onClick={() => setActiveTab('commands')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'commands' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                {isAsking ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                Ask
+                Commands{knowledgeCommands.length > 0 ? ` (${knowledgeCommands.length})` : ''}
               </button>
             </div>
           </div>
 
-          {/* AI Answer */}
-          {answer && (
-            <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl p-4">
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{answer.answer}</p>
-              {answer.citations.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-violet-200">
-                  <p className="text-xs font-semibold text-violet-600 mb-2">Sources</p>
-                  <div className="flex flex-wrap gap-2">
-                    {answer.citations.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          const item = productKnowledge.find((i) => i.id === c.id);
-                          if (item) setReadingItem(item);
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-violet-200 text-violet-700 rounded-full text-xs hover:bg-violet-100 transition-colors"
-                      >
-                        <FileText size={10} />
-                        {c.title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Search + tag filters */}
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search…"
-                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {allTags.slice(0, 12).map((tag) => (
+          {/* Documents-only: AI Ask bar + search */}
+          {activeTab === 'documents' && <>
+            <div className="relative">
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-400">
+                <Sparkles size={16} className="text-violet-500 shrink-0" />
+                <input
+                  ref={questionRef}
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+                  placeholder="Ask your knowledge base anything…"
+                  className="flex-1 text-sm bg-transparent focus:outline-none text-slate-700 placeholder:text-slate-400"
+                />
+                {answer && (
+                  <button onClick={() => { setAnswer(null); setQuestion(''); }} className="text-slate-400 hover:text-slate-600 shrink-0">
+                    <X size={14} />
+                  </button>
+                )}
                 <button
-                  key={tag}
-                  onClick={() =>
-                    setSelectedTags((prev) =>
-                      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-                    )
-                  }
-                  className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
-                    selectedTags.includes(tag)
-                      ? 'bg-slate-800 text-white border-slate-800'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                  onClick={handleMic}
+                  title={isListening ? 'Stop listening' : 'Speak your question'}
+                  className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+                    isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  {tag}
+                  <Mic size={15} />
                 </button>
-              ))}
+                <button
+                  onClick={handleAsk}
+                  disabled={!question.trim() || isAsking}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-medium hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                >
+                  {isAsking ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                  Ask
+                </button>
+              </div>
             </div>
-          </div>
+
+            {answer && (
+              <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl p-4">
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{answer.answer}</p>
+                {answer.citations.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-violet-200">
+                    <p className="text-xs font-semibold text-violet-600 mb-2">Sources</p>
+                    <div className="flex flex-wrap gap-2">
+                      {answer.citations.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            const item = productKnowledge.find((i) => i.id === c.id);
+                            if (item) setReadingItem(item);
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-violet-200 text-violet-700 rounded-full text-xs hover:bg-violet-100 transition-colors"
+                        >
+                          <FileText size={10} />
+                          {c.title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {allTags.slice(0, 12).map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() =>
+                      setSelectedTags((prev) =>
+                        prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                      )
+                    }
+                    className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                      selectedTags.includes(tag)
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>}
         </div>
 
-        {/* Cards grid */}
+        {/* Content area */}
         <div className="flex-1 overflow-y-auto p-6">
-          {filtered.length === 0 ? (
+          {activeTab === 'commands' ? (
+            <CommandsPanel
+              commands={knowledgeCommands}
+              documents={productKnowledge}
+              onNew={() => { setEditingCommand(null); setShowCommandModal(true); }}
+              onEdit={(cmd) => { setEditingCommand(cmd); setShowCommandModal(true); }}
+              onRun={(cmd) => setRunningCommand(cmd)}
+              onDelete={(id) => setPendingDeleteCommandId(id)}
+            />
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <BookOpen size={40} className="text-slate-300 mb-3" />
               <p className="text-slate-500 font-medium">
-                {productKnowledge.length === 0
-                  ? 'Your knowledge base is empty'
-                  : 'No items match your filters'}
+                {productKnowledge.length === 0 ? 'Your knowledge base is empty' : 'No items match your filters'}
               </p>
               <p className="text-slate-400 text-sm mt-1">
                 {productKnowledge.length === 0 && 'Drag a document here or create a note to get started'}
@@ -962,6 +1005,51 @@ const KnowledgeViewInner: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeleteCommandId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-base font-semibold text-slate-800">Delete this command?</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {knowledgeCommands.find(c => c.id === pendingDeleteCommandId)?.name}
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setPendingDeleteCommandId(null)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={confirmDeleteCommand} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCommandModal && (
+        <CommandModal
+          initial={editingCommand}
+          documents={productKnowledge}
+          onSave={(data) => {
+            const now = new Date().toISOString();
+            if (editingCommand) {
+              updateKnowledgeCommand(editingCommand.id, { ...data, updatedAt: now });
+            } else {
+              addKnowledgeCommand({ id: generateId(), ...data, createdAt: now, updatedAt: now });
+            }
+            setShowCommandModal(false);
+            setEditingCommand(null);
+          }}
+          onCancel={() => { setShowCommandModal(false); setEditingCommand(null); }}
+        />
+      )}
+
+      {runningCommand && (
+        <RunCommandModal
+          command={runningCommand}
+          documents={productKnowledge}
+          onClose={() => setRunningCommand(null)}
+        />
       )}
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange}
@@ -1116,6 +1204,336 @@ function KnowledgeCard({
       {item.type === 'document' && item.fileName && (
         <p className="text-xs text-slate-400 truncate">{item.fileName}{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</p>
       )}
+    </div>
+  );
+}
+
+// ── CommandsPanel ─────────────────────────────────────────────────────────────
+
+function extractVariables(prompt: string): string[] {
+  const matches = prompt.match(/\{\{([^}]+)\}\}/g) || [];
+  return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
+}
+
+function CommandsPanel({
+  commands,
+  documents,
+  onNew,
+  onEdit,
+  onRun,
+  onDelete,
+}: {
+  commands: KnowledgeCommand[];
+  documents: ProductKnowledgeItem[];
+  onNew: () => void;
+  onEdit: (cmd: KnowledgeCommand) => void;
+  onRun: (cmd: KnowledgeCommand) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = commands.filter((c) =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.description.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="flex flex-col gap-4 max-w-3xl">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search commands…"
+            className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button
+          onClick={onNew}
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors shrink-0"
+        >
+          <Plus size={14} />
+          New Command
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Terminal size={40} className="text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">{commands.length === 0 ? 'No commands yet' : 'No commands match your search'}</p>
+          {commands.length === 0 && (
+            <p className="text-slate-400 text-sm mt-1">Commands are reusable AI prompts with variables and linked documents</p>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((cmd) => {
+            const vars = extractVariables(cmd.prompt);
+            const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
+            return (
+              <div key={cmd.id} className="group bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all flex gap-4">
+                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                  <Terminal size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
+                      {cmd.description && (
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{cmd.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => onEdit(cmd)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+                        <Edit3 size={13} />
+                      </button>
+                      <button onClick={() => onDelete(cmd.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {vars.length > 0 && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs">
+                        <Zap size={10} />
+                        {vars.length} variable{vars.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {linkedDocs.length > 0 && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
+                        <Link2 size={10} />
+                        {linkedDocs.length} doc{linkedDocs.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => onRun(cmd)}
+                      className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors"
+                    >
+                      <Zap size={11} />
+                      Run
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CommandModal ──────────────────────────────────────────────────────────────
+
+function CommandModal({
+  initial,
+  documents,
+  onSave,
+  onCancel,
+}: {
+  initial: KnowledgeCommand | null;
+  documents: ProductKnowledgeItem[];
+  onSave: (data: { name: string; description: string; prompt: string; linkedDocumentIds: string[] }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [prompt, setPrompt] = useState(initial?.prompt ?? '');
+  const [linkedDocumentIds, setLinkedDocumentIds] = useState<string[]>(initial?.linkedDocumentIds ?? []);
+
+  const detectedVars = extractVariables(prompt);
+
+  const toggleDoc = (id: string) =>
+    setLinkedDocumentIds((prev) => prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]);
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-800">{initial ? 'Edit Command' : 'New Command'}</h2>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Name</label>
+            <input
+              autoFocus
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Summarise for stakeholders"
+              className="mt-1.5 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What does this command do?"
+              className="mt-1.5 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Prompt</label>
+            <p className="text-xs text-slate-400 mt-0.5 mb-1.5">Use <code className="bg-slate-100 px-1 rounded">{'{{variable_name}}'}</code> for fill-in values</p>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={6}
+              placeholder="Write your prompt here… e.g. Summarise the following for {{audience}}: {{content}}"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+            />
+            {detectedVars.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {detectedVars.map((v) => (
+                  <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs">
+                    <Zap size={10} />{v}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {documents.length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Linked Documents <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
+              <p className="text-xs text-slate-400 mt-0.5 mb-2">These documents will be included as context when the command runs</p>
+              <div className="flex flex-col gap-1 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                {documents.map((doc) => (
+                  <label key={doc.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={linkedDocumentIds.includes(doc.id)}
+                      onChange={() => toggleDoc(doc.id)}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-slate-700 truncate">{doc.title}</span>
+                    {doc.type === 'document' && doc.fileName && (
+                      <span className="text-xs text-slate-400 shrink-0 ml-auto">{doc.fileName.split('.').pop()?.toUpperCase()}</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200">
+          <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (name.trim() && prompt.trim()) onSave({ name: name.trim(), description: description.trim(), prompt: prompt.trim(), linkedDocumentIds }); }}
+            disabled={!name.trim() || !prompt.trim()}
+            className="px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 disabled:opacity-40 transition-colors"
+          >
+            {initial ? 'Save Changes' : 'Create Command'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── RunCommandModal ───────────────────────────────────────────────────────────
+
+function RunCommandModal({
+  command,
+  documents,
+  onClose,
+}: {
+  command: KnowledgeCommand;
+  documents: ProductKnowledgeItem[];
+  onClose: () => void;
+}) {
+  const vars = extractVariables(command.prompt);
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(vars.map((v) => [v, '']))
+  );
+  const [copied, setCopied] = useState(false);
+
+  const filled = command.prompt.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key.trim()] || `{{${key.trim()}}}`);
+
+  const linkedDocs = documents.filter((d) => command.linkedDocumentIds.includes(d.id));
+  const fullPrompt = linkedDocs.length > 0
+    ? `${filled}\n\n---\n\n${linkedDocs.map((d) => `**${d.title}**\n${d.content || ''}`).join('\n\n')}`
+    : filled;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(fullPrompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <div className="flex items-center gap-2.5">
+            <Terminal size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-800">{command.name}</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+          {vars.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Fill in variables</p>
+              {vars.map((v) => (
+                <div key={v}>
+                  <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5 mb-1.5">
+                    <Zap size={12} className="text-amber-500" />{v}
+                  </label>
+                  <input
+                    type="text"
+                    value={values[v] ?? ''}
+                    onChange={(e) => setValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                    placeholder={`Enter ${v}…`}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Filled prompt</p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
+              {fullPrompt}
+            </div>
+          </div>
+
+          {linkedDocs.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <p className="w-full text-xs font-semibold text-slate-600 uppercase tracking-wider">Context documents</p>
+              {linkedDocs.map((d) => (
+                <span key={d.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
+                  <FileText size={10} />{d.title}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+            Close
+          </button>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 transition-colors"
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? 'Copied!' : 'Copy to clipboard'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

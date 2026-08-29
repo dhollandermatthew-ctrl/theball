@@ -8,6 +8,7 @@ const db = createClient({
 export interface NewTask {
   id: string;
   title: string;
+  content: string;
   date: string;
   priority: 'p1' | 'p2' | 'p3';
   category: 'work' | 'personal';
@@ -15,15 +16,15 @@ export interface NewTask {
 
 export async function insertTask(task: NewTask): Promise<void> {
   await db.execute({
-    sql: `INSERT INTO tasks (id, title, status, priority, category, date, taskType, content, createdAt, updatedAt)
-          VALUES (?, ?, 'todo', ?, ?, ?, 'calendar', '', ?, ?)`,
+    sql: `INSERT INTO tasks (id, title, status, priority, category, date, taskType, content, createdAt)
+          VALUES (?, ?, 'todo', ?, ?, ?, 'calendar', ?, ?)`,
     args: [
       task.id,
       task.title,
       task.priority,
       task.category,
       task.date,
-      new Date().toISOString(),
+      task.content,
       new Date().toISOString(),
     ],
   });

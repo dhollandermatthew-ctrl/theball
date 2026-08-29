@@ -187,6 +187,19 @@ export const productKnowledge = sqliteTable("product_knowledge", {
 });
 
 // -----------------------------------------------------
+// KNOWLEDGE COMMANDS TABLE
+// -----------------------------------------------------
+export const knowledgeCommands = sqliteTable("knowledge_commands", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  prompt: text("prompt").notNull(),
+  linkedDocumentIds: text("linkedDocumentIds").notNull().default("[]"), // JSON array of product_knowledge ids
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+});
+
+// -----------------------------------------------------
 // TRANSCRIPTS TABLE
 // -----------------------------------------------------
 export const transcripts = sqliteTable("transcripts", {

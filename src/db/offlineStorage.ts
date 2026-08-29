@@ -1,14 +1,15 @@
 // FILE: src/db/offlineStorage.ts
 // Offline-first localStorage backup layer
 
-import type { 
-  Task, 
-  OneOnOneItem, 
-  OneOnOnePerson, 
+import type {
+  Task,
+  OneOnOneItem,
+  OneOnOnePerson,
   Goal,
   MeetingSpace,
   HealthData,
   ProductKnowledgeItem,
+  KnowledgeCommand,
   TranscriptRecord,
 } from "@/domain/types";
 
@@ -21,6 +22,7 @@ const STORAGE_KEYS = {
   HEALTH: 'theball-offline-health',
   KNOWLEDGE: 'theball-offline-knowledge',
   TRANSCRIPTS: 'theball-offline-transcripts',
+  COMMANDS: 'theball-offline-commands',
   SYNC_QUEUE: 'theball-sync-queue',
   LAST_SYNC: 'theball-last-sync',
 } as const;
@@ -33,6 +35,7 @@ export interface OfflineData {
   meetingSpaces: MeetingSpace[];
   healthData: HealthData;
   productKnowledge: ProductKnowledgeItem[];
+  knowledgeCommands: KnowledgeCommand[];
   transcripts: TranscriptRecord[];
   lastSync: number;
 }
@@ -62,6 +65,9 @@ export function backupToLocalStorage(data: Partial<OfflineData>) {
     if (data.productKnowledge !== undefined) {
       localStorage.setItem(STORAGE_KEYS.KNOWLEDGE, JSON.stringify(data.productKnowledge));
     }
+    if (data.knowledgeCommands !== undefined) {
+      localStorage.setItem(STORAGE_KEYS.COMMANDS, JSON.stringify(data.knowledgeCommands));
+    }
     if (data.transcripts !== undefined) {
       localStorage.setItem(STORAGE_KEYS.TRANSCRIPTS, JSON.stringify(data.transcripts));
     }
@@ -84,6 +90,7 @@ export function loadFromLocalStorage(): OfflineData | null {
     const meetings = localStorage.getItem(STORAGE_KEYS.MEETINGS);
     const health = localStorage.getItem(STORAGE_KEYS.HEALTH);
     const knowledge = localStorage.getItem(STORAGE_KEYS.KNOWLEDGE);
+    const commands = localStorage.getItem(STORAGE_KEYS.COMMANDS);
     const transcripts = localStorage.getItem(STORAGE_KEYS.TRANSCRIPTS);
     const lastSync = localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
 
@@ -100,6 +107,7 @@ export function loadFromLocalStorage(): OfflineData | null {
       meetingSpaces: meetings ? JSON.parse(meetings) : [],
       healthData: health ? JSON.parse(health) : { bloodWorkRecords: [], workoutRecords: [] },
       productKnowledge: knowledge ? JSON.parse(knowledge) : [],
+      knowledgeCommands: commands ? JSON.parse(commands) : [],
       transcripts: transcripts ? JSON.parse(transcripts) : [],
       lastSync: lastSync ? parseInt(lastSync, 10) : 0,
     };
