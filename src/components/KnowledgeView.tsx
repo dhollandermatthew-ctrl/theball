@@ -1888,7 +1888,7 @@ function RunCommandModal({
 
   const linkedDocs = documents.filter((d) => command.linkedDocumentIds.includes(d.id));
   const fullPrompt = linkedDocs.length > 0
-    ? `${filled}\n\n=== Context ===\n\n${linkedDocs.map((d) => `=== ${d.title} ===\n${d.content || ''}`).join('\n\n')}`
+    ? `${filled}\n\n=== Context ===\n\n${linkedDocs.map((d) => `=== ${d.title} ===\n${d.editableContent || d.content || ''}`).join('\n\n')}`
     : filled;
 
   const approxTokens = Math.round(fullPrompt.length / 4);
@@ -1934,12 +1934,12 @@ function RunCommandModal({
                   <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5 mb-1.5">
                     <Zap size={12} className="text-amber-500" />{v}
                   </label>
-                  <input
-                    type="text"
+                  <textarea
                     value={values[v] ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, [v]: e.target.value }))}
                     placeholder={`Enter ${v}…`}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={8}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono leading-relaxed"
                   />
                 </div>
               ))}
