@@ -234,6 +234,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'create_knowledge_item',
+      description:
+        "Create a new knowledge document in The Ball. Use this to add notes or field guides that don't exist yet.",
+      inputSchema: {
+        type: 'object',
+        required: ['title', 'content'],
+        properties: {
+          title: { type: 'string', description: 'Document title' },
+          content: { type: 'string', description: 'Markdown content' },
+          collection: { type: 'string', description: 'Collection name (optional)' },
+        },
+      },
+    },
+    {
       name: 'create_command',
       description:
         "Create a new Playbook command (slash command template) in The Ball app. The command will appear in the Commands tab and can be synced to ~/.claude/commands/ from there.",
@@ -591,6 +605,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           args: [args?.content as string, now, args?.id as string],
         });
         return text(`Updated document ${args?.id} at ${now}.`);
+      }
+
+      // ── create_knowledge_item ────────────────
+      case 'create_knowledge_item': {
+        const id = `pk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        await db.execute({
+          sql: `INSERT INTO product_knowledge (id, title, content, editableContent, type, tags, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, 'note', '[]', ?, ?)`,
+          args: [id, args?.title as string, args?.content as string, args?.content as string, now, now],
+        });
+        return text(JSON.stringify({ id, title: args?.title, created: now }, null, 2));
       }
 
       // ── create_command ────────────────────────
