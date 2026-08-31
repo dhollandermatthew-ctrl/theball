@@ -1416,6 +1416,7 @@ const KnowledgeViewInner: React.FC = () => {
           command={runningCommand}
           documents={productKnowledge}
           onClose={() => setRunningCommand(null)}
+          onUpdateLinkedDocs={(ids) => updateKnowledgeCommand(runningCommand.id, { linkedDocumentIds: ids })}
         />
       )}
 
@@ -1873,20 +1874,29 @@ function RunCommandModal({
   command,
   documents,
   onClose,
+  onUpdateLinkedDocs,
 }: {
   command: KnowledgeCommand;
   documents: ProductKnowledgeItem[];
   onClose: () => void;
+  onUpdateLinkedDocs: (ids: string[]) => void;
 }) {
   const vars = extractVariables(command.prompt);
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(vars.map((v) => [v, '']))
   );
   const [copied, setCopied] = useState(false);
+  const [linkedIds, setLinkedIds] = useState<string[]>(command.linkedDocumentIds);
+
+  const toggleDoc = (id: string) => {
+    const next = linkedIds.includes(id) ? linkedIds.filter((x) => x !== id) : [...linkedIds, id];
+    setLinkedIds(next);
+    onUpdateLinkedDocs(next);
+  };
 
   const filled = command.prompt.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key.trim()] || `{{${key.trim()}}}`);
 
-  const linkedDocs = documents.filter((d) => command.linkedDocumentIds.includes(d.id));
+  const linkedDocs = documents.filter((d) => linkedIds.includes(d.id));
   const fullPrompt = linkedDocs.length > 0
     ? `${filled}\n\n=== Context ===\n\n${linkedDocs.map((d) => `=== ${d.title} ===\n${d.editableContent || d.content || ''}`).join('\n\n')}`
     : filled;
@@ -1946,16 +1956,30 @@ function RunCommandModal({
             </div>
           )}
 
-          {linkedDocs.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <p className="w-full text-xs font-semibold text-slate-600 uppercase tracking-wider">Context documents</p>
-              {linkedDocs.map((d) => (
-                <span key={d.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
-                  <FileText size={10} />{d.title}
-                </span>
-              ))}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Context documents</p>
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+              {documents.length === 0 && (
+                <p className="text-xs text-slate-400 px-3 py-2">No documents yet</p>
+              )}
+              {documents.map((d) => {
+                const checked = linkedIds.includes(d.id);
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => toggleDoc(d.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/60' : ''}`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                      {checked && <Check size={10} className="text-white" />}
+                    </div>
+                    <FileText size={12} className={checked ? 'text-blue-600' : 'text-slate-400'} />
+                    <span className={`text-xs truncate ${checked ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>{d.title}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           <div>
             <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
