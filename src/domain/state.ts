@@ -1198,6 +1198,11 @@ loadGoals: (goals) =>
         await client.execute("ALTER TABLE product_knowledge ADD COLUMN filePath TEXT");
       } catch (_) { /* column already exists */ }
 
+      // Add editableContent column if it doesn't exist yet (added in v0.1.28)
+      try {
+        await client.execute("ALTER TABLE product_knowledge ADD COLUMN editableContent TEXT");
+      } catch (_) { /* column already exists */ }
+
       // Create knowledge_commands table if it doesn't exist yet (new in v0.1.23)
       try {
         await client.execute(`CREATE TABLE IF NOT EXISTS knowledge_commands (

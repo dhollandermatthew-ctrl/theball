@@ -209,6 +209,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'get_knowledge_item',
+      description:
+        "Get the full content of a specific knowledge document by title. Returns editableContent (user-edited Markdown) if available, otherwise falls back to extracted content. Use this before updating a document.",
+      inputSchema: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string', description: 'Document title (partial match)' },
+        },
+      },
+    },
+    {
+      name: 'update_knowledge_item',
+      description:
+        "Update the content of a knowledge document. Writes to editableContent — the user-edited Markdown field. Use after get_knowledge_item to push improved content back.",
+      inputSchema: {
+        type: 'object',
+        required: ['id', 'content'],
+        properties: {
+          id: { type: 'string', description: 'Document ID from get_knowledge_item' },
+          content: { type: 'string', description: 'New Markdown content to save' },
+        },
+      },
+    },
+    {
+      name: 'create_command',
+      description:
+        "Create a new Playbook command (slash command template) in The Ball app. The command will appear in the Commands tab and can be synced to ~/.claude/commands/ from there.",
+      inputSchema: {
+        type: 'object',
+        required: ['name', 'prompt'],
+        properties: {
+          name: { type: 'string', description: 'Command name (e.g. "Mom Test Review"). Will become the slug /mom-test-review.' },
+          description: { type: 'string', description: 'One-line description of what the command does.' },
+          prompt: { type: 'string', description: 'The full prompt template. Use {{variable}} for fill-in placeholders.' },
+          linked_document_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'IDs of knowledge documents to link (optional). Linked doc content is injected when the command runs.',
+          },
+        },
+      },
+    },
+    {
+      name: 'update_command',
+      description:
+        "Update an existing Playbook command's prompt or description.",
+      inputSchema: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'Command ID from get_commands' },
+          name: { type: 'string', description: 'New name (optional)' },
+          description: { type: 'string', description: 'New description (optional)' },
+          prompt: { type: 'string', description: 'New prompt template (optional)' },
+          linked_document_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'New list of linked document IDs (optional, replaces existing)',
+          },
+        },
+      },
+    },
+    {
       name: 'get_commands',
       description:
         "List all of Matthew's saved Playbook commands — reusable AI prompt templates with optional fill-in variables and linked knowledge documents. Use this to discover what commands exist before running one.",
@@ -495,6 +559,86 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           tasks: taskRows,
           meetings: meetings.rows,
         }, null, 2));
+      }
+
+      // ── get_knowledge_item ────────────────────
+      case 'get_knowledge_item': {
+        const result = await db.execute({
+          sql: `SELECT id, title, type, collection, tags, editableContent, content, createdAt, updatedAt
+                FROM product_knowledge
+                WHERE title LIKE ?
+                ORDER BY updatedAt DESC LIMIT 1`,
+          args: [`%${args?.title as string}%`],
+        });
+        if (!result.rows.length) return text(`No document found matching: ${args?.title}`);
+        const row = result.rows[0] as Record<string, unknown>;
+        return text(JSON.stringify({
+          id: row.id,
+          title: row.title,
+          type: row.type,
+          collection: row.collection,
+          tags: tryParse(row.tags as string),
+          content: (row.editableContent as string) || (row.content as string) || '',
+          has_edited_version: !!(row.editableContent),
+          updatedAt: row.updatedAt,
+        }, null, 2));
+      }
+
+      // ── update_knowledge_item ─────────────────
+      case 'update_knowledge_item': {
+        const now = new Date().toISOString();
+        await db.execute({
+          sql: `UPDATE product_knowledge SET editableContent = ?, updatedAt = ? WHERE id = ?`,
+          args: [args?.content as string, now, args?.id as string],
+        });
+        return text(`Updated document ${args?.id} at ${now}.`);
+      }
+
+      // ── create_command ────────────────────────
+      case 'create_command': {
+        const id = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        const linkedIds = Array.isArray(args?.linked_document_ids) ? args.linked_document_ids : [];
+        await db.execute({
+          sql: `INSERT INTO knowledge_commands (id, name, description, prompt, linkedDocumentIds, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            id,
+            args?.name as string,
+            (args?.description as string) || '',
+            args?.prompt as string,
+            JSON.stringify(linkedIds),
+            now,
+            now,
+          ],
+        });
+        return text(JSON.stringify({ id, name: args?.name, created: now }, null, 2));
+      }
+
+      // ── update_command ────────────────────────
+      case 'update_command': {
+        const now = new Date().toISOString();
+        const current = await db.execute({
+          sql: `SELECT name, description, prompt, linkedDocumentIds FROM knowledge_commands WHERE id = ?`,
+          args: [args?.id as string],
+        });
+        if (!current.rows.length) return text(`Command not found: ${args?.id}`);
+        const cur = current.rows[0] as Record<string, unknown>;
+        const linkedIds = Array.isArray(args?.linked_document_ids)
+          ? args.linked_document_ids
+          : tryParse(cur.linkedDocumentIds as string);
+        await db.execute({
+          sql: `UPDATE knowledge_commands SET name = ?, description = ?, prompt = ?, linkedDocumentIds = ?, updatedAt = ? WHERE id = ?`,
+          args: [
+            (args?.name as string) || (cur.name as string),
+            (args?.description as string) !== undefined ? (args?.description as string) : (cur.description as string),
+            (args?.prompt as string) || (cur.prompt as string),
+            JSON.stringify(Array.isArray(linkedIds) ? linkedIds : []),
+            now,
+            args?.id as string,
+          ],
+        });
+        return text(`Updated command ${args?.id} at ${now}.`);
       }
 
       // ── get_commands ──────────────────────────

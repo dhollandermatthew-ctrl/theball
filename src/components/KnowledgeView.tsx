@@ -348,7 +348,6 @@ function DocumentEditorModal({ item, userCollections, onSave, onDelete, onClose 
   const [tags, setTags] = useState<string[]>(item.tags || []);
   const [tagInput, setTagInput] = useState('');
   const [preview, setPreview] = useState<'edit' | 'live' | 'preview'>('live');
-  const [synced, setSynced] = useState(false);
   const [sharpening, setSharpening] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -375,15 +374,6 @@ function DocumentEditorModal({ item, userCollections, onSave, onDelete, onClose 
     }
   };
 
-  const handleSyncToClaude = async () => {
-    try {
-      await invoke('write_claude_command', { filename: `${slug}.md`, content });
-      setSynced(true);
-      setTimeout(() => setSynced(false), 2000);
-    } catch (e) {
-      console.error('Sync to Claude failed:', e);
-    }
-  };
 
   const addTag = (t: string) => {
     const clean = t.trim().toLowerCase();
@@ -447,16 +437,6 @@ function DocumentEditorModal({ item, userCollections, onSave, onDelete, onClose 
           title="Download as .md"
         >
           <Download size={13} /> Download
-        </button>
-
-        <button
-          onClick={handleSyncToClaude}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            synced ? 'text-emerald-400' : 'text-[#cccccc] hover:bg-white/10'
-          }`}
-          title="Sync to Claude as slash command"
-        >
-          {synced ? <><Check size={13} /> Synced</> : <><Share2 size={13} /> → Claude</>}
         </button>
 
         <button

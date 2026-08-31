@@ -169,6 +169,7 @@ export const productKnowledge = sqliteTable("product_knowledge", {
   
   // Content & Search
   content: text("content"), // Extracted text for search
+  editableContent: text("editableContent"), // User-edited Markdown (preferred over content)
   
   // File Storage (for documents only)
   filePath: text("filePath"), // Absolute path on disk: ~/Documents/The Ball/Knowledge/
