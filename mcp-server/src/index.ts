@@ -472,7 +472,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const result = await db.execute({
-          sql: `SELECT id, title, collection, type, tags, content, createdAt
+          sql: `SELECT id, title, type, tags, content, createdAt
                 FROM product_knowledge ${where}
                 ORDER BY createdAt DESC LIMIT ?`,
           args: [...params, (args?.limit as number) ?? 20],
@@ -564,7 +564,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ── get_knowledge_item ────────────────────
       case 'get_knowledge_item': {
         const result = await db.execute({
-          sql: `SELECT id, title, type, collection, tags, editableContent, content, createdAt, updatedAt
+          sql: `SELECT id, title, type, tags, editableContent, content, createdAt, updatedAt
                 FROM product_knowledge
                 WHERE title LIKE ?
                 ORDER BY updatedAt DESC LIMIT 1`,
@@ -576,7 +576,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           id: row.id,
           title: row.title,
           type: row.type,
-          collection: row.collection,
           tags: tryParse(row.tags as string),
           content: (row.editableContent as string) || (row.content as string) || '',
           has_edited_version: !!(row.editableContent),
