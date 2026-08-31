@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, Component } from 'react';
+import { createPortal } from 'react-dom';
 
 class KnowledgeErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -43,6 +44,36 @@ function stripHtml(html: string) {
   const d = document.createElement('div');
   d.innerHTML = html;
   return d.textContent || d.innerText || '';
+}
+
+function getCardPreview(item: ProductKnowledgeItem): string {
+  // Prefer editableContent (Markdown field guides) — strip markdown syntax
+  const md = item.editableContent || '';
+  if (md) {
+    const lines = md.split('\n')
+      .map((l) =>
+        l.replace(/^#{1,6}\s+/, '')       // strip headings
+         .replace(/\*\*([^*]+)\*\*/g, '$1') // un-bold
+         .replace(/[*_`~>|\\]/g, '')       // strip other md
+         .replace(/\[([^\]]+)\]\([^)]+\)/, '$1') // un-link
+         .trim()
+      )
+      .filter((l) => l.length > 25);       // skip short lines (labels, rule names)
+    return lines.slice(0, 3).join(' ').substring(0, 200);
+  }
+  if (item.type === 'note') {
+    return stripHtml(item.content || '').replace(/\s+/g, ' ').trim().substring(0, 200);
+  }
+  return (item.content || '').replace(/\s+/g, ' ').trim().substring(0, 200);
+}
+
+function formatCardDate(iso: string): string {
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
 }
 
 // Static color presets for user-defined collections (full tailwind classes for PurgeCSS safety)
@@ -1412,12 +1443,23 @@ function KnowledgeCard({
   userCollections: UserCollection[];
 }) {
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [pickerStyle, setPickerStyle] = useState<React.CSSProperties>({});
+  const colBtnRef = useRef<HTMLButtonElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  const openPicker = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!colBtnRef.current) return;
+    const rect = colBtnRef.current.getBoundingClientRect();
+    setPickerStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, zIndex: 9999 });
+    setShowCollectionPicker((v) => !v);
+  }, []);
 
   useEffect(() => {
     if (!showCollectionPicker) return;
     const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node) &&
+          colBtnRef.current && !colBtnRef.current.contains(e.target as Node)) {
         setShowCollectionPicker(false);
       }
     };
@@ -1425,22 +1467,22 @@ function KnowledgeCard({
     return () => document.removeEventListener('mousedown', handler);
   }, [showCollectionPicker]);
 
-  const preview = item.type === 'note'
-    ? stripHtml(item.content || '').substring(0, 200)
-    : (item.content || '').substring(0, 200);
+  const preview = getCardPreview(item);
 
   const colEntry = item.collection ? userCollections.find((c) => c.id === item.collection) : undefined;
   const accentColor = colEntry
     ? (COLOR_PRESETS[colEntry.color] || COLOR_PRESETS.slate).border
-    : 'border-l-slate-200';
+    : 'border-l-transparent';
+
+  const isNote = item.type === 'note';
 
   return (
     <div
-      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 hover:border-l-4 transition-all relative flex flex-col gap-2.5`}
+      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col gap-3`}
       onClick={onClick}
     >
-      {/* Actions */}
-      <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+      {/* Hover actions */}
+      <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
         {item.type === 'document' && (item.filePath || item.fileData) && (
           <button
             onClick={() => item.filePath
@@ -1448,101 +1490,111 @@ function KnowledgeCard({
               : downloadFile(item.fileData!, item.fileName!, item.fileType!)
             }
             title={item.filePath ? 'Open in native app' : 'Download original file'}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
           >
             <Download size={13} />
           </button>
         )}
-        {item.type === 'note' && (
-          <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+        {isNote && (
+          <button onClick={onEdit} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
             <Edit3 size={13} />
           </button>
         )}
-        <button onClick={onDelete} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
+        <button onClick={onDelete} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50">
           <Trash2 size={13} />
         </button>
       </div>
 
-      {/* Title row with file type badge */}
-      <div className="flex items-start gap-2 pr-16">
-        {item.type === 'document' && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
-        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h3>
+      {/* Title + type badge */}
+      <div className="flex items-start gap-2 pr-16 min-h-[2.5rem]">
+        {!isNote && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
+        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 flex-1">{item.title}</h3>
       </div>
 
-      {/* Preview */}
-      {preview && (
-        <p className="text-xs text-slate-500 leading-relaxed line-clamp-3">{preview}</p>
+      {/* Preview text */}
+      {preview ? (
+        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 flex-1">{preview}</p>
+      ) : (
+        <div className="flex-1" />
       )}
 
       {/* Footer */}
-      <div className="mt-auto flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex flex-wrap gap-1 items-center relative" onClick={(e) => e.stopPropagation()}>
-          {/* Collection badge — click to change */}
-          <div className="relative" ref={pickerRef}>
-            <button
-              onClick={() => setShowCollectionPicker((v) => !v)}
-              className="transition-opacity"
-              title="Change collection"
-            >
-              {item.collection
-                ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
-                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500">
-                    + collection
-                  </span>
-              }
-            </button>
-
-            {showCollectionPicker && (
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 min-w-[160px]">
-                {userCollections.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-slate-400">No collections yet</p>
-                )}
-                {userCollections.map((c) => {
-                  const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
-                  const active = item.collection === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        onCollectionChange(active ? undefined : c.id);
-                        setShowCollectionPicker(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        active ? preset.badge : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${preset.swatch}`} />
-                      {c.label}
-                      {active && <span className="ml-auto">✓</span>}
-                    </button>
-                  );
-                })}
-                {item.collection && (
-                  <button
-                    onClick={() => { onCollectionChange(undefined); setShowCollectionPicker(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-50 mt-1 border-t border-slate-100 pt-2"
-                  >
-                    <X size={11} /> Remove
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap gap-1 items-center">
+          {/* Collection button — portal-based picker to escape overflow clipping */}
+          <button
+            ref={colBtnRef}
+            onClick={openPicker}
+            title="Change collection"
+          >
+            {item.collection
+              ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
+              : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-dashed border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-500 transition-colors">
+                  + collection
+                </span>
+            }
+          </button>
 
           {(item.tags || []).slice(0, 2).map((tag) => (
-            <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-xs">{tag}</span>
+            <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[11px]">{tag}</span>
           ))}
           {(item.tags || []).length > 2 && (
-            <span className="text-xs text-slate-400">+{item.tags!.length - 2}</span>
+            <span className="text-[11px] text-slate-400">+{item.tags!.length - 2}</span>
           )}
         </div>
-        <span className="text-xs text-slate-400 shrink-0">
-          {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
-        </span>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {item.type === 'document' && item.fileName && (
+            <span className="text-[11px] text-slate-400 truncate max-w-[120px]" title={item.fileName}>
+              {item.fileName}
+            </span>
+          )}
+          <span className="text-[11px] text-slate-400">{formatCardDate(item.createdAt)}</span>
+        </div>
       </div>
 
-      {item.type === 'document' && item.fileName && (
-        <p className="text-xs text-slate-400 truncate">{item.fileName}{item.fileSize ? ` · ${formatFileSize(item.fileSize)}` : ''}</p>
+      {/* Collection picker — rendered via portal so it escapes overflow:auto parents */}
+      {showCollectionPicker && createPortal(
+        <div
+          ref={pickerRef}
+          style={pickerStyle}
+          className="bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 min-w-[180px]"
+        >
+          {userCollections.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-400">No collections yet — create one in the sidebar</p>
+          ) : (
+            userCollections.map((c) => {
+              const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
+              const active = item.collection === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCollectionChange(active ? undefined : c.id);
+                    setShowCollectionPicker(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    active ? preset.badge : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${preset.swatch}`} />
+                  {c.label}
+                  {active && <span className="ml-auto text-slate-400">✓</span>}
+                </button>
+              );
+            })
+          )}
+          {item.collection && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCollectionChange(undefined); setShowCollectionPicker(false); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-50 mt-1 border-t border-slate-100 pt-2"
+            >
+              <X size={11} /> Remove from collection
+            </button>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );
