@@ -703,12 +703,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (linkedDocumentIds.length > 0) {
           const placeholders = linkedDocumentIds.map(() => '?').join(', ');
           const docsResult = await db.execute({
-            sql: `SELECT title, content FROM product_knowledge WHERE id IN (${placeholders})`,
+            sql: `SELECT title, editableContent, content FROM product_knowledge WHERE id IN (${placeholders})`,
             args: linkedDocumentIds,
           });
           docs = docsResult.rows.map((r) => {
             const dr = r as Record<string, unknown>;
-            return { title: dr.title as string, content: (dr.content as string) || '' };
+            return { title: dr.title as string, content: (dr.editableContent as string) || (dr.content as string) || '' };
           });
         }
 
@@ -754,6 +754,15 @@ function extractVariables(prompt: string): string[] {
   const matches = prompt.match(/\{\{([^}]+)\}\}/g) || [];
   return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
 }
+
+// ─────────────────────────────────────────────
+// SCHEMA MIGRATIONS
+// ─────────────────────────────────────────────
+async function ensureSchema() {
+  try { await db.execute("ALTER TABLE product_knowledge ADD COLUMN editableContent TEXT"); } catch (_) {}
+  try { await db.execute("ALTER TABLE product_knowledge ADD COLUMN collection TEXT"); } catch (_) {}
+}
+await ensureSchema();
 
 // ─────────────────────────────────────────────
 // START
