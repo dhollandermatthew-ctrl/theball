@@ -21,7 +21,7 @@ import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
   ChevronLeft, ChevronRight, BookOpen,
   Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
-  Terminal, Zap, Copy, Check, Link2, Share2,
+  Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -1881,12 +1881,17 @@ function RunCommandModal({
   onClose: () => void;
   onUpdateLinkedDocs: (ids: string[]) => void;
 }) {
+  const pinnedKnowledgeIds = useAppStore((s) => s.pinnedKnowledgeIds);
+  const pinKnowledgeItem = useAppStore((s) => s.pinKnowledgeItem);
+  const unpinKnowledgeItem = useAppStore((s) => s.unpinKnowledgeItem);
+
   const vars = extractVariables(command.prompt);
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(vars.map((v) => [v, '']))
   );
   const [copied, setCopied] = useState(false);
   const [linkedIds, setLinkedIds] = useState<string[]>(command.linkedDocumentIds);
+  const [docSearch, setDocSearch] = useState('');
 
   const toggleDoc = (id: string) => {
     const next = linkedIds.includes(id) ? linkedIds.filter((x) => x !== id) : [...linkedIds, id];
@@ -1909,6 +1914,10 @@ function RunCommandModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const q = docSearch.toLowerCase();
+  const coreDocs = documents.filter((d) => pinnedKnowledgeIds.includes(d.id) && (!q || d.title.toLowerCase().includes(q)));
+  const sessionDocs = documents.filter((d) => !pinnedKnowledgeIds.includes(d.id) && (!q || d.title.toLowerCase().includes(q)));
+
   // Cmd+Enter / Ctrl+Enter to copy
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1920,6 +1929,29 @@ function RunCommandModal({
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [fullPrompt]);
+
+  const DocRow = ({ d }: { d: ProductKnowledgeItem }) => {
+    const checked = linkedIds.includes(d.id);
+    const pinned = pinnedKnowledgeIds.includes(d.id);
+    return (
+      <div className={`flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/50' : ''}`}>
+        <button onClick={() => toggleDoc(d.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+            {checked && <Check size={10} className="text-white" />}
+          </div>
+          <FileText size={12} className={checked ? 'text-blue-600' : 'text-slate-400'} />
+          <span className={`text-xs truncate ${checked ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>{d.title}</span>
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); pinned ? unpinKnowledgeItem(d.id) : pinKnowledgeItem(d.id); }}
+          className={`shrink-0 p-1 rounded transition-colors ${pinned ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-slate-500'}`}
+          title={pinned ? 'Unpin from Core' : 'Pin to Core'}
+        >
+          {pinned ? <Pin size={11} /> : <PinOff size={11} />}
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -1935,10 +1967,10 @@ function RunCommandModal({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
           {vars.length > 0 && (
             <div className="flex flex-col gap-3">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Fill in variables</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Input</p>
               {vars.map((v) => (
                 <div key={v}>
                   <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5 mb-1.5">
@@ -1957,34 +1989,52 @@ function RunCommandModal({
           )}
 
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Context documents</p>
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-              {documents.length === 0 && (
-                <p className="text-xs text-slate-400 px-3 py-2">No documents yet</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Context documents</p>
+              {linkedIds.length > 0 && (
+                <span className="text-xs text-blue-600 font-medium">{linkedIds.length} included</span>
               )}
-              {documents.map((d) => {
-                const checked = linkedIds.includes(d.id);
-                return (
-                  <button
-                    key={d.id}
-                    onClick={() => toggleDoc(d.id)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/60' : ''}`}
-                  >
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
-                      {checked && <Check size={10} className="text-white" />}
-                    </div>
-                    <FileText size={12} className={checked ? 'text-blue-600' : 'text-slate-400'} />
-                    <span className={`text-xs truncate ${checked ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>{d.title}</span>
-                  </button>
-                );
-              })}
             </div>
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                value={docSearch}
+                onChange={(e) => setDocSearch(e.target.value)}
+                placeholder="Search documents…"
+                className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
+              {documents.length === 0 && (
+                <p className="text-xs text-slate-400 px-3 py-3">No documents yet</p>
+              )}
+              {coreDocs.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 bg-amber-50 flex items-center gap-1.5">
+                    <Pin size={10} className="text-amber-500" />
+                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Core</span>
+                  </div>
+                  {coreDocs.map((d) => <DocRow key={d.id} d={d} />)}
+                </>
+              )}
+              {sessionDocs.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 bg-slate-50 flex items-center gap-1.5">
+                    <FileText size={10} className="text-slate-400" />
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Session</span>
+                  </div>
+                  {sessionDocs.map((d) => <DocRow key={d.id} d={d} />)}
+                </>
+              )}
+              {coreDocs.length === 0 && sessionDocs.length === 0 && q && (
+                <p className="text-xs text-slate-400 px-3 py-3">No docs match "{docSearch}"</p>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">Pin a doc to Core to pre-check it in every command</p>
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-              {vars.length > 0 ? 'Filled prompt' : 'Prompt'}
-            </p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assembled prompt</p>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
               {fullPrompt}
             </div>

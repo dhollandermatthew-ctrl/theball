@@ -25,6 +25,7 @@ const STORAGE_KEYS = {
   TRANSCRIPTS: 'theball-offline-transcripts',
   COMMANDS: 'theball-offline-commands',
   USER_COLLECTIONS: 'theball-user-collections',
+  PINNED_KNOWLEDGE: 'theball-pinned-knowledge',
   SYNC_QUEUE: 'theball-sync-queue',
   LAST_SYNC: 'theball-last-sync',
 } as const;
@@ -179,6 +180,23 @@ export function saveUserCollections(collections: UserCollection[]) {
 export function loadUserCollections(): UserCollection[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.USER_COLLECTIONS);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePinnedKnowledge(ids: string[]) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PINNED_KNOWLEDGE, JSON.stringify(ids));
+  } catch (e) {
+    console.error('[Offline] Failed to save pinned knowledge:', e);
+  }
+}
+
+export function loadPinnedKnowledge(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.PINNED_KNOWLEDGE);
     return stored ? JSON.parse(stored) : [];
   } catch {
     return [];

@@ -6,7 +6,7 @@
   import { enqueue, triggerSync } from "@/db/sync";
   import { db, client } from "@/db/client";
   import { eq } from "drizzle-orm";
-  import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange, saveUserCollections, loadUserCollections } from "@/db/offlineStorage";
+  import { backupToLocalStorage, loadFromLocalStorage, onOnlineStatusChange, saveUserCollections, loadUserCollections, savePinnedKnowledge, loadPinnedKnowledge } from "@/db/offlineStorage";
 
   import {
     tasks as tasksTable,
@@ -162,6 +162,11 @@ export interface AppState {
     updateUserCollection: (id: string, updates: Partial<UserCollection>) => void;
     deleteUserCollection: (id: string) => void;
 
+    // Pinned Knowledge
+    pinnedKnowledgeIds: string[];
+    pinKnowledgeItem: (id: string) => void;
+    unpinKnowledgeItem: (id: string) => void;
+
     // Transcripts
     addTranscript: (record: TranscriptRecord) => void;
     updateTranscript: (id: string, updates: Partial<TranscriptRecord>) => void;
@@ -189,6 +194,7 @@ export const defaultState: Pick<
   | "productKnowledge"
   | "knowledgeCommands"
   | "userCollections"
+  | "pinnedKnowledgeIds"
   | "transcripts"
   | "settings"
   | "hydrated"
@@ -207,6 +213,7 @@ export const defaultState: Pick<
   productKnowledge: [],
   knowledgeCommands: [],
   userCollections: loadUserCollections(),
+  pinnedKnowledgeIds: loadPinnedKnowledge(),
   transcripts: [],
 
     settings: {
@@ -1074,6 +1081,21 @@ loadGoals: (goals) =>
           );
           saveUserCollections(state.userCollections);
           backupToLocalStorage({ productKnowledge: state.productKnowledge });
+        }),
+
+      // ---------------------- PINNED KNOWLEDGE ----------------------
+      pinKnowledgeItem: (id) =>
+        set((state) => {
+          if (!state.pinnedKnowledgeIds.includes(id)) {
+            state.pinnedKnowledgeIds = [...state.pinnedKnowledgeIds, id];
+            savePinnedKnowledge(state.pinnedKnowledgeIds);
+          }
+        }),
+
+      unpinKnowledgeItem: (id) =>
+        set((state) => {
+          state.pinnedKnowledgeIds = state.pinnedKnowledgeIds.filter((x) => x !== id);
+          savePinnedKnowledge(state.pinnedKnowledgeIds);
         }),
 
       // ---------------------- TRANSCRIPTS ----------------------
