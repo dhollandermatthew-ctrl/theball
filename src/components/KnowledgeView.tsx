@@ -1890,7 +1890,11 @@ function RunCommandModal({
     Object.fromEntries(vars.map((v) => [v, '']))
   );
   const [copied, setCopied] = useState(false);
-  const [linkedIds, setLinkedIds] = useState<string[]>(command.linkedDocumentIds);
+  const [linkedIds, setLinkedIds] = useState<string[]>(() => {
+    const base = new Set(command.linkedDocumentIds);
+    pinnedKnowledgeIds.forEach((id) => base.add(id));
+    return [...base];
+  });
   const [docSearch, setDocSearch] = useState('');
 
   const toggleDoc = (id: string) => {
@@ -1930,11 +1934,11 @@ function RunCommandModal({
     return () => document.removeEventListener('keydown', handler);
   }, [fullPrompt]);
 
-  const DocRow = ({ d }: { d: ProductKnowledgeItem }) => {
+  const renderDocRow = (d: ProductKnowledgeItem) => {
     const checked = linkedIds.includes(d.id);
     const pinned = pinnedKnowledgeIds.includes(d.id);
     return (
-      <div className={`flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/50' : ''}`}>
+      <div key={d.id} className={`flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/50' : ''}`}>
         <button onClick={() => toggleDoc(d.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
           <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
             {checked && <Check size={10} className="text-white" />}
@@ -2014,7 +2018,7 @@ function RunCommandModal({
                     <Pin size={10} className="text-amber-500" />
                     <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Core</span>
                   </div>
-                  {coreDocs.map((d) => <DocRow key={d.id} d={d} />)}
+                  {coreDocs.map(renderDocRow)}
                 </>
               )}
               {sessionDocs.length > 0 && (
@@ -2023,7 +2027,7 @@ function RunCommandModal({
                     <FileText size={10} className="text-slate-400" />
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Session</span>
                   </div>
-                  {sessionDocs.map((d) => <DocRow key={d.id} d={d} />)}
+                  {sessionDocs.map(renderDocRow)}
                 </>
               )}
               {coreDocs.length === 0 && sessionDocs.length === 0 && q && (
