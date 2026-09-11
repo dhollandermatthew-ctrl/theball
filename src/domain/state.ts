@@ -114,6 +114,7 @@ export interface AppState {
     starTask: (id: string, date: string) => { success: boolean; message?: string };
     unstarTask: (id: string) => void;
     reorderStarredTasks: (date: string, taskIds: string[]) => void;
+    rollTasksToNextWeek: (taskIds: string[]) => void;
 
     // 1:1 people
     addPerson: (p: OneOnOnePerson) => void;
@@ -417,6 +418,34 @@ export const defaultState: Pick<
           });
 
           // ✅ Backup to localStorage immediately
+          backupToLocalStorage({ tasks: state.tasks });
+        }),
+
+      rollTasksToNextWeek: (taskIds) =>
+        set((state) => {
+          taskIds.forEach((id) => {
+            const task = state.tasks.find((t) => t.id === id);
+            if (!task?.date) return;
+
+            const current = new Date(`${task.date}T12:00:00`);
+            current.setDate(current.getDate() + 7);
+            const y = current.getFullYear();
+            const m = String(current.getMonth() + 1).padStart(2, "0");
+            const d = String(current.getDate()).padStart(2, "0");
+            const newDate = `${y}-${m}-${d}`;
+
+            task.date = newDate;
+            task.starredDate = null;
+            task.starredRank = null;
+
+            enqueue({
+              type: "update",
+              table: "tasks",
+              id,
+              data: { date: newDate, starredDate: null, starredRank: null },
+            });
+          });
+
           backupToLocalStorage({ tasks: state.tasks });
         }),
 

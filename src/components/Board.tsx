@@ -32,6 +32,7 @@ import { Column } from "@/components/Column";
 import { Header, ViewMode } from "@/components/Header";
 import { MonthView } from "@/components/MonthView";
 import { TaskCard } from "@/components/TaskCard";
+import { RolloverModal } from "@/components/RolloverModal";
 
 import { useAppStore } from "@/domain/state";
 import type { AppState } from "@/domain/state";
@@ -273,11 +274,13 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   const updateTask = useAppStore((s: AppState) => s.updateTask);
   const deleteTask = useAppStore((s: AppState) => s.deleteTask);
   const reorderStarredTasks = useAppStore((s: AppState) => s.reorderStarredTasks);
+  const rollTasksToNextWeek = useAppStore((s: AppState) => s.rollTasksToNextWeek);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [category, setCategory] = useState<TaskCategory>("work");
   const [showInbox, setShowInbox] = useState(false);
+  const [showRollover, setShowRollover] = useState(false);
   const [activeTask, setActiveTask] = useState<import("@/domain/state").Task | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
@@ -340,8 +343,12 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   const completedCount = weeklyTasks.filter(
     (t) => t.status === "done"
   ).length;
-  
+
   const totalCount = weeklyTasks.length;
+
+  const incompleteWeeklyTasks = weeklyTasks.filter(
+    (t) => t.status === "todo" || t.status === "in_progress"
+  );
 
   /* ---------------- Sorting ---------------- */
 
@@ -428,7 +435,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   /* ---------------- Render ---------------- */
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white">
+    <div className="relative flex flex-col h-full overflow-hidden bg-white">
       <Header
         currentDate={currentDate}
         viewMode={viewMode}
@@ -544,6 +551,30 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
             document.body
           )}
         </DndContext>
+      )}
+
+      {/* Roll to next week button — only shown in week view when there are incomplete tasks */}
+      {viewMode === "week" && incompleteWeeklyTasks.length > 0 && (
+        <div className="absolute bottom-5 right-6">
+          <button
+            onClick={() => setShowRollover(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg shadow-lg transition-colors"
+          >
+            <ArrowRight size={13} />
+            Roll to next week
+            <span className="bg-slate-600 text-slate-200 rounded px-1.5 py-0.5 text-[10px] font-semibold">
+              {incompleteWeeklyTasks.length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {showRollover && (
+        <RolloverModal
+          incompleteTasks={incompleteWeeklyTasks}
+          onConfirm={(ids) => rollTasksToNextWeek(ids)}
+          onClose={() => setShowRollover(false)}
+        />
       )}
     </div>
   );
