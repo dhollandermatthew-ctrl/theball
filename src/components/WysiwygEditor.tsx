@@ -302,6 +302,17 @@
         document.execCommand("insertOrderedList");
       }
 
+      // WebKit injects a spurious empty <div><br></div> adjacent to the new list;
+      // remove it so the content doesn't jump.
+      el.querySelectorAll("div").forEach((div) => {
+        if (
+          div.childNodes.length === 0 ||
+          (div.childNodes.length === 1 && div.firstChild?.nodeName === "BR")
+        ) {
+          div.remove();
+        }
+      });
+
       handleInput();
     };
 
@@ -445,9 +456,10 @@
         </button>
 
         <style>{`
-          div[contentEditable] ul { list-style: disc; padding-left: 1.2em; }
-          div[contentEditable] ol { list-style: decimal; padding-left: 1.2em; }
+          div[contentEditable] ul { list-style: disc; padding-left: 1.2em; margin: 0; }
+          div[contentEditable] ol { list-style: decimal; padding-left: 1.2em; margin: 0; }
           div[contentEditable] li { margin-bottom: 0.15em; }
+          div[contentEditable] p { margin: 0; }
         `}</style>
       </div>
     );
