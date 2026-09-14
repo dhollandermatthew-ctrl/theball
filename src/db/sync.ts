@@ -395,7 +395,7 @@ async function apply(change: Change) {
     case "productKnowledge":
       if (change.type === "insert") {
         console.log('[Sync] Inserting product knowledge item:', change.data.id);
-        return db.insert(productKnowledge).values(change.data);
+        return db.insert(productKnowledge).values(change.data).onConflictDoNothing();
       }
       if (change.type === "update") {
         console.log('[Sync] Updating product knowledge item:', change.id);

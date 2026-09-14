@@ -1409,6 +1409,7 @@ loadGoals: (goals) =>
         title: r.title,
         type: r.type as 'note' | 'document',
         content: r.content || undefined,
+        editableContent: r.editableContent || undefined,
         filePath: r.filePath || undefined,
         fileData: r.fileData || undefined,
         fileName: r.fileName || undefined,
@@ -1443,6 +1444,36 @@ loadGoals: (goals) =>
         createdAt: r.createdAt,
       }));
 
+      // Data-loss guard: if Turso returns 0 docs but localStorage had some,
+      // trust localStorage and re-enqueue inserts so Turso gets populated.
+      let finalProductKnowledge = productKnowledge;
+      if (productKnowledge.length === 0 && (offlineData?.productKnowledge?.length ?? 0) > 0) {
+        console.warn(`[Init] ⚠️ Turso returned 0 productKnowledge but localStorage had ${offlineData!.productKnowledge.length} — restoring from cache`);
+        finalProductKnowledge = offlineData!.productKnowledge;
+        for (const item of offlineData!.productKnowledge) {
+          enqueue({
+            type: 'insert',
+            table: 'productKnowledge',
+            data: {
+              id: item.id,
+              title: item.title,
+              type: item.type,
+              content: item.content || null,
+              editableContent: item.editableContent || null,
+              filePath: item.filePath || null,
+              fileData: null,
+              fileName: item.fileName || null,
+              fileType: item.fileType || null,
+              fileSize: item.fileSize || null,
+              tags: item.tags ? JSON.stringify(item.tags) : null,
+              collection: item.collection || null,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            },
+          });
+        }
+      }
+
       useAppStore.setState((s) => {
         s.tasks = taskRows as Task[];
         s.goals = (goalRows as Goal[]).sort(
@@ -1454,7 +1485,7 @@ loadGoals: (goals) =>
         s.oneOnOnes = grouped;
         s.meetingSpaces = meetingSpaces;
         s.healthData = healthData;
-        s.productKnowledge = productKnowledge;
+        s.productKnowledge = finalProductKnowledge;
         s.knowledgeCommands = knowledgeCommandRecords;
         s.transcripts = transcriptRecords;
         s.hydrated = true;
