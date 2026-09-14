@@ -26,6 +26,10 @@
 
   export const CURRENT_STATE_VERSION = 5;
 
+// Task IDs that exist in Zustand/localStorage but haven't been INSERTed to Turso yet.
+// We defer the INSERT until the user commits a real title so Turso never stores "New Task".
+const pendingTaskInserts = new Set<string>();
+
 
 
   // -----------------------------------------------------
@@ -246,17 +250,15 @@ export const defaultState: Pick<
         useAppStore.setState((state) => {
           state.tasks.push(task);
         });
-      
+
         // ✅ Backup to localStorage immediately (offline-first)
         const currentState = useAppStore.getState();
         backupToLocalStorage({ tasks: currentState.tasks });
-        
-        // Then enqueue for Turso sync (may fail if offline)
-        enqueue({
-          type: "insert",
-          table: "tasks",
-          data: task,
-        });
+
+        // Defer Turso INSERT until the user commits a real title.
+        // If we INSERT now with "New Task" and the title UPDATE fails to sync,
+        // Turso permanently stores "New Task" and overwrites localStorage on next launch.
+        pendingTaskInserts.add(task.id);
       },
 
         updateTask: (id, updates) =>
@@ -269,28 +271,40 @@ export const defaultState: Pick<
             if (task.starredDate && updates.date && updates.date !== task.date) {
               // Unstar this task first (this shifts other ranks)
               get().unstarTask(id);
-              
+
               // Explicitly clear starred fields in updates
-              finalUpdates = { 
-                ...updates, 
-                starredDate: null, 
-                starredRank: null 
+              finalUpdates = {
+                ...updates,
+                starredDate: null,
+                starredRank: null
               };
             }
 
+            const merged = { ...task, ...finalUpdates };
             state.tasks = state.tasks.map((t) =>
-              t.id === id ? { ...t, ...finalUpdates } : t
+              t.id === id ? merged : t
             );
-        
+
             // ✅ Backup to localStorage immediately
             backupToLocalStorage({ tasks: state.tasks });
-            
-            enqueue({
-              type: "update",
-              table: "tasks",
-              id,
-              data: finalUpdates,
-            });
+
+            if (pendingTaskInserts.has(id)) {
+              // First update for a locally-created task: INSERT the full record now
+              // so Turso gets the real title (not the "New Task" placeholder).
+              pendingTaskInserts.delete(id);
+              enqueue({
+                type: "insert",
+                table: "tasks",
+                data: merged,
+              });
+            } else {
+              enqueue({
+                type: "update",
+                table: "tasks",
+                id,
+                data: finalUpdates,
+              });
+            }
           }),
 
       deleteTask: (id) =>
@@ -300,11 +314,16 @@ export const defaultState: Pick<
           // ✅ Backup to localStorage immediately
           backupToLocalStorage({ tasks: state.tasks });
 
-          enqueue({
-            type: "delete",
-            table: "tasks",
-            id,
-          });
+          if (pendingTaskInserts.has(id)) {
+            // Never synced to Turso — nothing to delete there
+            pendingTaskInserts.delete(id);
+          } else {
+            enqueue({
+              type: "delete",
+              table: "tasks",
+              id,
+            });
+          }
         }),
 
       starTask: (id, date) => {
@@ -1536,7 +1555,19 @@ loadGoals: (goals) =>
           console.log('[Init] 📵 Network connection lost - working offline');
         }
       });
-      
+
+      // Safety flush: if the user closes the app before typing a task title,
+      // INSERT any pending tasks as-is so they're not silently lost.
+      window.addEventListener('beforeunload', () => {
+        for (const id of pendingTaskInserts) {
+          const task = useAppStore.getState().tasks.find(t => t.id === id);
+          if (task) {
+            enqueue({ type: 'insert', table: 'tasks', data: task });
+          }
+        }
+        pendingTaskInserts.clear();
+      });
+
       console.log(`[Init] Online/offline listener enabled (currently ${navigator.onLine ? 'online' : 'offline'})`);
     }
   }
