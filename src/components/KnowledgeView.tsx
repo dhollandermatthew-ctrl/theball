@@ -19,7 +19,7 @@ class KnowledgeErrorBoundary extends Component<{ children: React.ReactNode }, { 
 }
 import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
-  ChevronLeft, ChevronRight, BookOpen,
+  ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
   Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff,
 } from 'lucide-react';
@@ -1608,6 +1608,12 @@ function extractVariables(prompt: string): string[] {
   return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
 }
 
+function humanizeVarName(v: string): string {
+  return v
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function CommandsPanel({
   commands,
   documents,
@@ -1882,32 +1888,53 @@ function RunCommandModal({
   onUpdateLinkedDocs: (ids: string[]) => void;
 }) {
   const pinnedKnowledgeIds = useAppStore((s) => s.pinnedKnowledgeIds);
-  const pinKnowledgeItem = useAppStore((s) => s.pinKnowledgeItem);
-  const unpinKnowledgeItem = useAppStore((s) => s.unpinKnowledgeItem);
 
   const vars = extractVariables(command.prompt);
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(vars.map((v) => [v, '']))
   );
   const [copied, setCopied] = useState(false);
-  const [linkedIds, setLinkedIds] = useState<string[]>(() => {
-    const base = new Set(command.linkedDocumentIds);
-    pinnedKnowledgeIds.forEach((id) => base.add(id));
-    return [...base];
-  });
   const [docSearch, setDocSearch] = useState('');
+  const [promptOpen, setPromptOpen] = useState(false);
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
-  const toggleDoc = (id: string) => {
-    const next = linkedIds.includes(id) ? linkedIds.filter((x) => x !== id) : [...linkedIds, id];
-    setLinkedIds(next);
-    onUpdateLinkedDocs(next);
+  // Tier 1: permanently attached to this command
+  const attachedSet = new Set(command.linkedDocumentIds);
+  const attachedDocs = documents.filter((d) => attachedSet.has(d.id));
+
+  // Tier 2: Core (pinned) docs not already in Tier 1 — pre-checked, toggleable
+  const coreOnlyIds = pinnedKnowledgeIds.filter((id) => !attachedSet.has(id));
+  const [coreChecked, setCoreChecked] = useState<Set<string>>(() => new Set(coreOnlyIds));
+
+  // Tier 3: everything else — unchecked by default, toggleable per session
+  const [sessionChecked, setSessionChecked] = useState<Set<string>>(new Set());
+
+  const toggleCore = (id: string) => {
+    setCoreChecked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSession = (id: string) => {
+    setSessionChecked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const filled = command.prompt.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key.trim()] || `{{${key.trim()}}}`);
 
-  const linkedDocs = documents.filter((d) => linkedIds.includes(d.id));
-  const fullPrompt = linkedDocs.length > 0
-    ? `${filled}\n\n=== Context ===\n\n${linkedDocs.map((d) => `=== ${d.title} ===\n${d.editableContent || d.content || ''}`).join('\n\n')}`
+  const includedDocs = [
+    ...attachedDocs,
+    ...documents.filter((d) => coreOnlyIds.includes(d.id) && coreChecked.has(d.id)),
+    ...documents.filter((d) => !attachedSet.has(d.id) && !coreOnlyIds.includes(d.id) && sessionChecked.has(d.id)),
+  ];
+
+  const fullPrompt = includedDocs.length > 0
+    ? `${filled}\n\n=== Context ===\n\n${includedDocs.map((d) => `=== ${d.title} ===\n${d.editableContent || d.content || ''}`).join('\n\n')}`
     : filled;
 
   const approxTokens = Math.round(fullPrompt.length / 4);
@@ -1919,8 +1946,12 @@ function RunCommandModal({
   };
 
   const q = docSearch.toLowerCase();
-  const coreDocs = documents.filter((d) => pinnedKnowledgeIds.includes(d.id) && (!q || d.title.toLowerCase().includes(q)));
-  const sessionDocs = documents.filter((d) => !pinnedKnowledgeIds.includes(d.id) && (!q || d.title.toLowerCase().includes(q)));
+  // Tier 2 docs filtered (always show checked ones even during search)
+  const coreDocs = documents.filter((d) => coreOnlyIds.includes(d.id) && (!q || coreChecked.has(d.id) || d.title.toLowerCase().includes(q)));
+  // Tier 3 docs filtered (always show checked ones even during search)
+  const sessionDocs = documents.filter((d) => !attachedSet.has(d.id) && !coreOnlyIds.includes(d.id) && (!q || sessionChecked.has(d.id) || d.title.toLowerCase().includes(q)));
+
+  const totalIncluded = attachedDocs.length + [...coreChecked].filter(id => coreOnlyIds.includes(id)).length + sessionChecked.size;
 
   // Cmd+Enter / Ctrl+Enter to copy
   useEffect(() => {
@@ -1934,26 +1965,29 @@ function RunCommandModal({
     return () => document.removeEventListener('keydown', handler);
   }, [fullPrompt]);
 
-  const renderDocRow = (d: ProductKnowledgeItem) => {
-    const checked = linkedIds.includes(d.id);
-    const pinned = pinnedKnowledgeIds.includes(d.id);
+  const renderCoreRow = (d: ProductKnowledgeItem) => {
+    const checked = coreChecked.has(d.id);
     return (
-      <div key={d.id} className={`flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/50' : ''}`}>
-        <button onClick={() => toggleDoc(d.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
-            {checked && <Check size={10} className="text-white" />}
-          </div>
-          <FileText size={12} className={checked ? 'text-blue-600' : 'text-slate-400'} />
-          <span className={`text-xs truncate ${checked ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>{d.title}</span>
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); pinned ? unpinKnowledgeItem(d.id) : pinKnowledgeItem(d.id); }}
-          className={`shrink-0 p-1 rounded transition-colors ${pinned ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-slate-500'}`}
-          title={pinned ? 'Unpin from Core' : 'Pin to Core'}
-        >
-          {pinned ? <Pin size={11} /> : <PinOff size={11} />}
-        </button>
-      </div>
+      <button key={d.id} onClick={() => toggleCore(d.id)} className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-amber-50/60 ${checked ? 'bg-amber-50/40' : ''}`}>
+        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-amber-500 border-amber-500' : 'border-slate-300'}`}>
+          {checked && <Check size={10} className="text-white" />}
+        </div>
+        <FileText size={12} className={checked ? 'text-amber-600' : 'text-slate-400'} />
+        <span className={`text-xs truncate ${checked ? 'text-amber-700 font-medium' : 'text-slate-500'}`}>{d.title}</span>
+      </button>
+    );
+  };
+
+  const renderSessionRow = (d: ProductKnowledgeItem) => {
+    const checked = sessionChecked.has(d.id);
+    return (
+      <button key={d.id} onClick={() => toggleSession(d.id)} className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-slate-50 ${checked ? 'bg-blue-50/40' : ''}`}>
+        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+          {checked && <Check size={10} className="text-white" />}
+        </div>
+        <FileText size={12} className={checked ? 'text-blue-500' : 'text-slate-400'} />
+        <span className={`text-xs truncate ${checked ? 'text-blue-700 font-medium' : 'text-slate-500'}`}>{d.title}</span>
+      </button>
     );
   };
 
@@ -1973,96 +2007,153 @@ function RunCommandModal({
 
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
           {vars.length > 0 && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Input</p>
-              {vars.map((v) => (
+              {vars.map((v, i) => (
                 <div key={v}>
                   <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5 mb-1.5">
-                    <Zap size={12} className="text-amber-500" />{v}
+                    <Zap size={12} className="text-amber-500" />{humanizeVarName(v)}
                   </label>
                   <textarea
+                    ref={(el) => { textareaRefs.current[v] = el; }}
                     value={values[v] ?? ''}
-                    onChange={(e) => setValues((prev) => ({ ...prev, [v]: e.target.value }))}
-                    placeholder={`Enter ${v}…`}
-                    rows={8}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono leading-relaxed"
+                    autoFocus={i === 0}
+                    onChange={(e) => {
+                      setValues((prev) => ({ ...prev, [v]: e.target.value }));
+                      // auto-resize
+                      const el = e.target;
+                      el.style.height = 'auto';
+                      el.style.height = `${Math.max(el.scrollHeight, 80)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      // Cmd+Enter copies from anywhere in the form
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCopy();
+                      }
+                    }}
+                    placeholder={`Enter ${humanizeVarName(v)}…`}
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono leading-relaxed overflow-hidden"
+                    style={{ minHeight: '80px' }}
                   />
                 </div>
               ))}
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Context documents</p>
-              {linkedIds.length > 0 && (
-                <span className="text-xs text-blue-600 font-medium">{linkedIds.length} included</span>
+              {totalIncluded > 0 && (
+                <span className="text-xs text-blue-600 font-medium">{totalIncluded} included</span>
               )}
             </div>
-            <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                value={docSearch}
-                onChange={(e) => setDocSearch(e.target.value)}
-                placeholder="Search documents…"
-                className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
-              {documents.length === 0 && (
-                <p className="text-xs text-slate-400 px-3 py-3">No documents yet</p>
-              )}
-              {coreDocs.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 bg-amber-50 flex items-center gap-1.5">
-                    <Pin size={10} className="text-amber-500" />
-                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Core</span>
+
+            {/* Tier 1: Attached — always included */}
+            {attachedDocs.length > 0 && (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-3 py-1.5 bg-slate-900 flex items-center gap-1.5">
+                  <Link2 size={10} className="text-slate-300" />
+                  <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Attached</span>
+                  <span className="ml-auto text-[10px] text-slate-400">always included</span>
+                </div>
+                {attachedDocs.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-t border-slate-100">
+                    <div className="w-4 h-4 rounded bg-slate-700 flex items-center justify-center shrink-0">
+                      <Check size={10} className="text-white" />
+                    </div>
+                    <FileText size={12} className="text-slate-500" />
+                    <span className="text-xs text-slate-700 font-medium truncate">{d.title}</span>
                   </div>
-                  {coreDocs.map(renderDocRow)}
-                </>
-              )}
-              {sessionDocs.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 bg-slate-50 flex items-center gap-1.5">
-                    <FileText size={10} className="text-slate-400" />
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Session</span>
-                  </div>
-                  {sessionDocs.map(renderDocRow)}
-                </>
-              )}
-              {coreDocs.length === 0 && sessionDocs.length === 0 && q && (
-                <p className="text-xs text-slate-400 px-3 py-3">No docs match "{docSearch}"</p>
-              )}
+                ))}
+              </div>
+            )}
+
+            {/* Tier 2: Core (pinned) — pre-checked, optional */}
+            {coreOnlyIds.length > 0 && (
+              <div className="rounded-xl border border-amber-200 overflow-hidden">
+                <div className="px-3 py-1.5 bg-amber-50 flex items-center gap-1.5">
+                  <Pin size={10} className="text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Core</span>
+                  <span className="ml-auto text-[10px] text-amber-500/70">pinned — on by default</span>
+                </div>
+                {coreDocs.map(renderCoreRow)}
+                {coreDocs.length === 0 && q && (
+                  <p className="text-xs text-slate-400 px-3 py-2">No core docs match</p>
+                )}
+              </div>
+            )}
+
+            {/* Tier 3: Session — search to add */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-3 py-1.5 bg-slate-50 flex items-center gap-1.5">
+                <FileText size={10} className="text-slate-400" />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Add for this session</span>
+              </div>
+              <div className="px-3 py-2 border-t border-slate-100">
+                <div className="relative">
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    value={docSearch}
+                    onChange={(e) => setDocSearch(e.target.value)}
+                    placeholder="Search documents…"
+                    className="w-full pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                {sessionDocs.map(renderSessionRow)}
+                {sessionDocs.length === 0 && q && (
+                  <p className="text-xs text-slate-400 px-3 py-2">No docs match "{docSearch}"</p>
+                )}
+                {sessionDocs.length === 0 && !q && documents.length === 0 && (
+                  <p className="text-xs text-slate-400 px-3 py-2">No documents yet — add some in the Documents tab</p>
+                )}
+                {sessionDocs.length === 0 && !q && documents.length > 0 && (
+                  <p className="text-xs text-slate-400 px-3 py-2">All documents are already attached or pinned to Core</p>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-slate-400">Pin a doc to Core to pre-check it in every command</p>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assembled prompt</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
-              {fullPrompt}
-            </div>
-            <p className={`text-xs mt-1.5 text-right ${approxTokens > 4000 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
-              ~{approxTokens.toLocaleString()} tokens
-              {approxTokens > 4000 && ' — may exceed some AI context limits'}
-            </p>
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setPromptOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+            >
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assembled prompt</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${approxTokens > 4000 ? 'text-amber-600' : 'text-slate-400'}`}>
+                  ~{approxTokens.toLocaleString()} tokens{approxTokens > 4000 ? ' ⚠' : ''}
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${promptOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+            {promptOpen && (
+              <div className="bg-white border-t border-slate-200 p-4 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto">
+                {fullPrompt}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
-          <p className="text-xs text-slate-400">⌘ Enter to copy</p>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
-              Close
-            </button>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 transition-colors"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Copied!' : 'Copy prompt'}
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors shrink-0">
+            Cancel
+          </button>
+          <button
+            onClick={handleCopy}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl font-semibold transition-all ${
+              copied
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-900 text-white hover:bg-slate-700 active:scale-[0.98]'
+            }`}
+          >
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+            {copied ? 'Copied to clipboard!' : 'Copy prompt'}
+          </button>
+          <span className="text-xs text-slate-400 shrink-0 hidden sm:block">⌘↵</span>
         </div>
       </div>
     </div>
