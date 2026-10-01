@@ -1,7 +1,7 @@
 // FILE: src/components/AITaskEntryModal.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Mic, MicOff, Keyboard, Loader2, Sparkles, Star } from 'lucide-react';
+import { X, Mic, MicOff, Keyboard, Loader2, Sparkles, Star, AlertTriangle } from 'lucide-react';
 import { cn } from '@/domain/utils';
 import { extractTaskFromNaturalLanguage, ExtractedTask } from '@/domain/ai/taskExtraction';
 import { TaskPriority, TaskCategory } from '@/domain/types';
@@ -379,6 +379,12 @@ export const AITaskEntryModal: React.FC<AITaskEntryModalProps> = ({
           {/* Preview */}
           {extractedTask && (
             <div className="space-y-4">
+              {extractedTask.aiWarning && (
+                <div className="flex gap-3 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800 break-words">{extractedTask.aiWarning}</p>
+                </div>
+              )}
               <div className="p-5 bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-purple-200">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-4">
                   Preview

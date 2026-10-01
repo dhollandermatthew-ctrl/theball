@@ -25,14 +25,15 @@ RULES:
    - Good: "Research: Compare Sonnet and Gemma quality"
    - Good: "Planning: Prep sprint"
 
-2. **Description**: Quote or closely paraphrase what the user actually said — never invent details they didn't mention. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
+2. **Description**: Stay true to what the user actually said. You MAY lightly clarify it — tidy the wording, make an implied action explicit, or group related points — so the task reads clearly. You may NOT add new facts, goals, people, deadlines, or outcomes the user didn't mention. The result should be foundationally what they said, just clearer. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
    - **Single thing**: Keep as one line prose
    - **2+ things mentioned**: MUST use markdown bullet format (dash space: "- Item")
    - CRITICAL: Use markdown dash format (- not •) with line breaks (\n) between bullets
    - Bullets trigger on: multiple actions, multiple objects/components, lists with commas/ands, or distinct deliverables
    - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
    - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
-   - DO NOT fabricate purpose, context, or outcomes that the user did not mention
+   - OK to clarify: "tell her I love her" → "Tell her I love her"; "API" in a design list → "Design API components"
+   - NOT OK to invent: adding a purpose, agenda, or outcome the user never said
    - Start each bullet with action verb or object name
    - Format: "- Item 1\n- Item 2\n- Item 3" (markdown dash format for proper HTML conversion)
    - Max 5 bullets (consolidate if more)
@@ -63,9 +64,10 @@ RULES:
      * "tomorrow" → TOMORROW
      * "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" (without "next") → NEXT_[DAY]
      * "next Monday", "next Friday", "this Wednesday" → NEXT_[DAY]
-     * Month + Day: "April 30", "April 30th", "the 30th", "April thirtieth" → DATE_2026-04-30
-     * "April 28", "April 28th" → DATE_2026-04-28
-     * "May 15", "May 15th" → DATE_2026-05-15
+     * Month + Day: "April 30", "April 30th", "April thirtieth" → DATE_YYYY-04-30
+     * Day only: "the 15th" → that day in the current month, or next month if it has already passed
+   - Use TODAY'S DATE (given at the end of this prompt) as the reference for every relative date
+   - Year: if no year is said, use the next occurrence on or after today (e.g. "January 5" said in October → next year)
    - Multiple mentions: Use the LATEST/MOST SPECIFIC date
    - Default if no date: TODAY
 
@@ -85,18 +87,18 @@ OUTPUT (strict JSON):
   "title": "string",
   "description": "string (use \n for line breaks between bullets)",
   "priority": "p1" | "p2" | "p3",
-  "date": "TODAY" | "TOMORROW" | "NEXT_MONDAY" | "DATE_2026-04-30",
+  "date": "TODAY" | "TOMORROW" | "NEXT_MONDAY" | "DATE_YYYY-MM-DD",
   "category": "work" | "personal",
   "starred": true | false
 }
 
-EXAMPLES:
+EXAMPLES (these assume today is in early 2026):
 
 Input: "I need to call my mom and tell her I love her. This is AP1 task and it's for this Wednesday and this is a star task."
 Output:
 {
   "title": "Personal: Call mom",
-  "description": "Express love and appreciation to mom",
+  "description": "Call mom and tell her I love her",
   "priority": "p1",
   "date": "NEXT_WEDNESDAY",
   "category": "personal",
@@ -118,7 +120,7 @@ Input: "So I need to book a meeting with the pre-sales team. This is AP1 and I w
 Output:
 {
   "title": "Meeting: Book pre-sales",
-  "description": "Discuss priorities and alignment with pre-sales team",
+  "description": "Book meeting with pre-sales team",
   "priority": "p1",
   "date": "DATE_2026-04-30",
   "category": "work",
@@ -162,7 +164,7 @@ Input: "Create component library by Friday, high priority"
 Output:
 {
   "title": "Build component library",
-  "description": "Create reusable UI components for product",
+  "description": "Create component library",
   "priority": "p1",
   "date": "NEXT_FRIDAY",
   "category": "work",
@@ -182,6 +184,15 @@ Output:
 
 IMPORTANT: 
 - Always extract priority, date, and starred status if mentioned ANYWHERE in the text
-- PRESERVE all key details from the transcript in the description - completeness over brevity
-- Do NOT strip out important context, actions, or outcomes the user mentioned
+- PRESERVE every key detail the user mentioned — drop filler, never drop substance
+- Clarify, don't invent: the description must still be what the user said
 - CRITICAL: When using bullets, use markdown dash format (- not •) with each on new line (\n separator)`;
+
+/** System prompt with today's date appended as the reference for relative dates. */
+export function buildExtractSystemPrompt(today: Date = new Date()): string {
+  const weekday = today.toLocaleDateString("en-US", { weekday: "long" });
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  return `${EXTRACT_SYSTEM_PROMPT}\n\nTODAY'S DATE: ${weekday}, ${y}-${m}-${d}`;
+}

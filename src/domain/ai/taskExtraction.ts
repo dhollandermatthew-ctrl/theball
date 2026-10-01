@@ -1,7 +1,7 @@
 // FILE: src/domain/ai/taskExtraction.ts
 
 import { addDays, nextDay, parse } from "date-fns";
-import { EXTRACT_SYSTEM_PROMPT } from "@/domain/prompts/task/extract.system";
+import { buildExtractSystemPrompt } from "@/domain/prompts/task/extract.system";
 import { tokenTracker } from "@/domain/tokenTracker";
 import { TaskPriority, TaskCategory } from "@/domain/types";
 
@@ -10,7 +10,7 @@ import { TaskPriority, TaskCategory } from "@/domain/types";
  * ----------------------------------------- */
 
 const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-const groqModel = "llama-3.3-70b-versatile"; // Fast, accurate, generous limits
+const groqModel = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was retired by Groq
 
 /* -----------------------------------------
  * TYPES
@@ -23,6 +23,7 @@ export interface ExtractedTask {
   date: string; // ISO date string (YYYY-MM-DD)
   category: TaskCategory;
   starred: boolean; // Star task for the day (top priority)
+  aiWarning?: string; // Set when the AI failed or returned unusable values — shown in the Quick Add UI
 }
 
 interface AIExtractedTask {
@@ -43,6 +44,15 @@ function toLocalDateString(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function isValidDateToken(token: string): boolean {
+  return (
+    token === "TODAY" ||
+    token === "TOMORROW" ||
+    /^NEXT_(SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY)$/.test(token) ||
+    /^DATE_\d{4}-\d{2}-\d{2}$/.test(token)
+  );
 }
 
 function parseDateToken(token: string): string {
@@ -112,7 +122,8 @@ export async function extractTaskFromNaturalLanguage(
     console.log('[TaskExtraction] Model:', groqModel);
     console.log('[TaskExtraction] Provider: Groq');
     console.log('[TaskExtraction] Input:', input);
-    console.log('[TaskExtraction] System prompt length:', EXTRACT_SYSTEM_PROMPT.length);
+    const systemPrompt = buildExtractSystemPrompt();
+    console.log('[TaskExtraction] System prompt length:', systemPrompt.length);
     console.log('========================================');
     
     const startTime = performance.now();
@@ -127,7 +138,7 @@ export async function extractTaskFromNaturalLanguage(
       body: JSON.stringify({
         model: groqModel,
         messages: [
-          { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: input }
         ],
         temperature: 0.1,
@@ -140,7 +151,11 @@ export async function extractTaskFromNaturalLanguage(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[TaskExtraction] Groq API error:', response.status, errorText);
-      throw new Error(`Groq API error: ${response.status}`);
+      let detail = errorText;
+      try {
+        detail = JSON.parse(errorText)?.error?.message || errorText;
+      } catch {}
+      throw new Error(`Groq API error ${response.status}: ${detail}`);
     }
 
     const data = await response.json();
@@ -159,7 +174,7 @@ export async function extractTaskFromNaturalLanguage(
         type: "TASK_EXTRACTION",
         category: "analysis" as const,
         promptText: input,
-        systemPrompt: EXTRACT_SYSTEM_PROMPT,
+        systemPrompt,
         latency: Math.round(latency),
         promptLength: input.length,
         responseLength: raw.length,
@@ -198,13 +213,24 @@ export async function extractTaskFromNaturalLanguage(
     const date = parseDateToken(parsed.date || "TODAY");
     const starred = parsed.starred === true; // Use AI value, default false if not boolean
 
-    const extractedResult = {
+    // Flag values the AI returned that we couldn't use, so defaults aren't silent
+    const problems: string[] = [];
+    if (!parsed.title?.trim()) problems.push("no title");
+    if (!["p1", "p2", "p3"].includes(parsed.priority)) problems.push(`priority "${parsed.priority}" → P2`);
+    if (!["work", "personal"].includes(parsed.category)) problems.push(`category "${parsed.category}" → work`);
+    if (parsed.date && !isValidDateToken(parsed.date)) problems.push(`date "${parsed.date}" → today`);
+    if (typeof parsed.starred !== "boolean") problems.push(`starred "${parsed.starred}" → no star`);
+
+    const extractedResult: ExtractedTask = {
       title,
       description,
       priority,
       date,
       category,
       starred,
+      ...(problems.length > 0 && {
+        aiWarning: `AI returned unexpected values, defaults used: ${problems.join(", ")}`,
+      }),
     };
 
     console.log('[TaskExtraction] ========================================');
@@ -219,13 +245,15 @@ export async function extractTaskFromNaturalLanguage(
 
   } catch (err) {
     console.error('[TaskExtraction] Error:', err);
+    const reason = err instanceof Error ? err.message : String(err);
     
     // Fallback: create simple task from input
     return {
+      aiWarning: `AI extraction failed (${groqModel}) — fields below are defaults, not what you said. ${reason}`,
       title: input.slice(0, 60) || "Untitled Task",
       description: input,
       priority: "p2",
-      date: new Date().toISOString().slice(0, 10),
+      date: toLocalDateString(new Date()),
       category: "work",
       starred: false,
     };
