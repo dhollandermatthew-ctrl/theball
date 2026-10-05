@@ -1,10 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import {
-  Calendar as CalendarIcon,
   Briefcase,
-  User,
-  Inbox,
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
@@ -12,10 +9,9 @@ import {
   CheckCircle2,
   Zap,
   Sparkles,
-  HelpCircle,
+  ArrowRight,
 } from 'lucide-react';
 
-import { TaskCategory } from '@/domain/types';
 import { cn } from '@/domain/utils';
 import { tokenTracker } from '@/domain/tokenTracker';
 import { TokenStatsModal } from './TokenStatsModal';
@@ -34,52 +30,32 @@ export type ViewMode = 'week' | 'month';
 interface HeaderProps {
   currentDate: Date;
   viewMode: ViewMode;
-  category: TaskCategory;
   weeklyStats: { total: number; done: number };
-  isInboxOpen: boolean;
-  inboxCount: number;
+  incompleteCount: number;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   onViewModeChange: (mode: ViewMode) => void;
-  onCategoryChange: (category: TaskCategory) => void;
-  onToggleInbox: () => void;
   onAIEntryClick: () => void;
+  onRollToNextWeek: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  currentDate, 
+export const Header: React.FC<HeaderProps> = ({
+  currentDate,
   viewMode,
-  category,
   weeklyStats,
-  isInboxOpen,
-  inboxCount,
+  incompleteCount,
   onPrev,
   onNext,
   onToday,
   onViewModeChange,
-  onCategoryChange,
-  onToggleInbox,
   onAIEntryClick,
+  onRollToNextWeek,
 }) => {
-  // Use local helper instead of date-fns startOfWeek
   const start = getStartOfWeek(currentDate);
-  
+
   const [totalTokens, setTotalTokens] = React.useState(0);
   const [isStatsOpen, setIsStatsOpen] = React.useState(false);
-  const [showPriorityGuide, setShowPriorityGuide] = React.useState(false);
-  const priorityGuideRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!showPriorityGuide) return;
-    const handler = (e: MouseEvent) => {
-      if (priorityGuideRef.current && !priorityGuideRef.current.contains(e.target as Node)) {
-        setShowPriorityGuide(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showPriorityGuide]);
 
   React.useEffect(() => {
     const updateTokens = () => {
@@ -95,199 +71,108 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <TokenStatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} />
-      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white sticky top-0 z-30 shadow-sm gap-4 shrink-0">
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3 text-slate-800 min-w-[200px]">
-          <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
-             <CalendarIcon size={20} />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight">
-             {format(viewMode === 'week' ? start : currentDate, 'MMMM yyyy')}
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white sticky top-0 z-30 shadow-sm gap-3 shrink-0">
+        {/* Left: date + nav + view toggle */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold tracking-tight text-slate-800 min-w-[160px]">
+            {format(viewMode === 'week' ? start : currentDate, 'MMMM yyyy')}
           </h1>
-        </div>
 
-        {/* Navigation */}
-        <div className="flex items-center bg-slate-100 rounded-md p-0.5">
+          <div className="flex items-center bg-slate-100 rounded-md p-0.5">
             <button onClick={onPrev} className="p-1 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-500 hover:text-slate-900" title="Previous">
-                <ChevronLeft size={18} />
+              <ChevronLeft size={16} />
             </button>
             <button onClick={onNext} className="p-1 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-500 hover:text-slate-900" title="Next">
-                <ChevronRight size={18} />
+              <ChevronRight size={16} />
             </button>
             <button
-                onClick={onToday}
-                className="ml-1 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors"
+              onClick={onToday}
+              className="ml-1 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors"
             >
               Today
             </button>
-        </div>
+          </div>
 
-        {/* View Toggle */}
-        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
             <button
-                onClick={() => onViewModeChange('week')}
-                className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
-                    viewMode === 'week' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
+              onClick={() => onViewModeChange('week')}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+                viewMode === 'week' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
             >
-                <LayoutGrid size={14} />
-                Week
+              <LayoutGrid size={13} />
+              Week
             </button>
             <button
-                onClick={() => onViewModeChange('month')}
-                className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
-                    viewMode === 'month' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
+              onClick={() => onViewModeChange('month')}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+                viewMode === 'month' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
             >
-                <CalendarDays size={14} />
-                Month
+              <CalendarDays size={13} />
+              Month
             </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-6">
-        {/* Category Toggle */}
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-  <button
-    onClick={() => onCategoryChange('work')}
-    className={cn(
-      "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all tracking-wide",
-      category === 'work'
-        ? "bg-white text-slate-900 shadow-sm"
-        : "text-slate-500 hover:text-slate-700"
-    )}
-  >
-    <Briefcase
-      size={14}
-      className={cn(
-        category === 'work' ? "text-blue-600" : "text-slate-400"
-      )}
-    />
-    <span>Work</span>
-  </button>
+        {/* Right: actions */}
+        <div className="flex items-center gap-2">
+          {/* Work indicator */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
+            <Briefcase size={13} className="text-blue-600" />
+            <span className="text-xs font-semibold text-slate-600">Work</span>
+          </div>
 
-  <button
-    onClick={() => onCategoryChange('personal')}
-    className={cn(
-      "flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all uppercase tracking-wide",
-      category === 'personal'
-        ? "bg-white text-slate-900 shadow-sm"
-        : "text-slate-500 hover:text-slate-700"
-    )}
-  >
-    <User
-      size={14}
-      className={cn(
-        category === 'personal' ? "text-indigo-500" : "text-slate-400"
-      )}
-    />
-    <span>Personal</span>
-  </button>
-</div>
-
-        {/* Center: Completed Counter */}
-        <div className="hidden lg:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-            <CheckCircle2 size={16} className="text-green-600" />
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                {weeklyStats.done} Completed
+          {/* Completed counter */}
+          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+            <CheckCircle2 size={14} className="text-green-600" />
+            <span className="text-xs font-semibold text-slate-600">
+              {weeklyStats.done}
             </span>
-        </div>
+          </div>
 
-        {/* Priority Guide */}
-        <div ref={priorityGuideRef} className="relative">
+          {/* Roll to next week — only in week view when there are incomplete tasks */}
+          {viewMode === 'week' && incompleteCount > 0 && (
+            <button
+              onClick={onRollToNextWeek}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors"
+              title="Roll incomplete tasks to next week"
+            >
+              <ArrowRight size={13} />
+              Roll
+              <span className="bg-slate-600 text-slate-200 rounded px-1 text-[10px] font-bold">
+                {incompleteCount}
+              </span>
+            </button>
+          )}
+
+          {/* Quick Add */}
           <button
-            onClick={() => setShowPriorityGuide((v) => !v)}
-            className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
-            title="Priority guide"
+            onClick={onAIEntryClick}
+            className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 hover:border-purple-300 transition-all"
+            title="Quick Add Task (Cmd+Shift+N)"
           >
-            <HelpCircle size={15} className="text-slate-500" />
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide hidden xl:inline">Priority</span>
+            <Sparkles size={14} className="text-purple-600" />
+            <span className="text-xs font-bold text-purple-700 uppercase tracking-wide">
+              Quick Add
+            </span>
           </button>
 
-          {showPriorityGuide && (
-            <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-4">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">How to rank tasks</div>
-              <div className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                Ask one question: <span className="font-semibold text-slate-700">"Is this connected to something active, or just important in the abstract?"</span>
-              </div>
-              <div className="space-y-3">
-                <div className="flex gap-3 items-start">
-                  <span className="text-[11px] font-bold text-red-600 w-5 shrink-0 mt-0.5">P1</span>
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800">Do today</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Real external clock (deadline, someone waiting) — OR directly compounds your capability on something you're actively working on right now.</div>
-                  </div>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className="text-[11px] font-bold text-amber-500 w-5 shrink-0 mt-0.5">P2</span>
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800">Do this week</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Important — a relationship, deliverable, or project — but not time-pressured today and not directly tied to an active problem.</div>
-                  </div>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className="text-[11px] font-bold text-slate-400 w-5 shrink-0 mt-0.5">P3</span>
-                  <div>
-                    <div className="text-[12px] font-semibold text-slate-800">Do when ready</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">No clock, no active relevance, no one waiting. Good idea — nothing breaks if it waits.</div>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400 leading-relaxed">
-                Hover any P badge on a card for a quick reminder.
-              </div>
-            </div>
-          )}
+          {/* Token counter */}
+          <button
+            onClick={() => setIsStatsOpen(true)}
+            className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 hover:border-amber-300 transition-all"
+            title="View detailed token usage"
+          >
+            <Zap size={14} className="text-amber-600" />
+            <span className="text-xs font-bold text-amber-700">
+              {totalTokens.toLocaleString()}
+            </span>
+          </button>
         </div>
-
-        {/* AI Quick Add Button */}
-        <button
-          onClick={onAIEntryClick}
-          className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 hover:border-purple-300 transition-all cursor-pointer"
-          title="Quick Add Task (Cmd+Shift+N)"
-        >
-          <Sparkles size={16} className="text-purple-600" />
-          <span className="text-xs font-bold text-purple-700 uppercase tracking-wide hidden xl:inline">
-            Quick Add
-          </span>
-        </button>
-
-        {/* Token Counter - Always Visible & Clickable */}
-        <button
-          onClick={() => setIsStatsOpen(true)}
-          className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 transition-all cursor-pointer"
-          title="View detailed token usage"
-        >
-          <Zap size={16} className="text-amber-600" />
-          <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
-            {totalTokens.toLocaleString()} tokens
-          </span>
-        </button>
-
-        <button
-            onClick={onToggleInbox}
-            className={cn(
-                "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border transition-all shadow-sm",
-                isInboxOpen 
-                ? "bg-blue-50 text-blue-700 border-blue-200" 
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            )}
-        >
-            <Inbox size={16} />
-            Inbox
-            {inboxCount > 0 && (
-                <span className={cn(
-                    "ml-1 flex items-center justify-center text-[10px] font-bold h-5 min-w-[20px] px-1 rounded-full",
-                    isInboxOpen ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
-                )}>
-                    {inboxCount}
-                </span>
-            )}
-        </button>
-      </div>
-    </header>
+      </header>
     </>
   );
 };

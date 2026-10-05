@@ -58,13 +58,44 @@ function getCardPreview(item: ProductKnowledgeItem): string {
          .replace(/\[([^\]]+)\]\([^)]+\)/, '$1') // un-link
          .trim()
       )
-      .filter((l) => l.length > 25);       // skip short lines (labels, rule names)
+      .filter((l) => l.length > 25 && !l.toLowerCase().startsWith('use for:'));
     return lines.slice(0, 3).join(' ').substring(0, 200);
   }
   if (item.type === 'note') {
     return stripHtml(item.content || '').replace(/\s+/g, ' ').trim().substring(0, 200);
   }
   return (item.content || '').replace(/\s+/g, ' ').trim().substring(0, 200);
+}
+
+function getUseForLine(item: ProductKnowledgeItem): string | null {
+  const md = item.editableContent || '';
+  if (!md) return null;
+  for (const line of md.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.toLowerCase().startsWith('use for:')) {
+      return trimmed.substring('use for:'.length).trim();
+    }
+  }
+  return null;
+}
+
+type DocBadgeConfig = { label: string; color: string; bg: string; border: string };
+
+function getDocTypeBadge(item: ProductKnowledgeItem): DocBadgeConfig | null {
+  const tags = item.tags || [];
+  if (tags.includes('ai-context')) {
+    return { label: 'AI Context', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' };
+  }
+  if (tags.includes('raw-notes') || item.title.toLowerCase().includes('raw notes')) {
+    return { label: 'Raw Notes', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-300' };
+  }
+  if (item.type === 'document' && item.editableContent && !item.fileName) {
+    return { label: 'Field Guide', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' };
+  }
+  if (item.type === 'note') {
+    return { label: 'Note', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' };
+  }
+  return null;
 }
 
 function formatCardDate(iso: string): string {
@@ -1469,22 +1500,24 @@ function KnowledgeCard({
   }, [showCollectionPicker]);
 
   const preview = getCardPreview(item);
+  const useFor = getUseForLine(item);
+  const docBadge = getDocTypeBadge(item);
 
   const colEntry = item.collection ? userCollections.find((c) => c.id === item.collection) : undefined;
   const accentColor = colEntry
     ? (COLOR_PRESETS[colEntry.color] || COLOR_PRESETS.slate).border
-    : 'border-l-transparent';
+    : 'border-l-slate-200';
 
-  const isNote = item.type === 'note';
+  const hasFile = item.type === 'document' && (item.filePath || item.fileData);
 
   return (
     <div
-      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col gap-3`}
+      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col gap-2.5`}
       onClick={onClick}
     >
       {/* Hover actions */}
       <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-        {item.type === 'document' && (item.filePath || item.fileData) && (
+        {hasFile && (
           <button
             onClick={() => item.filePath
               ? openKnowledgeFile(item.filePath)
@@ -1496,62 +1529,56 @@ function KnowledgeCard({
             <Download size={13} />
           </button>
         )}
-        {isNote && (
-          <button onClick={onEdit} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
-            <Edit3 size={13} />
-          </button>
-        )}
         <button onClick={onDelete} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50">
           <Trash2 size={13} />
         </button>
       </div>
 
-      {/* Title + type badge */}
-      <div className="flex items-start gap-2 pr-16 min-h-[2.5rem]">
-        {!isNote && <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />}
-        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 flex-1">{item.title}</h3>
+      {/* Badge row */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {docBadge && (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${docBadge.color} ${docBadge.bg} ${docBadge.border}`}>
+            {docBadge.label}
+          </span>
+        )}
+        {item.type === 'document' && item.fileName && (
+          <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />
+        )}
+        <button ref={colBtnRef} onClick={openPicker} title={item.collection ? 'Change collection' : 'Add to collection'} className="shrink-0">
+          {item.collection
+            ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
+            : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border border-dashed border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-500 transition-colors">+ collection</span>
+          }
+        </button>
       </div>
 
-      {/* Preview text */}
-      {preview ? (
+      {/* Title */}
+      <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 pr-12">{item.title}</h3>
+
+      {/* Use for / preview text */}
+      {useFor ? (
+        <p className="text-xs leading-relaxed flex-1">
+          <span className="font-medium text-slate-400 uppercase tracking-wider text-[10px]">Use for </span>
+          <span className="text-slate-600">{useFor}</span>
+        </p>
+      ) : preview ? (
         <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 flex-1">{preview}</p>
       ) : (
         <div className="flex-1" />
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center justify-between gap-2 mt-0.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap gap-1 items-center">
-          {/* Collection button — portal-based picker to escape overflow clipping */}
-          <button
-            ref={colBtnRef}
-            onClick={openPicker}
-            title="Change collection"
-          >
-            {item.collection
-              ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
-              : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-dashed border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-500 transition-colors">
-                  + collection
-                </span>
-            }
-          </button>
-
-          {(item.tags || []).slice(0, 2).map((tag) => (
+          {(item.tags || []).filter(t => t !== 'ai-context' && t !== 'raw-notes').slice(0, 2).map((tag) => (
             <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[11px]">{tag}</span>
           ))}
-          {(item.tags || []).length > 2 && (
-            <span className="text-[11px] text-slate-400">+{item.tags!.length - 2}</span>
+          {(item.tags || []).filter(t => t !== 'ai-context' && t !== 'raw-notes').length > 2 && (
+            <span className="text-[11px] text-slate-400">+{(item.tags!).filter(t => t !== 'ai-context' && t !== 'raw-notes').length - 2}</span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {item.type === 'document' && item.fileName && (
-            <span className="text-[11px] text-slate-400 truncate max-w-[120px]" title={item.fileName}>
-              {item.fileName}
-            </span>
-          )}
-          <span className="text-[11px] text-slate-400">{formatCardDate(item.createdAt)}</span>
-        </div>
+        <span className="text-[11px] text-slate-400 shrink-0">{formatCardDate(item.createdAt)}</span>
       </div>
 
       {/* Collection picker — rendered via portal so it escapes overflow:auto parents */}

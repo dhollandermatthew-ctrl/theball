@@ -4,8 +4,22 @@
     {
       "name": "mobile",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "mobile"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "mobile"
+      ],
       "port": 5173
+    },
+    {
+      "name": "desktop-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 1420
     }
   ]
 }

@@ -278,8 +278,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [category, setCategory] = useState<TaskCategory>("work");
-  const [showInbox, setShowInbox] = useState(false);
+  const [category] = useState<TaskCategory>("work");
   const [showRollover, setShowRollover] = useState(false);
   const [activeTask, setActiveTask] = useState<import("@/domain/state").Task | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -439,20 +438,17 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
       <Header
         currentDate={currentDate}
         viewMode={viewMode}
-        category={category}
         weeklyStats={{
           done: completedCount,
           total: totalCount,
         }}
-        isInboxOpen={showInbox}
-        inboxCount={0}
+        incompleteCount={incompleteWeeklyTasks.length}
         onPrev={() => setCurrentDate((d) => addWeeks(d, -1))}
         onNext={() => setCurrentDate((d) => addWeeks(d, 1))}
         onToday={() => setCurrentDate(new Date())}
         onViewModeChange={setViewMode}
-        onCategoryChange={setCategory}
-        onToggleInbox={() => setShowInbox(!showInbox)}
         onAIEntryClick={() => onAIEntryClick?.()}
+        onRollToNextWeek={() => setShowRollover(true)}
       />
 
       {viewMode === "month" ? (
@@ -551,22 +547,6 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
             document.body
           )}
         </DndContext>
-      )}
-
-      {/* Roll to next week button — only shown in week view when there are incomplete tasks */}
-      {viewMode === "week" && incompleteWeeklyTasks.length > 0 && (
-        <div className="absolute bottom-5 right-6">
-          <button
-            onClick={() => setShowRollover(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg shadow-lg transition-colors"
-          >
-            <ArrowRight size={13} />
-            Roll to next week
-            <span className="bg-slate-600 text-slate-200 rounded px-1.5 py-0.5 text-[10px] font-semibold">
-              {incompleteWeeklyTasks.length}
-            </span>
-          </button>
-        </div>
       )}
 
       {showRollover && (
