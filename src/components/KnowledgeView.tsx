@@ -1641,6 +1641,20 @@ function humanizeVarName(v: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function extractWhenToUse(prompt: string, description: string): string | null {
+  // Look for ## When to use (this command) heading in the prompt
+  const match = prompt.match(/##\s*when to use(?:\s+this\s+command)?\s*\n+([\s\S]*?)(?:\n##|\n#|$)/i);
+  if (match) {
+    const text = match[1]
+      .split('\n')
+      .map(l => l.replace(/^[-*•]\s*/, '').trim())
+      .filter(l => l.length > 10)[0];
+    if (text) return text;
+  }
+  // Fall back to description
+  return description || null;
+}
+
 function CommandsPanel({
   commands,
   documents,
@@ -1719,28 +1733,18 @@ function CommandsPanel({
           {filtered.map((cmd) => {
             const vars = extractVariables(cmd.prompt);
             const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
+            const whenToUse = extractWhenToUse(cmd.prompt, cmd.description);
+            const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
             return (
               <div key={cmd.id} className="group bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all flex gap-4">
-                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 mt-0.5">
                   <Terminal size={16} />
                 </div>
                 <div className="flex-1 min-w-0">
+                  {/* Title row + secondary actions */}
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
-                      {cmd.description && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{cmd.description}</p>
-                      )}
-                      <p className="text-[11px] text-slate-400 font-mono line-clamp-2 mt-1.5 leading-relaxed">{cmd.prompt}</p>
-                    </div>
+                    <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
                     <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => syncToClaudeCommand(cmd)}
-                        title="Sync to Claude Code as slash command"
-                        className={`p-1.5 rounded-lg transition-colors ${syncedIds.has(cmd.id) ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}
-                      >
-                        {syncedIds.has(cmd.id) ? <Check size={13} /> : <Share2 size={13} />}
-                      </button>
                       <button onClick={() => onDuplicate(cmd)} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
                         <Copy size={13} />
                       </button>
@@ -1752,28 +1756,52 @@ function CommandsPanel({
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2 mt-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {vars.length > 0 && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs">
-                          <Zap size={10} />
-                          {vars.length} variable{vars.length !== 1 ? 's' : ''}
+
+                  {/* When to use */}
+                  {whenToUse && (
+                    <p className="text-xs mt-1 leading-relaxed line-clamp-2">
+                      <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Use for </span>
+                      <span className="text-slate-600">{whenToUse}</span>
+                    </p>
+                  )}
+
+                  {/* Variables + linked docs + actions row */}
+                  <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {vars.map((v) => (
+                        <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[11px] font-medium">
+                          <Zap size={9} />
+                          {humanizeVarName(v)}
                         </span>
-                      )}
-                      {linkedDocs.length > 0 && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs">
-                          <Link2 size={10} />
-                          {linkedDocs.length} doc{linkedDocs.length !== 1 ? 's' : ''}
+                      ))}
+                      {linkedDocs.map((doc) => (
+                        <span key={doc.id} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
+                          <Link2 size={9} />
+                          <span className="truncate">{doc.title}</span>
                         </span>
-                      )}
+                      ))}
                     </div>
-                    <button
-                      onClick={() => onRun(cmd)}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors shrink-0"
-                    >
-                      <Zap size={11} />
-                      Use
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => syncToClaudeCommand(cmd)}
+                        title={`Sync as /${slug} to Claude Code`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                          syncedIds.has(cmd.id)
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        }`}
+                      >
+                        {syncedIds.has(cmd.id) ? <Check size={11} /> : <Share2 size={11} />}
+                        {syncedIds.has(cmd.id) ? 'Synced' : '→ Claude'}
+                      </button>
+                      <button
+                        onClick={() => onRun(cmd)}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors"
+                      >
+                        <Zap size={11} />
+                        Use
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
