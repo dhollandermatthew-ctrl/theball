@@ -83,6 +83,9 @@ type DocBadgeConfig = { label: string; color: string; bg: string; border: string
 
 function getDocTypeBadge(item: ProductKnowledgeItem): DocBadgeConfig | null {
   const tags = item.tags || [];
+  if (tags.includes('learning-log') || item.title.startsWith('Learning Log —') || item.collection === 'Learning Log') {
+    return { label: 'Learning Log', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' };
+  }
   if (tags.includes('ai-context')) {
     return { label: 'AI Context', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' };
   }
@@ -1636,23 +1639,32 @@ function extractVariables(prompt: string): string[] {
 }
 
 function humanizeVarName(v: string): string {
-  return v
-    .replace(/[_-]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const words = v.replace(/[_-]/g, ' ').split(' ').filter(Boolean);
+  const titled = words.map(w => w.charAt(0).toUpperCase() + w.slice(1));
+  if (titled.length > 3) return titled.slice(0, 3).join(' ') + '…';
+  return titled.join(' ');
+}
+
+function shortDocTitle(title: string): string {
+  const stripped = title.replace(/\s*—\s*(AI Context Document|Field Guide|Notes|Raw Notes|Context|Document)$/i, '').trim();
+  const words = stripped.split(' ');
+  return words.length > 4 ? words.slice(0, 4).join(' ') + '…' : stripped;
+}
+
+function stripMd(text: string): string {
+  return text.replace(/\*\*/g, '').replace(/[_*`]/g, '').trim();
 }
 
 function extractWhenToUse(prompt: string, description: string): string | null {
-  // Look for ## When to use (this command) heading in the prompt
   const match = prompt.match(/##\s*when to use(?:\s+this\s+command)?\s*\n+([\s\S]*?)(?:\n##|\n#|$)/i);
   if (match) {
     const text = match[1]
       .split('\n')
       .map(l => l.replace(/^[-*•]\s*/, '').trim())
       .filter(l => l.length > 10)[0];
-    if (text) return text;
+    if (text) return stripMd(text);
   }
-  // Fall back to description
-  return description || null;
+  return description ? stripMd(description) : null;
 }
 
 function CommandsPanel({
@@ -1775,9 +1787,9 @@ function CommandsPanel({
                         </span>
                       ))}
                       {linkedDocs.map((doc) => (
-                        <span key={doc.id} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
+                        <span key={doc.id} title={doc.title} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
                           <Link2 size={9} />
-                          <span className="truncate">{doc.title}</span>
+                          <span className="truncate">{shortDocTitle(doc.title)}</span>
                         </span>
                       ))}
                     </div>
