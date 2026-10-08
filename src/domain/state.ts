@@ -447,7 +447,9 @@ export const defaultState: Pick<
             if (!task?.date) return;
 
             const current = new Date(`${task.date}T12:00:00`);
-            current.setDate(current.getDate() + 7);
+            // Move to the Sunday that starts the next week (Sun=0, so 7-dayOfWeek always lands on next Sunday)
+            const daysUntilNextSunday = 7 - current.getDay();
+            current.setDate(current.getDate() + daysUntilNextSunday);
             const y = current.getFullYear();
             const m = String(current.getMonth() + 1).padStart(2, "0");
             const d = String(current.getDate()).padStart(2, "0");
