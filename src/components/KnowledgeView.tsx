@@ -1558,12 +1558,15 @@ function KnowledgeCard({
       {/* Title */}
       <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 pr-12">{item.title}</h3>
 
-      {/* Use for / preview text */}
+      {/* Use for chips / preview text */}
       {useFor ? (
-        <p className="text-xs leading-relaxed flex-1">
-          <span className="font-medium text-slate-400 uppercase tracking-wider text-[10px]">Use for </span>
-          <span className="text-slate-600">{useFor}</span>
-        </p>
+        <div className="flex flex-wrap gap-1 mt-1 flex-1">
+          {splitUseForChips(useFor).map((chip) => (
+            <span key={chip} className="px-2 py-0.5 bg-slate-800 text-white rounded-full text-[11px] font-medium whitespace-nowrap">
+              {chip}
+            </span>
+          ))}
+        </div>
       ) : preview ? (
         <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 flex-1">{preview}</p>
       ) : (
@@ -1653,6 +1656,20 @@ function shortDocTitle(title: string): string {
 
 function stripMd(text: string): string {
   return text.replace(/\*\*/g, '').replace(/[_*`]/g, '').trim();
+}
+
+function splitUseForChips(text: string): string[] {
+  const base = text.split('—')[0].trim();
+  const parts = base.split(/,\s*|\s+or\s+/).map(s => s.replace(/\.$/, '').trim());
+  return parts
+    .filter(s => s.length > 2)
+    .slice(0, 5)
+    .map(s => {
+      if (s.length <= 30) return s;
+      const cut = s.substring(0, 30);
+      const lastSpace = cut.lastIndexOf(' ');
+      return (lastSpace > 12 ? cut.substring(0, lastSpace) : cut) + '…';
+    });
 }
 
 function extractWhenToUse(prompt: string, description: string): string | null {
@@ -1769,12 +1786,15 @@ function CommandsPanel({
                     </div>
                   </div>
 
-                  {/* When to use */}
+                  {/* When to use — chips */}
                   {whenToUse && (
-                    <p className="text-xs mt-1 leading-relaxed line-clamp-2">
-                      <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Use for </span>
-                      <span className="text-slate-600">{whenToUse}</span>
-                    </p>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {splitUseForChips(whenToUse).map((chip) => (
+                        <span key={chip} className="px-2 py-0.5 bg-slate-800 text-white rounded-full text-[11px] font-medium whitespace-nowrap">
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
                   )}
 
                   {/* Variables + linked docs + actions row */}
