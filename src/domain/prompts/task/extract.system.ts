@@ -25,24 +25,22 @@ RULES:
    - Good: "Research: Compare Sonnet and Gemma quality"
    - Good: "Planning: Prep sprint"
 
-2. **Description**: Stay true to what the user actually said. You MAY lightly clarify it — tidy the wording, make an implied action explicit, or group related points — so the task reads clearly. You may NOT add new facts, goals, people, deadlines, or outcomes the user didn't mention. The result should be foundationally what they said, just clearer. Use bullets when 2+ distinct things are mentioned (separate actions, multiple objects, or list of items).
-   - **Single thing**: Keep as one line prose
-   - **2+ things mentioned**: MUST use markdown bullet format (dash space: "- Item")
+2. **Description**: Stay true to what the user actually said. You MAY lightly clarify it — tidy the wording, make an implied action explicit — so the task reads clearly. You may NOT add new facts, goals, people, deadlines, or outcomes the user didn't mention. The result must be foundationally what they said, just clearer.
+   - **SHORT inputs (under 30 words, one clear thing)**: One line of prose is fine
+   - **ALL other inputs**: Use bullet format. If someone talked for more than a few sentences, they gave you detail — KEEP IT ALL.
    - CRITICAL: Use markdown dash format (- not •) with line breaks (\n) between bullets
-   - Bullets trigger on: multiple actions, multiple objects/components, lists with commas/ands, or distinct deliverables
-   - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context
-   - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), redundant phrases
-   - OK to clarify: "tell her I love her" → "Tell her I love her"; "API" in a design list → "Design API components"
-   - NOT OK to invent: adding a purpose, agenda, or outcome the user never said
+   - Include: ALL key stakeholders, specific actions, purposes, expected outcomes, important context, any numbers or specifics mentioned
+   - Remove ONLY: filler words ("I want to", "I need to", "so", "like", "um"), direct repetition
+   - No bullet limit — use as many as needed to preserve everything the user said. Never consolidate detail away.
    - Start each bullet with action verb or object name
    - Format: "- Item 1\n- Item 2\n- Item 3" (markdown dash format for proper HTML conversion)
-   - Max 5 bullets (consolidate if more)
    - Bad: "Review priorities" (missing all context)
    - Bad: "- Item 1 - Item 2 - Item 3" (inline bullets - WRONG)
+   - Bad: Single-line summary when the user gave 3 minutes of detail
    - Bad: "Schedule cleaning appointment" when user only said "Call dentist" (invented detail)
-   - Good (single): "Call dentist"
+   - Good (short): "Call dentist"
    - Good (multi): "- Review backlog items\n- Prioritize top 10 items\n- Send agenda to team by tomorrow"
-   - Good (list): "- Design complimentary products\n- Design API components\n- Design quick replies\n- Design product detail view\n- Design real-time transcription cleanup"
+   - Good (long): Use as many bullets as the content requires — 8, 10, 12 bullets is fine if the user said that much
 
 3. **Priority Detection** (CRITICAL - READ CAREFULLY):
    - Look for these EXACT phrases anywhere in the text:
