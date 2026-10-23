@@ -21,7 +21,7 @@ import {
   Search, Upload, FileText, Plus, Trash2, X, Sparkles,
   ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
-  Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff,
+  Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff, ClipboardCopy,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -1703,6 +1703,13 @@ function CommandsPanel({
 }) {
   const [search, setSearch] = useState('');
   const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function copyPrompt(cmd: KnowledgeCommand) {
+    await navigator.clipboard.writeText(cmd.prompt);
+    setCopiedId(cmd.id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
 
   async function syncToClaudeCommand(cmd: KnowledgeCommand) {
     const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -1774,6 +1781,9 @@ function CommandsPanel({
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
                     <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => copyPrompt(cmd)} title="Copy prompt text" className={`p-1.5 rounded-lg transition-colors ${copiedId === cmd.id ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}>
+                        {copiedId === cmd.id ? <Check size={13} /> : <ClipboardCopy size={13} />}
+                      </button>
                       <button onClick={() => onDuplicate(cmd)} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
                         <Copy size={13} />
                       </button>
