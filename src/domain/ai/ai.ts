@@ -13,7 +13,7 @@ import { ollamaClient, OLLAMA_TEXT_MODEL } from "./ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const modelName =
-  import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
+  import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
