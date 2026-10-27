@@ -1704,6 +1704,7 @@ function CommandsPanel({
   const [search, setSearch] = useState('');
   const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [cmdFilter, setCmdFilter] = useState<'all' | 'quick' | 'slash'>('all');
 
   async function copyPrompt(cmd: KnowledgeCommand) {
     await navigator.clipboard.writeText(cmd.prompt);
@@ -1722,9 +1723,12 @@ function CommandsPanel({
       console.error('Failed to sync command to Claude:', e);
     }
   }
-  const filtered = commands.filter((c) =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = commands.filter((c) => {
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.description.toLowerCase().includes(search.toLowerCase())) return false;
+    if (cmdFilter === 'quick') return c.linkedDocumentIds.length === 0;
+    if (cmdFilter === 'slash') return c.linkedDocumentIds.length > 0;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
@@ -1746,6 +1750,25 @@ function CommandsPanel({
           <Plus size={14} />
           New Command
         </button>
+      </div>
+
+      <div className="flex gap-1 border-b border-slate-100 pb-0">
+        {(['all', 'quick', 'slash'] as const).map((f) => {
+          const labels = { all: 'All', quick: 'Quick Grab', slash: 'Slash Commands' };
+          return (
+            <button
+              key={f}
+              onClick={() => setCmdFilter(f)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors border-b-2 -mb-px ${
+                cmdFilter === f
+                  ? 'border-slate-900 text-slate-900'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {labels[f]}
+            </button>
+          );
+        })}
       </div>
 
       {filtered.length === 0 ? (
