@@ -8,13 +8,27 @@ import { modelProvider } from "@/domain/modelProvider";
 import { ollamaClient, OLLAMA_VISION_MODEL, OLLAMA_TEXT_MODEL } from "@/domain/ai/ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.0-flash";
+const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
 
 if (!apiKey) {
   console.warn("⚠️ VITE_GEMINI_API_KEY not configured. Vision features will not work with Gemini.");
 }
 
 const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key');
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRetryable = msg.includes("503") || msg.includes("Service Unavailable") || msg.includes("overloaded") || msg.includes("high demand");
+      if (!isRetryable || attempt === maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
 
 const EXTRACTION_PROMPT = `You are a medical data extraction assistant. Analyze the provided blood work/lab report image or PDF and extract all lab values in a structured JSON format.
 
@@ -93,7 +107,7 @@ async function extractBloodWorkFromFileWithGemini(
     };
 
     const startTime = performance.now();
-    const result = await model.generateContent([EXTRACTION_PROMPT, imagePart]);
+    const result = await withRetry(() => model.generateContent([EXTRACTION_PROMPT, imagePart]));
     const latency = performance.now() - startTime;
 
     const raw = result.response.text().trim();
@@ -292,7 +306,7 @@ Return ONLY a JSON object:
 
   try {
     const startTime = performance.now();
-    const result = await model.generateContent(analysisPrompt);
+    const result = await withRetry(() => model.generateContent(analysisPrompt));
     const latency = performance.now() - startTime;
 
     const raw = result.response.text().trim();
