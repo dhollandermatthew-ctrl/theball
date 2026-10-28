@@ -8,7 +8,7 @@ import { modelProvider } from "@/domain/modelProvider";
 import { ollamaClient, OLLAMA_VISION_MODEL, OLLAMA_TEXT_MODEL } from "@/domain/ai/ollama";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
+const modelName = import.meta.env.VITE_GEMINI_MODEL || "gemini-1.5-flash";
 
 if (!apiKey) {
   console.warn("⚠️ VITE_GEMINI_API_KEY not configured. Vision features will not work with Gemini.");

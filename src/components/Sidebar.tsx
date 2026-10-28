@@ -11,7 +11,6 @@ import {
   ZoomOut,
   GripVertical,
   Pencil,
-  Target,
   Heart,
   BookOpen,
   Mic,
@@ -460,22 +459,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {showMore ? "Less" : "More"}
   </button>
 
-  {/* Collapsible: Goals, Meetings, Health */}
+  {/* Collapsible: Meetings, Blood */}
   {showMore && (
     <div className="space-y-0.5">
-      <button
-        onClick={() => onNavigate("goals")}
-        className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-          currentView === "goals"
-            ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-            : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
-        )}
-      >
-        <Target size={18} className={cn("transition-colors", currentView === "goals" ? "text-red-500" : "text-slate-400")} />
-        Goals
-      </button>
-
       <button
         onClick={() => onNavigate("meetings")}
         className={cn(
@@ -499,7 +485,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       >
         <Heart size={18} className={cn("transition-colors", currentView === "health" ? "text-rose-500" : "text-slate-400")} />
-        Health
+        Blood
       </button>
     </div>
   )}

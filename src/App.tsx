@@ -5,7 +5,6 @@ import { Menu } from "lucide-react";
 
 import { Board } from "./components/Board";
 import { Sidebar } from "./components/Sidebar";
-import { GoalView } from "./components/GoalView";
 import { OneOnOneTaskView } from "./components/OneOnOneTaskView";
 import { SearchModal } from "./components/SearchModal";
 import { MeetingHub } from "./components/MeetingHub";
@@ -16,26 +15,19 @@ import { AITaskEntryModal } from "./components/AITaskEntryModal";
 
 import { generateId, getRandomColor } from "./domain/utils";
 import { ExtractedTask } from "./domain/ai/taskExtraction";
-import { MeetingSpace, Task, HealthData } from "@/domain/types";
+import { MeetingSpace, Task } from "@/domain/types";
 import { useAppStore, initializeAppState } from "./domain/state";
 
 function App() {
   const {
     tasks,
     people,
-    goals,
     meetingSpaces,
-    healthData,
 
     addTask,
     updateTask,
     deleteTask,
     starTask,
-
-    addGoal,
-    updateGoal,
-    deleteGoal,
-    reorderGoals,
 
     addPerson,
     editPerson,
@@ -58,11 +50,6 @@ function App() {
   /* Derived Data                                       */
   /* -------------------------------------------------- */
 
-  const sortedGoals = useMemo(
-    () => [...goals].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
-    [goals]
-  );
-
   const sortedPeople = useMemo(
     () => [...people].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     [people]
@@ -73,7 +60,7 @@ function App() {
   /* -------------------------------------------------- */
 
   const [currentView, setCurrentView] = useState<
-    "calendar" | "goals" | "meetings" | "health" | "product-knowledge" | "transcripts" | string
+    "calendar" | "meetings" | "health" | "product-knowledge" | "transcripts" | string
   >("calendar");
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -257,28 +244,6 @@ function App() {
             onAIEntryClick={() => setIsAIEntryOpen(true)}
             highlightTaskId={highlightTaskId}
             onHighlightDone={() => setHighlightTaskId(null)}
-          />
-        ) : currentView === "goals" ? (
-          <GoalView
-            goals={sortedGoals}
-            onAddGoal={() => {
-              const today = new Date().toISOString().slice(0, 10);
-              addGoal({
-                id: generateId(),
-                title: "New Goal",
-                description: "",
-                color: getRandomColor(),
-                progress: 0,
-                startDate: today,
-                endDate: today,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                sort_order: goals.length,
-              });
-            }}
-            onUpdateGoal={updateGoal}
-            onDeleteGoal={deleteGoal}
-            onReorderGoals={reorderGoals}
           />
         ) : currentView === "meetings" ? (
           <MeetingHub />
