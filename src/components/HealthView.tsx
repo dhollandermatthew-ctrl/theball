@@ -1,6 +1,6 @@
 // FILE: src/components/HealthView.tsx
 import React, { useState, useRef } from "react";
-import { Upload, Plus, FileText, Image as ImageIcon, Trash2, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, Minus, ArrowLeft, Settings, User, X, Zap, ChevronRight } from "lucide-react";
+import { Upload, Plus, FileText, Image as ImageIcon, Trash2, TrendingUp, TrendingDown, Minus, ArrowLeft, Settings, User, X, Zap, ChevronRight } from "lucide-react";
 import { HealthData, BloodWorkRecord, LabValue, PersonalProfile } from "@/domain/types";
 import { generateId } from "@/domain/utils";
 import { extractBloodWorkFromFile } from "@/domain/ai/bloodwork";
@@ -307,8 +307,27 @@ const EmptyState: React.FC<{
 );
 
 /* ------------------------------------------------------------------
- * OVERVIEW PANEL
+ * OVERVIEW PANEL — category cards + flags banner + expandable trends
  * ------------------------------------------------------------------ */
+
+const CATEGORIES: Array<{ key: string; label: string; keywords: string[] }> = [
+  { key: "lipid", label: "Lipid Panel", keywords: ["cholesterol", "ldl", "hdl", "triglyceride", "lipoprotein", "apolipoprotein", "non-hdl", "lp(a)"] },
+  { key: "sugar", label: "Blood Sugar", keywords: ["glucose", "hba1c", "hemoglobin a", "insulin", "c-peptide", "fructosamine"] },
+  { key: "kidney", label: "Kidney", keywords: ["creatinine", "egfr", "gfr", "bun", "urea nitrogen", "uric acid", "cystatin"] },
+  { key: "liver", label: "Liver", keywords: ["alt", "ast", "alp", "alkaline phosphatase", "bilirubin", "ggt", "gamma-glutamyl"] },
+  { key: "cbc", label: "CBC", keywords: ["hemoglobin", "hematocrit", "wbc", "white blood", "rbc", "red blood", "platelet", "neutrophil", "lymphocyte", "monocyte", "eosinophil", "basophil", "mcv", "mch", "rdw"] },
+  { key: "thyroid", label: "Thyroid", keywords: ["tsh", "free t3", "free t4", "thyroid stimulating", "thyroxine", "triiodothyronine"] },
+  { key: "electrolyte", label: "Electrolytes", keywords: ["sodium", "potassium", "chloride", "bicarbonate", "calcium", "magnesium", "phosphate", "co2"] },
+  { key: "iron", label: "Iron Studies", keywords: ["iron", "ferritin", "transferrin", "tibc", "saturation"] },
+];
+
+function categorizeLabValue(name: string): string {
+  const lower = name.toLowerCase();
+  for (const cat of CATEGORIES) {
+    if (cat.keywords.some((kw) => lower.includes(kw))) return cat.key;
+  }
+  return "other";
+}
 
 interface OverviewPanelProps {
   records: BloodWorkRecord[];
@@ -317,259 +336,216 @@ interface OverviewPanelProps {
   onOpenProfile: () => void;
 }
 
-const OverviewPanel: React.FC<OverviewPanelProps> = ({ records, profile, onSelectReport }) => {
+const OverviewPanel: React.FC<OverviewPanelProps> = ({ records }) => {
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const latest = records[0];
 
-  // Status counts from latest record
-  const flagged = latest.labValues.filter((v) => v.flag);
-  const redCount = flagged.filter((v) => v.flag === "HH" || v.flag === "LL" || v.flag === "CRIT").length;
-  const warnCount = flagged.filter((v) => v.flag === "H" || v.flag === "L").length;
-
-  // Pick up to 6 key tiles — flagged first, then others
-  const priorityValues = [
-    ...latest.labValues.filter((v) => v.flag === "HH" || v.flag === "LL" || v.flag === "CRIT"),
-    ...latest.labValues.filter((v) => v.flag === "H" || v.flag === "L"),
-    ...latest.labValues.filter((v) => !v.flag),
-  ].slice(0, 6);
-
-  // Build trend data: group values by name across all records (oldest→newest)
-  const trendMap = new Map<string, Array<{ date: string; value: number; flag?: string }>>();
+  // Build trendMap across all records: name → [{date, value, flag, referenceRange}] oldest-first
+  const trendMap = new Map<string, Array<{ date: string; value: number; flag?: string; referenceRange?: string }>>();
   [...records].reverse().forEach((r) => {
     r.labValues.forEach((lv) => {
       const num = parseFloat(lv.value);
       if (!isNaN(num)) {
         if (!trendMap.has(lv.name)) trendMap.set(lv.name, []);
-        trendMap.get(lv.name)!.push({ date: r.date, value: num, flag: lv.flag });
+        trendMap.get(lv.name)!.push({ date: r.date, value: num, flag: lv.flag, referenceRange: lv.referenceRange });
       }
     });
   });
 
-  // Build rows for trend table: use latest record values, enriched with trend
-  const trendRows = latest.labValues
-    .map((lv) => {
-      const history = trendMap.get(lv.name) ?? [];
-      const vals = history.map((h) => h.value);
-      const latest2 = history[history.length - 1];
-      const prev = history[history.length - 2];
-      let trendDir: "up" | "down" | "flat" | "none" = "none";
-      let trendPct: number | null = null;
-      if (prev && latest2) {
-        const pct = ((latest2.value - prev.value) / prev.value) * 100;
-        trendPct = pct;
-        trendDir = Math.abs(pct) < 3 ? "flat" : pct > 0 ? "up" : "down";
-      }
-      const sparkStatus: "bad" | "warn" | "good" =
-        lv.flag === "HH" || lv.flag === "LL" || lv.flag === "CRIT"
-          ? "bad"
-          : lv.flag === "H" || lv.flag === "L"
-          ? "warn"
-          : "good";
-      return { lv, vals, trendDir, trendPct, sparkStatus };
-    })
-    .sort((a, b) => {
-      const order = { bad: 0, warn: 1, good: 2 };
-      return order[a.sparkStatus] - order[b.sparkStatus];
-    });
+  const flaggedValues = latest.labValues.filter((lv) => lv.flag);
 
-  const statusBg = redCount > 0 ? "bg-red-50 border-red-200" : warnCount > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200";
-  const statusIcon =
-    redCount > 0 ? <AlertCircle size={20} className="text-red-600" /> :
-    warnCount > 0 ? <AlertTriangle size={20} className="text-amber-600" /> :
-    <span className="text-green-600 text-lg leading-none">✓</span>;
-  const statusText =
-    redCount > 0 ? `${redCount + warnCount} value${redCount + warnCount > 1 ? "s" : ""} out of range` :
-    warnCount > 0 ? `${warnCount} value${warnCount > 1 ? "s" : ""} to watch` :
-    "All values within normal range";
+  // Group latest values by category
+  const grouped = new Map<string, LabValue[]>();
+  latest.labValues.forEach((lv) => {
+    const cat = categorizeLabValue(lv.name);
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(lv);
+  });
+
+  const presentCategories = CATEGORIES.filter((c) => grouped.has(c.key));
+  const otherValues = grouped.get("other") ?? [];
+
+  const getTrend = (name: string): { dir: "up" | "down" | "flat" | "none" } => {
+    const history = trendMap.get(name) ?? [];
+    if (history.length < 2) return { dir: "none" };
+    const curr = history[history.length - 1].value;
+    const prev = history[history.length - 2].value;
+    const pct = ((curr - prev) / prev) * 100;
+    return { dir: Math.abs(pct) < 3 ? "flat" : pct > 0 ? "up" : "down" };
+  };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Status banner */}
-      <div className={`rounded-xl border px-5 py-4 flex items-center gap-3 ${statusBg}`}>
-        {statusIcon}
-        <div>
-          <div className={`font-semibold text-sm ${redCount > 0 ? "text-red-900" : warnCount > 0 ? "text-amber-900" : "text-green-900"}`}>
-            {statusText}
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            Latest report: {new Date(latest.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            {latest.labName ? ` · ${latest.labName}` : ""}
-            {records.length > 1 ? ` · ${records.length} reports total` : ""}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="p-4 space-y-3 max-w-4xl">
 
-      {/* Key metric tiles */}
-      {priorityValues.length > 0 && (
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Key Metrics</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {priorityValues.map((lv, i) => <MetricTile key={i} value={lv} />)}
-          </div>
-        </div>
-      )}
-
-      {/* AI analysis */}
-      {(latest.aiAnalysis || (latest.aiFlags && latest.aiFlags.length > 0)) && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <div className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">AI Analysis</div>
-          {latest.aiAnalysis && (
-            <p className="text-sm text-slate-700 leading-relaxed mb-3">{latest.aiAnalysis}</p>
-          )}
-          {latest.aiFlags && latest.aiFlags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {latest.aiFlags.map((flag, i) => (
-                <span key={i} className="text-xs px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full">
-                  {flag}
-                </span>
-              ))}
+        {/* Flags banner */}
+        {flaggedValues.length > 0 && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-red-400 mb-2">
+              Out of Range · {new Date(latest.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              {latest.labName ? ` · ${latest.labName}` : ""}
             </div>
-          )}
-        </div>
-      )}
+            <div className="flex flex-wrap gap-1.5">
+              {flaggedValues.map((lv, i) => {
+                const isCrit = lv.flag === "HH" || lv.flag === "LL" || lv.flag === "CRIT";
+                return (
+                  <div key={i} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${
+                    isCrit ? "bg-red-100 border-red-200 text-red-700" : "bg-amber-100 border-amber-200 text-amber-700"
+                  }`}>
+                    <span className="text-slate-500">{lv.name}</span>
+                    <span className="font-semibold tabular-nums">{lv.value}</span>
+                    {lv.unit && <span className="text-[10px] opacity-60">{lv.unit}</span>}
+                    <span className="text-[10px] font-bold opacity-70">{lv.flag}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-      {/* Trend table */}
-      {trendRows.length > 0 && (
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Biomarker Trends</h2>
+        {/* Category cards grid */}
+        {presentCategories.length > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            {presentCategories.map((cat) => {
+              const values = grouped.get(cat.key)!;
+              const worstFlag = values.some((v) => v.flag === "HH" || v.flag === "LL" || v.flag === "CRIT")
+                ? "bad" : values.some((v) => v.flag === "H" || v.flag === "L")
+                ? "warn" : "ok";
+              const statusLabel = worstFlag === "bad" ? "Needs attention" : worstFlag === "warn" ? "Monitor" : "Normal";
+              const statusCls = worstFlag === "bad"
+                ? "bg-red-100 text-red-700"
+                : worstFlag === "warn"
+                ? "bg-amber-100 text-amber-700"
+                : "bg-green-100 text-green-700";
+
+              const sortedValues = [...values].sort((a, b) => {
+                const rank = (f?: string) => f === "HH" || f === "LL" || f === "CRIT" ? 0 : f === "H" || f === "L" ? 1 : 2;
+                return rank(a.flag) - rank(b.flag);
+              });
+
+              return (
+                <div key={cat.key} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{cat.label}</span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusCls}`}>{statusLabel}</span>
+                  </div>
+
+                  {sortedValues.map((lv, i) => {
+                    const history = trendMap.get(lv.name) ?? [];
+                    const vals = history.map((h) => h.value);
+                    const trend = getTrend(lv.name);
+                    const isBad = lv.flag === "HH" || lv.flag === "LL" || lv.flag === "CRIT";
+                    const isWarn = lv.flag === "H" || lv.flag === "L";
+                    const sparkStatus: "bad" | "warn" | "good" = isBad ? "bad" : isWarn ? "warn" : "good";
+                    const expandKey = `${cat.key}-${i}`;
+                    const isExpanded = expandedMetric === expandKey;
+
+                    const arrowEl = trend.dir === "none" || trend.dir === "flat"
+                      ? <Minus size={11} className="text-slate-300" />
+                      : trend.dir === "up"
+                      ? <TrendingUp size={11} className={isBad || isWarn ? "text-red-400" : "text-slate-400"} />
+                      : <TrendingDown size={11} className={isBad || isWarn ? "text-green-500" : "text-slate-400"} />;
+
+                    const histForChart = [...history].sort(
+                      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+                    );
+
+                    return (
+                      <React.Fragment key={i}>
+                        <div
+                          onClick={() => setExpandedMetric(isExpanded ? null : expandKey)}
+                          className={`flex items-center gap-2 px-4 py-2 border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? "bg-slate-50" : ""}`}
+                        >
+                          <span className="flex-1 text-xs text-slate-500 truncate min-w-0">{lv.name}</span>
+                          <span className={`text-xs font-semibold tabular-nums whitespace-nowrap ${isBad ? "text-red-600" : isWarn ? "text-amber-600" : "text-slate-800"}`}>
+                            {lv.value}
+                            {lv.unit && <span className="text-[10px] font-normal text-slate-400 ml-0.5">{lv.unit}</span>}
+                          </span>
+                          <span className="flex-none w-4 flex justify-center">{arrowEl}</span>
+                          <SparkLine vals={vals} status={sparkStatus} />
+                        </div>
+                        {isExpanded && histForChart.length >= 2 && (
+                          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                            <TrendChart name={lv.name} values={histForChart} />
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Other / uncategorized values */}
+        {otherValues.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-200 px-4 py-2">
-              <div>Biomarker</div>
-              <div className="text-right pr-8">Latest</div>
-              <div className="w-20 text-center">Trend</div>
-              <div className="w-[76px] text-center">History</div>
+            <div className="px-4 py-2.5 border-b border-slate-100">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Other</span>
             </div>
-            <div className="divide-y divide-slate-100">
-              {trendRows.map(({ lv, vals, trendDir, trendPct, sparkStatus }, i) => (
-                <TrendRow key={i} lv={lv} vals={vals} trendDir={trendDir} trendPct={trendPct} sparkStatus={sparkStatus} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+            {otherValues.map((lv, i) => {
+              const history = trendMap.get(lv.name) ?? [];
+              const vals = history.map((h) => h.value);
+              const trend = getTrend(lv.name);
+              const isBad = lv.flag === "HH" || lv.flag === "LL" || lv.flag === "CRIT";
+              const isWarn = lv.flag === "H" || lv.flag === "L";
+              const sparkStatus: "bad" | "warn" | "good" = isBad ? "bad" : isWarn ? "warn" : "good";
+              const expandKey = `other-${i}`;
+              const isExpanded = expandedMetric === expandKey;
 
-      {/* Recent reports quick-access */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Reports</h2>
-        <div className="space-y-2">
-          {records.map((r) => {
-            const flags = r.labValues.filter((v) => v.flag).length;
-            const hasRed = r.labValues.some((v) => v.flag === "HH" || v.flag === "LL" || v.flag === "CRIT");
-            return (
-              <button
-                key={r.id}
-                onClick={() => onSelectReport(r.id)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-indigo-300 hover:bg-indigo-50 transition-colors group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                    {r.sourceType === "pdf" ? <FileText size={15} className="text-slate-500" /> : <ImageIcon size={15} className="text-slate-500" />}
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-slate-900">
-                      {new Date(r.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {r.labName ?? ""}
-                      {r.labName && flags > 0 ? " · " : ""}
-                      {flags > 0 ? `${flags} flagged` : ""}
-                      {!r.labName && flags === 0 ? `${r.labValues.length} values` : ""}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {flags > 0 && (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${hasRed ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                      {flags}
+              const arrowEl = trend.dir === "none" || trend.dir === "flat"
+                ? <Minus size={11} className="text-slate-300" />
+                : trend.dir === "up"
+                ? <TrendingUp size={11} className={isBad || isWarn ? "text-red-400" : "text-slate-400"} />
+                : <TrendingDown size={11} className={isBad || isWarn ? "text-green-500" : "text-slate-400"} />;
+
+              const histForChart = [...history].sort(
+                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+              );
+
+              return (
+                <React.Fragment key={i}>
+                  <div
+                    onClick={() => setExpandedMetric(isExpanded ? null : expandKey)}
+                    className={`flex items-center gap-2 px-4 py-2 border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? "bg-slate-50" : ""}`}
+                  >
+                    <span className="flex-1 text-xs text-slate-500 truncate min-w-0">{lv.name}</span>
+                    <span className={`text-xs font-semibold tabular-nums whitespace-nowrap ${isBad ? "text-red-600" : isWarn ? "text-amber-600" : "text-slate-800"}`}>
+                      {lv.value}
+                      {lv.unit && <span className="text-[10px] font-normal text-slate-400 ml-0.5">{lv.unit}</span>}
                     </span>
+                    <span className="flex-none w-4 flex justify-center">{arrowEl}</span>
+                    <SparkLine vals={vals} status={sparkStatus} />
+                  </div>
+                  {isExpanded && histForChart.length >= 2 && (
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <TrendChart name={lv.name} values={histForChart} />
+                    </div>
                   )}
-                  <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ------------------------------------------------------------------
- * METRIC TILE
- * ------------------------------------------------------------------ */
-
-const MetricTile: React.FC<{ value: LabValue }> = ({ value }) => {
-  const isBad = value.flag === "HH" || value.flag === "LL" || value.flag === "CRIT";
-  const isWarn = value.flag === "H" || value.flag === "L";
-  const isGood = !value.flag;
-
-  const stripe = isBad ? "bg-red-500" : isWarn ? "bg-amber-400" : "bg-green-500";
-  const valueCls = isBad ? "text-red-700" : isWarn ? "text-amber-700" : "text-slate-900";
-  const flagBg = isBad ? "bg-red-100 text-red-700" : isWarn ? "bg-amber-100 text-amber-700" : "";
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className={`h-0.5 ${stripe}`} />
-      <div className="p-4">
-        <div className="text-xs text-slate-500 mb-1 truncate" title={value.name}>{value.name}</div>
-        <div className="flex items-baseline gap-1.5">
-          <span className={`text-xl font-bold ${valueCls}`}>{value.value}</span>
-          <span className="text-xs text-slate-400">{value.unit}</span>
-          {value.flag && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${flagBg}`}>{value.flag}</span>
-          )}
-        </div>
-        {value.referenceRange && (
-          <div className="text-[10px] text-slate-400 mt-1">Ref: {value.referenceRange}</div>
+                </React.Fragment>
+              );
+            })}
+          </div>
         )}
-      </div>
-    </div>
-  );
-};
 
-/* ------------------------------------------------------------------
- * TREND ROW (table row with inline sparkline)
- * ------------------------------------------------------------------ */
-
-const TrendRow: React.FC<{
-  lv: LabValue;
-  vals: number[];
-  trendDir: "up" | "down" | "flat" | "none";
-  trendPct: number | null;
-  sparkStatus: "bad" | "warn" | "good";
-}> = ({ lv, vals, trendDir, trendPct, sparkStatus }) => {
-  const isBad = lv.flag === "HH" || lv.flag === "LL" || lv.flag === "CRIT";
-  const isWarn = lv.flag === "H" || lv.flag === "L";
-  const valueCls = isBad ? "text-red-700 font-semibold" : isWarn ? "text-amber-700 font-semibold" : "text-slate-900";
-  const flagBg = isBad ? "bg-red-100 text-red-700" : isWarn ? "bg-amber-100 text-amber-700" : "";
-
-  const trendIcon =
-    trendDir === "none" ? <span className="text-xs text-slate-400">—</span> :
-    trendDir === "flat" ? <Minus size={13} className="text-slate-400" /> :
-    trendDir === "up" ? <TrendingUp size={13} className={isBad || isWarn ? "text-red-500" : "text-slate-500"} /> :
-    <TrendingDown size={13} className={isBad || isWarn ? "text-green-600" : "text-slate-500"} />;
-
-  return (
-    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 items-center px-4 py-2.5 hover:bg-slate-50 transition-colors">
-      <div>
-        <span className="text-sm text-slate-800">{lv.name}</span>
-        {lv.flag && (
-          <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${flagBg}`}>{lv.flag}</span>
+        {/* AI analysis */}
+        {(latest.aiAnalysis || (latest.aiFlags && latest.aiFlags.length > 0)) && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">AI Analysis</div>
+            {latest.aiAnalysis && (
+              <p className="text-sm text-slate-700 leading-relaxed mb-2">{latest.aiAnalysis}</p>
+            )}
+            {latest.aiFlags && latest.aiFlags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {latest.aiFlags.map((flag, i) => (
+                  <span key={i} className="text-xs px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full">{flag}</span>
+                ))}
+              </div>
+            )}
+          </div>
         )}
-      </div>
-      <div className="text-right pr-8">
-        <span className={`text-sm ${valueCls}`}>{lv.value}</span>
-        <span className="text-xs text-slate-400 ml-1">{lv.unit}</span>
-      </div>
-      <div className="w-20 flex items-center justify-center gap-1">
-        {trendIcon}
-        {trendPct !== null && trendDir !== "flat" && trendDir !== "none" && (
-          <span className={`text-[10px] font-medium ${isBad || isWarn ? "text-red-600" : "text-slate-500"}`}>
-            {trendPct > 0 ? "+" : ""}{trendPct.toFixed(1)}%
-          </span>
-        )}
-      </div>
-      <div className="w-[76px] flex justify-center">
-        <SparkLine vals={vals} status={sparkStatus} />
+
       </div>
     </div>
   );
