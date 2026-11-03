@@ -24,11 +24,19 @@
     transcripts as transcriptsTable,
   } from "@/db/schema";
 
-  export const CURRENT_STATE_VERSION = 5;
+  export const CURRENT_STATE_VERSION = 6;
 
 // Task IDs that exist in Zustand/localStorage but haven't been INSERTed to Turso yet.
 // We defer the INSERT until the user commits a real title so Turso never stores "New Task".
 const pendingTaskInserts = new Set<string>();
+
+// Stringify JSON fields before writing tasks to Turso.
+function serializeTaskForTurso(data: Partial<Task>): any {
+  const result: any = { ...data };
+  if (result.urls !== undefined) result.urls = JSON.stringify(result.urls ?? []);
+  if (result.attachments !== undefined) result.attachments = JSON.stringify(result.attachments ?? []);
+  return result;
+}
 
 
 
@@ -54,6 +62,10 @@ const pendingTaskInserts = new Set<string>();
   // ✅ Daily Focus (max 3 per day, ranked)
   starredDate?: string | null; // "2026-03-03" when starred for that day
   starredRank?: number | null; // 1, 2, or 3 - order of importance
+
+  // ✅ Links & file attachments
+  urls?: string[];
+  attachments?: Array<{ name: string; path: string }>;
 
   createdAt: string;
 }
@@ -295,14 +307,14 @@ export const defaultState: Pick<
               enqueue({
                 type: "insert",
                 table: "tasks",
-                data: merged,
+                data: serializeTaskForTurso(merged),
               });
             } else {
               enqueue({
                 type: "update",
                 table: "tasks",
                 id,
-                data: finalUpdates,
+                data: serializeTaskForTurso(finalUpdates),
               });
             }
           }),
@@ -1496,7 +1508,11 @@ loadGoals: (goals) =>
       }
 
       useAppStore.setState((s) => {
-        s.tasks = taskRows as Task[];
+        s.tasks = taskRows.map((r: any) => ({
+          ...r,
+          urls: r.urls ? JSON.parse(r.urls) : [],
+          attachments: r.attachments ? JSON.parse(r.attachments) : [],
+        })) as Task[];
         s.goals = (goalRows as Goal[]).sort(
           (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
         );
@@ -1564,7 +1580,7 @@ loadGoals: (goals) =>
         for (const id of pendingTaskInserts) {
           const task = useAppStore.getState().tasks.find(t => t.id === id);
           if (task) {
-            enqueue({ type: 'insert', table: 'tasks', data: task });
+            enqueue({ type: 'insert', table: 'tasks', data: serializeTaskForTurso(task) });
           }
         }
         pendingTaskInserts.clear();

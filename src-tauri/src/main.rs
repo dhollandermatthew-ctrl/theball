@@ -205,6 +205,22 @@ fn open_knowledge_file(path: String) -> Result<(), String> {
 }
 
 // -------------------------------------------------------------
+// Task attachment: save a file to app_data_dir/attachments/{task_id}/{filename}
+// Returns the absolute path so the frontend can open it later.
+// -------------------------------------------------------------
+#[tauri::command]
+async fn save_attachment(app: tauri::AppHandle, task_id: String, filename: String, data: Vec<u8>) -> Result<String, String> {
+    let dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("attachments")
+        .join(&task_id);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create attachments dir: {}", e))?;
+    let path = dir.join(&filename);
+    std::fs::write(&path, &data).map_err(|e| format!("Failed to write attachment: {}", e))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+// -------------------------------------------------------------
 // Claude Code slash command sync: writes to ~/.claude/commands/
 // -------------------------------------------------------------
 #[tauri::command]
@@ -244,6 +260,7 @@ fn main() {
             read_knowledge_file,
             delete_knowledge_file,
             open_knowledge_file,
+            save_attachment,
             write_claude_command
         ])
         .run(tauri::generate_context!())

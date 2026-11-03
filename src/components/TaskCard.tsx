@@ -14,7 +14,12 @@ import {
   Loader2,
   Star,
   ArrowRight,
+  Plus,
+  Link,
+  Paperclip,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
 
 import { Task, TaskStatus, TaskPriority } from "@/domain/types";
 import { cn, DEFAULT_TASK_BODY, formatDateKey } from "@/domain/utils";
@@ -313,6 +318,36 @@ const PriorityAccordion: React.FC<PriorityAccordionProps> = ({
 };
 
 /* --------------------------------------------------
+ * LINK CHIPS (URL + File)
+ * -------------------------------------------------- */
+const UrlChip: React.FC<{ url: string; onOpen: () => void; onRemove: () => void }> = ({ url, onOpen, onRemove }) => {
+  const display = url.replace(/^https?:\/\//, "").replace(/\/$/, "").split("/")[0];
+  return (
+    <span className="group/chip inline-flex items-center gap-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded px-1.5 py-0.5 text-[11px] max-w-[180px]">
+      <button onClick={onOpen} className="flex items-center gap-1 max-w-[140px] min-w-0 hover:underline">
+        <Link size={10} className="shrink-0" />
+        <span className="truncate">{display}</span>
+      </button>
+      <button onClick={onRemove} className="shrink-0 ml-0.5 text-blue-300 hover:text-blue-700 opacity-0 group-hover/chip:opacity-100 transition-opacity">
+        <X size={9} />
+      </button>
+    </span>
+  );
+};
+
+const FileChip: React.FC<{ name: string; onOpen: () => void; onRemove: () => void }> = ({ name, onOpen, onRemove }) => (
+  <span className="group/chip inline-flex items-center gap-0.5 bg-purple-50 border border-purple-200 text-purple-700 rounded px-1.5 py-0.5 text-[11px] max-w-[180px]">
+    <button onClick={onOpen} className="flex items-center gap-1 max-w-[140px] min-w-0 hover:underline">
+      <Paperclip size={10} className="shrink-0" />
+      <span className="truncate">{name}</span>
+    </button>
+    <button onClick={onRemove} className="shrink-0 ml-0.5 text-purple-300 hover:text-purple-700 opacity-0 group-hover/chip:opacity-100 transition-opacity">
+      <X size={9} />
+    </button>
+  </span>
+);
+
+/* --------------------------------------------------
  * TASK CARD — START
  * -------------------------------------------------- */
 type Density = "comfortable" | "dense";
@@ -373,9 +408,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   );  
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
-  
+
   const cardDomRef = useRef<HTMLElement | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+
+  /* LINKS STATE */
+  const [showLinksPanel, setShowLinksPanel] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
+  const [linksTab, setLinksTab] = useState<"url" | "file">("url");
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isNewTask) return;
@@ -465,6 +507,47 @@ useEffect(() => {
       transition,
     };
   
+    /* LINK HANDLERS */
+    const handleAddUrl = () => {
+      const raw = newUrl.trim();
+      if (!raw) return;
+      const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+      updateTask(task.id, { urls: [...(task.urls ?? []), url] });
+      setNewUrl("");
+    };
+
+    const handleRemoveUrl = (index: number) => {
+      updateTask(task.id, { urls: (task.urls ?? []).filter((_, i) => i !== index) });
+    };
+
+    const handleOpenUrl = async (url: string) => {
+      try { await shellOpen(url); } catch { window.open(url, "_blank"); }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setIsUploadingFile(true);
+      try {
+        const data = Array.from(new Uint8Array(await file.arrayBuffer()));
+        const path = await invoke<string>("save_attachment", { taskId: task.id, filename: file.name, data });
+        updateTask(task.id, { attachments: [...(task.attachments ?? []), { name: file.name, path }] });
+      } catch (err) {
+        console.error("Failed to save attachment:", err);
+      } finally {
+        setIsUploadingFile(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+
+    const handleRemoveAttachment = (index: number) => {
+      updateTask(task.id, { attachments: (task.attachments ?? []).filter((_, i) => i !== index) });
+    };
+
+    const handleOpenFile = async (path: string) => {
+      try { await invoke("open_knowledge_file", { path }); } catch (err) { console.error("Failed to open file:", err); }
+    };
+
     /* AI APPLY */
     const applyAI = async (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -705,6 +788,77 @@ const handleContentBlur = () => {
   </div>
 </div>
   
+        {/* LINKS SECTION */}
+        <input ref={fileInputRef} type="file" onChange={handleFileChange} className="hidden" />
+        {((task.urls?.length ?? 0) > 0 || (task.attachments?.length ?? 0) > 0 || showLinksPanel) ? (
+          <div
+            className={cn("px-2 pb-2 flex flex-col gap-1.5", density === "dense" ? "pl-9" : "pl-10")}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* Chips row */}
+            {((task.urls?.length ?? 0) > 0 || (task.attachments?.length ?? 0) > 0) && (
+              <div className="flex flex-wrap gap-1 items-center">
+                {(task.urls ?? []).map((url, i) => (
+                  <UrlChip key={`u${i}`} url={url} onOpen={() => handleOpenUrl(url)} onRemove={() => handleRemoveUrl(i)} />
+                ))}
+                {(task.attachments ?? []).map((att, i) => (
+                  <FileChip key={`f${i}`} name={att.name} onOpen={() => handleOpenFile(att.path)} onRemove={() => handleRemoveAttachment(i)} />
+                ))}
+                {!showLinksPanel && (
+                  <button
+                    onClick={() => setShowLinksPanel(true)}
+                    className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-blue-500 transition-opacity"
+                    title="Add link or file"
+                  >
+                    <Plus size={12} />
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Add panel */}
+            {showLinksPanel && (
+              <div className="flex flex-col gap-1 p-1.5 bg-slate-50 rounded border border-slate-200">
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setLinksTab("url")} className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", linksTab === "url" ? "bg-blue-100 text-blue-700" : "text-slate-400 hover:text-slate-600")}>URL</button>
+                  <button onClick={() => setLinksTab("file")} className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", linksTab === "file" ? "bg-purple-100 text-purple-700" : "text-slate-400 hover:text-slate-600")}>File</button>
+                  <button onClick={() => { setShowLinksPanel(false); setNewUrl(""); }} className="ml-auto text-slate-300 hover:text-slate-500"><X size={11} /></button>
+                </div>
+                {linksTab === "url" ? (
+                  <div className="flex gap-1">
+                    <input
+                      autoFocus
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAddUrl(); if (e.key === "Escape") { setShowLinksPanel(false); setNewUrl(""); } }}
+                      placeholder="Paste URL…"
+                      className="flex-1 text-xs border border-slate-200 rounded px-1.5 py-0.5 outline-none focus:border-blue-300 bg-white"
+                    />
+                    <button onClick={handleAddUrl} className="text-[10px] px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium">Add</button>
+                  </div>
+                ) : (
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isUploadingFile} className="text-[11px] px-2 py-1 border border-slate-200 bg-white rounded hover:bg-slate-50 text-slate-600 flex items-center gap-1 self-start">
+                    <Paperclip size={11} />
+                    {isUploadingFile ? "Saving…" : "Choose file…"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* No links — show "Add link or file" on card hover */
+          <div
+            className={cn("px-2 pb-1.5 opacity-0 group-hover:opacity-100 transition-opacity", density === "dense" ? "pl-9" : "pl-10")}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowLinksPanel(true); }}
+              className="text-[11px] text-slate-400 hover:text-blue-500 flex items-center gap-1 leading-none"
+            >
+              <Plus size={11} /> Add link or file
+            </button>
+          </div>
+        )}
+
         {/* ACTIONS TOP RIGHT */}
         <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
   

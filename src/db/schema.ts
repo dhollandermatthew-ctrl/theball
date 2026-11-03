@@ -22,6 +22,10 @@ export const tasks = sqliteTable("tasks", {
   starredDate: text("starredDate"),
   starredRank: integer("starredRank"),
 
+  // ✅ Links & attachments (JSON arrays stored as text)
+  urls: text("urls"),           // JSON: string[]
+  attachments: text("attachments"), // JSON: Array<{name: string, path: string}>
+
   createdAt: text("createdAt").notNull(),
 });
 
