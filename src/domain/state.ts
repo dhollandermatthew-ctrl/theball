@@ -1305,6 +1305,14 @@ loadGoals: (goals) =>
         )`);
       } catch (_) { /* table already exists */ }
 
+      // Add urls and attachments columns to tasks if they don't exist (added in v0.1.44)
+      try {
+        await client.execute("ALTER TABLE tasks ADD COLUMN urls TEXT");
+      } catch (_) { /* column already exists */ }
+      try {
+        await client.execute("ALTER TABLE tasks ADD COLUMN attachments TEXT");
+      } catch (_) { /* column already exists */ }
+
       const queryStart = performance.now();
       const [
         taskRows,
