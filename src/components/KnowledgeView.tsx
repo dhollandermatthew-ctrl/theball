@@ -1721,7 +1721,6 @@ function CommandsPanel({
   const [search, setSearch] = useState('');
   const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'prompts' | 'slash'>('prompts');
   const [selectedCmdId, setSelectedCmdId] = useState<string | null>(null);
 
   async function copyPrompt(cmd: KnowledgeCommand) {
@@ -1801,27 +1800,7 @@ function CommandsPanel({
         </button>
       </div>
 
-      {/* Mode tabs */}
-      <div className="flex gap-0 border-b border-slate-200">
-        {(['prompts', 'slash'] as const).map((m) => {
-          const labels = { prompts: 'Prompts', slash: 'Slash Commands' };
-          return (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                mode === m
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              {labels[m]}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Content — master-detail for both tabs */}
+      {/* Content — master-detail */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Terminal size={40} className="text-slate-300 mb-3" />
