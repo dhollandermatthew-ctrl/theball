@@ -1672,6 +1672,23 @@ function splitUseForChips(text: string): string[] {
     });
 }
 
+function extractUseCases(prompt: string, description: string): string[] {
+  const match = prompt.match(/##\s*when to use(?:\s+this\s+command)?\s*\n+([\s\S]*?)(?:\n##|\n#|$)/i);
+  if (match) {
+    const lines = match[1]
+      .split('\n')
+      .map(l => stripMd(l.replace(/^[-*•\d.]+\s*/, '').trim()))
+      .filter(l => l.length > 8)
+      .slice(0, 3);
+    if (lines.length > 0) return lines;
+  }
+  if (description) {
+    const chips = splitUseForChips(stripMd(description));
+    if (chips.length > 0) return chips.slice(0, 3);
+  }
+  return [];
+}
+
 function extractWhenToUse(prompt: string, description: string): string | null {
   const match = prompt.match(/##\s*when to use(?:\s+this\s+command)?\s*\n+([\s\S]*?)(?:\n##|\n#|$)/i);
   if (match) {
@@ -1730,117 +1747,41 @@ function CommandsPanel({
     return true;
   });
 
-  // Auto-select first command when switching to slash mode
+  // Auto-select first command on mount and when filter changes
   React.useEffect(() => {
-    if (mode === 'slash' && filtered.length > 0) {
+    if (filtered.length > 0) {
       setSelectedCmdId((prev) => {
         if (prev && filtered.find((c) => c.id === prev)) return prev;
         return filtered[0].id;
       });
+    } else {
+      setSelectedCmdId(null);
     }
-  }, [mode, filtered.length]);
+  }, [filtered.length, search]);
 
-  const selectedCmd = mode === 'slash' ? filtered.find((c) => c.id === selectedCmdId) ?? filtered[0] ?? null : null;
+  const selectedCmd = filtered.find((c) => c.id === selectedCmdId) ?? filtered[0] ?? null;
   const selectedLinkedDocs = selectedCmd ? documents.filter((d) => selectedCmd.linkedDocumentIds.includes(d.id)) : [];
 
-  function CommandCard({ cmd }: { cmd: KnowledgeCommand }) {
-    const vars = extractVariables(cmd.prompt);
-    const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
-    const whenToUse = extractWhenToUse(cmd.prompt, cmd.description);
-    const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const isSelected = mode === 'slash' && selectedCmdId === cmd.id;
-
-    return (
-      <div
-        key={cmd.id}
-        onClick={() => { if (mode === 'slash') setSelectedCmdId(cmd.id); }}
-        className={`group bg-white border rounded-xl p-4 transition-all flex gap-4 ${
-          isSelected
-            ? 'border-indigo-500 shadow-md ring-1 ring-indigo-100'
-            : 'border-slate-200 hover:shadow-md hover:border-slate-300 ' + (mode === 'slash' ? 'cursor-pointer' : '')
-        }`}
-      >
-        <div className="shrink-0 w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 mt-0.5">
-          <Terminal size={16} />
-        </div>
-        <div className="flex-1 min-w-0">
-          {/* Title row + secondary actions */}
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
-            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={(e) => { e.stopPropagation(); copyPrompt(cmd); }} title="Copy prompt text" className={`p-1.5 rounded-lg transition-colors ${copiedId === cmd.id ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}>
-                {copiedId === cmd.id ? <Check size={13} /> : <ClipboardCopy size={13} />}
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onDuplicate(cmd); }} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
-                <Copy size={13} />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onEdit(cmd); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
-                <Edit3 size={13} />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onDelete(cmd.id); }} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
-
-          {/* When to use — chips */}
-          {whenToUse && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {splitUseForChips(whenToUse).map((chip) => (
-                <span key={chip} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[11px] font-medium whitespace-nowrap">
-                  {chip}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Variables + linked docs + actions row */}
-          <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {vars.map((v) => (
-                <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[11px] font-medium">
-                  <Zap size={9} />
-                  {humanizeVarName(v)}
-                </span>
-              ))}
-              {mode === 'prompts' && linkedDocs.map((doc) => (
-                <span key={doc.id} title={doc.title} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
-                  <Link2 size={9} />
-                  <span className="truncate">{shortDocTitle(doc.title)}</span>
-                </span>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={(e) => { e.stopPropagation(); syncToClaudeCommand(cmd); }}
-                title={`Sync as /${slug} to Claude Code`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
-                  syncedIds.has(cmd.id)
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                }`}
-              >
-                {syncedIds.has(cmd.id) ? <Check size={11} /> : <Share2 size={11} />}
-                {syncedIds.has(cmd.id) ? 'Synced' : '→ Claude'}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onRun(cmd); }}
-                className="flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-              >
-                <Zap size={11} />
-                Use
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  // Render prompt text with {{variables}} highlighted
+  function renderPromptHighlighted(prompt: string) {
+    const parts = prompt.split(/(\{\{[^}]+\}\})/g);
+    return parts.map((part, i) => {
+      if (/^\{\{[^}]+\}\}$/.test(part)) {
+        const label = part.slice(2, -2).trim();
+        return (
+          <span key={i} className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[11px] font-semibold leading-none mx-0.5">
+            <Zap size={8} />{label}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 h-full">
       {/* Header: search + new button */}
-      <div className="flex items-center gap-3 max-w-3xl">
+      <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -1848,7 +1789,7 @@ function CommandsPanel({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search commands…"
-            className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <button
@@ -1861,7 +1802,7 @@ function CommandsPanel({
       </div>
 
       {/* Mode tabs */}
-      <div className="flex gap-0 border-b border-slate-200 max-w-3xl">
+      <div className="flex gap-0 border-b border-slate-200">
         {(['prompts', 'slash'] as const).map((m) => {
           const labels = { prompts: 'Prompts', slash: 'Slash Commands' };
           return (
@@ -1880,87 +1821,207 @@ function CommandsPanel({
         })}
       </div>
 
-      {/* Content */}
+      {/* Content — master-detail for both tabs */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center max-w-3xl">
+        <div className="flex flex-col items-center justify-center py-16 text-center">
           <Terminal size={40} className="text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">{commands.length === 0 ? 'No commands yet' : 'No commands match'}</p>
           {commands.length === 0 && (
             <>
               <p className="text-slate-400 text-sm mt-1 mb-5">Commands are reusable AI prompts with variables and linked documents</p>
-              <button
-                onClick={onNew}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-              >
+              <button onClick={onNew} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
                 <Plus size={14} /> Create your first command
               </button>
             </>
           )}
         </div>
-      ) : mode === 'prompts' ? (
-        /* Prompts mode — single column list */
-        <div className="flex flex-col gap-3 max-w-3xl">
-          {filtered.map((cmd) => <CommandCard key={cmd.id} cmd={cmd} />)}
-        </div>
       ) : (
-        /* Slash Commands mode — two-column split */
-        <div className="flex gap-4" style={{ minHeight: 400 }}>
-          {/* Left: command list */}
-          <div className="flex flex-col gap-2 w-[380px] shrink-0">
-            {filtered.map((cmd) => <CommandCard key={cmd.id} cmd={cmd} />)}
+        <div className="flex gap-4 flex-1 min-h-0" style={{ minHeight: 480 }}>
+          {/* Left: compact command list */}
+          <div className="flex flex-col gap-2 w-64 shrink-0 overflow-y-auto pr-1">
+            {filtered.map((cmd) => {
+              const isSelected = selectedCmdId === cmd.id;
+              const useCases = extractUseCases(cmd.prompt, cmd.description);
+              const vars = extractVariables(cmd.prompt);
+              const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
+              return (
+                <div
+                  key={cmd.id}
+                  onClick={() => setSelectedCmdId(cmd.id)}
+                  className={`group cursor-pointer border rounded-xl p-3 transition-all ${
+                    isSelected
+                      ? 'border-indigo-500 bg-indigo-50 shadow-sm ring-1 ring-indigo-100'
+                      : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                      <Terminal size={13} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 leading-tight">{cmd.name}</p>
+                      {useCases.length > 0 ? (
+                        <div className="mt-1 flex flex-col gap-0.5">
+                          {useCases.slice(0, 2).map((u, i) => (
+                            <p key={i} className="text-[11px] text-slate-500 leading-snug line-clamp-1">{u}</p>
+                          ))}
+                        </div>
+                      ) : cmd.description ? (
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-snug">{cmd.description}</p>
+                      ) : null}
+                      {(vars.length > 0 || linkedDocs.length > 0) && (
+                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                          {vars.slice(0, 2).map((v) => (
+                            <span key={v} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[10px] font-medium">
+                              <Zap size={8} />{humanizeVarName(v)}
+                            </span>
+                          ))}
+                          {linkedDocs.length > 0 && (
+                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[10px] font-medium">
+                              <Link2 size={8} />{linkedDocs.length}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Right: linked doc panel */}
-          {selectedCmd && (
-            <div className="flex-1 min-w-0 border border-slate-200 rounded-xl bg-white p-5 flex flex-col gap-4">
-              <div>
-                <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wider mb-1">Linked Documents</p>
-                <h3 className="text-base font-semibold text-slate-800">{selectedCmd.name}</h3>
-                {selectedCmd.description && (
-                  <p className="text-sm text-slate-500 mt-0.5">{selectedCmd.description}</p>
+          {/* Right: detail panel */}
+          {selectedCmd ? (
+            <div className="flex-1 min-w-0 border border-slate-200 rounded-xl bg-white flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-slate-900 leading-tight">{selectedCmd.name}</h3>
+                    {selectedCmd.description && (
+                      <p className="text-sm text-slate-500 mt-1 leading-relaxed">{selectedCmd.description}</p>
+                    )}
+                    {extractVariables(selectedCmd.prompt).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {extractVariables(selectedCmd.prompt).map((v) => (
+                          <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[11px] font-medium">
+                            <Zap size={9} />{humanizeVarName(v)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onRun(selectedCmd)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors shrink-0"
+                  >
+                    <Zap size={13} />
+                    Use
+                  </button>
+                </div>
+
+                {/* When to use — ranked */}
+                {(() => {
+                  const useCases = extractUseCases(selectedCmd.prompt, selectedCmd.description);
+                  if (useCases.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-[10.5px] font-bold tracking-widest uppercase text-slate-400 mb-2">When to use</p>
+                      <div className="flex flex-col gap-2">
+                        {useCases.map((u, i) => (
+                          <div key={i} className="flex gap-3 items-start p-3 bg-slate-50 border border-slate-200 rounded-lg hover:border-indigo-200 transition-colors">
+                            <div className="shrink-0 w-6 h-6 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 text-xs font-bold flex items-center justify-center tabular-nums">
+                              {i + 1}
+                            </div>
+                            <p className="text-sm text-slate-700 font-medium leading-snug">{u}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Prompt preview */}
+                <div>
+                  <p className="text-[10.5px] font-bold tracking-widest uppercase text-slate-400 mb-2">Prompt preview</p>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-xs text-slate-600 leading-relaxed font-mono whitespace-pre-wrap max-h-44 overflow-y-auto">
+                    {renderPromptHighlighted(selectedCmd.prompt)}
+                  </div>
+                </div>
+
+                {/* Linked docs */}
+                {selectedLinkedDocs.length > 0 && (
+                  <div>
+                    <p className="text-[10.5px] font-bold tracking-widest uppercase text-slate-400 mb-2">Linked documents</p>
+                    <div className="flex flex-col gap-2">
+                      {selectedLinkedDocs.map((doc) => (
+                        <div key={doc.id} className="flex items-start gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <FileText size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-emerald-800">{doc.title}</p>
+                            {(doc.editableContent || doc.content) && (
+                              <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-3">
+                                {(doc.editableContent || doc.content || '').slice(0, 300)}
+                                {(doc.editableContent || doc.content || '').length > 300 ? '…' : ''}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {selectedLinkedDocs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center flex-1 text-center py-8">
-                  <Link2 size={28} className="text-slate-300 mb-2" />
-                  <p className="text-slate-400 text-sm">No linked documents</p>
-                  <p className="text-slate-400 text-xs mt-0.5">Edit this command to link knowledge docs</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 overflow-y-auto">
-                  {selectedLinkedDocs.map((doc) => (
-                    <div key={doc.id} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <FileText size={13} className="text-slate-400 shrink-0" />
-                        <span className="text-xs font-semibold text-slate-700 truncate">{doc.title}</span>
-                      </div>
-                      {(doc.editableContent || doc.content) && (
-                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-6 whitespace-pre-wrap">
-                          {(doc.editableContent || doc.content || '').slice(0, 600)}
-                          {(doc.editableContent || doc.content || '').length > 600 ? '…' : ''}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Slash command hint */}
-              <div className="mt-auto pt-3 border-t border-slate-100">
+              {/* Footer */}
+              <div className="border-t border-slate-100 px-6 py-3 flex items-center justify-between gap-3 shrink-0">
                 <p className="text-[11px] text-slate-400">
-                  Slash command: <span className="text-slate-600 font-mono">/{selectedCmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}</span>
-                  {' · '}
+                  <span className="font-mono text-slate-500">/{selectedCmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={(e) => { e.stopPropagation(); onDuplicate(selectedCmd); }} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+                    <Copy size={13} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); onEdit(selectedCmd); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+                    <Edit3 size={13} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); onDelete(selectedCmd.id); }} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 mx-1" />
+                  <button
+                    onClick={() => copyPrompt(selectedCmd)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      copiedId === selectedCmd.id
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                    }`}
+                  >
+                    {copiedId === selectedCmd.id ? <Check size={11} /> : <ClipboardCopy size={11} />}
+                    Copy
+                  </button>
                   <button
                     onClick={() => syncToClaudeCommand(selectedCmd)}
-                    className={`font-medium transition-colors ${syncedIds.has(selectedCmd.id) ? 'text-emerald-600' : 'text-blue-500 hover:text-blue-700'}`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      syncedIds.has(selectedCmd.id)
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                    }`}
                   >
-                    {syncedIds.has(selectedCmd.id) ? 'Synced ✓' : 'Sync to Claude Code'}
+                    {syncedIds.has(selectedCmd.id) ? <Check size={11} /> : <Share2 size={11} />}
+                    {syncedIds.has(selectedCmd.id) ? 'Synced' : '→ Claude'}
                   </button>
-                </p>
+                  <button
+                    onClick={() => onRun(selectedCmd)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    <Zap size={11} />
+                    Use
+                  </button>
+                </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>
