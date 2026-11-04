@@ -1704,7 +1704,8 @@ function CommandsPanel({
   const [search, setSearch] = useState('');
   const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [cmdFilter, setCmdFilter] = useState<'all' | 'quick' | 'slash'>('all');
+  const [mode, setMode] = useState<'prompts' | 'slash'>('prompts');
+  const [selectedCmdId, setSelectedCmdId] = useState<string | null>(null);
 
   async function copyPrompt(cmd: KnowledgeCommand) {
     await navigator.clipboard.writeText(cmd.prompt);
@@ -1723,16 +1724,123 @@ function CommandsPanel({
       console.error('Failed to sync command to Claude:', e);
     }
   }
+
   const filtered = commands.filter((c) => {
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.description.toLowerCase().includes(search.toLowerCase())) return false;
-    if (cmdFilter === 'quick') return c.linkedDocumentIds.length === 0;
-    if (cmdFilter === 'slash') return c.linkedDocumentIds.length > 0;
     return true;
   });
 
+  // Auto-select first command when switching to slash mode
+  React.useEffect(() => {
+    if (mode === 'slash' && filtered.length > 0) {
+      setSelectedCmdId((prev) => {
+        if (prev && filtered.find((c) => c.id === prev)) return prev;
+        return filtered[0].id;
+      });
+    }
+  }, [mode, filtered.length]);
+
+  const selectedCmd = mode === 'slash' ? filtered.find((c) => c.id === selectedCmdId) ?? filtered[0] ?? null : null;
+  const selectedLinkedDocs = selectedCmd ? documents.filter((d) => selectedCmd.linkedDocumentIds.includes(d.id)) : [];
+
+  function CommandCard({ cmd }: { cmd: KnowledgeCommand }) {
+    const vars = extractVariables(cmd.prompt);
+    const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
+    const whenToUse = extractWhenToUse(cmd.prompt, cmd.description);
+    const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const isSelected = mode === 'slash' && selectedCmdId === cmd.id;
+
+    return (
+      <div
+        key={cmd.id}
+        onClick={() => { if (mode === 'slash') setSelectedCmdId(cmd.id); }}
+        className={`group bg-white border rounded-xl p-4 transition-all flex gap-4 ${
+          isSelected
+            ? 'border-indigo-500 shadow-md ring-1 ring-indigo-100'
+            : 'border-slate-200 hover:shadow-md hover:border-slate-300 ' + (mode === 'slash' ? 'cursor-pointer' : '')
+        }`}
+      >
+        <div className="shrink-0 w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 mt-0.5">
+          <Terminal size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {/* Title row + secondary actions */}
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
+            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={(e) => { e.stopPropagation(); copyPrompt(cmd); }} title="Copy prompt text" className={`p-1.5 rounded-lg transition-colors ${copiedId === cmd.id ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}>
+                {copiedId === cmd.id ? <Check size={13} /> : <ClipboardCopy size={13} />}
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDuplicate(cmd); }} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+                <Copy size={13} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onEdit(cmd); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+                <Edit3 size={13} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(cmd.id); }} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* When to use — chips */}
+          {whenToUse && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {splitUseForChips(whenToUse).map((chip) => (
+                <span key={chip} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[11px] font-medium whitespace-nowrap">
+                  {chip}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Variables + linked docs + actions row */}
+          <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {vars.map((v) => (
+                <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[11px] font-medium">
+                  <Zap size={9} />
+                  {humanizeVarName(v)}
+                </span>
+              ))}
+              {mode === 'prompts' && linkedDocs.map((doc) => (
+                <span key={doc.id} title={doc.title} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
+                  <Link2 size={9} />
+                  <span className="truncate">{shortDocTitle(doc.title)}</span>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={(e) => { e.stopPropagation(); syncToClaudeCommand(cmd); }}
+                title={`Sync as /${slug} to Claude Code`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                  syncedIds.has(cmd.id)
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }`}
+              >
+                {syncedIds.has(cmd.id) ? <Check size={11} /> : <Share2 size={11} />}
+                {syncedIds.has(cmd.id) ? 'Synced' : '→ Claude'}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onRun(cmd); }}
+                className="flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
+              >
+                <Zap size={11} />
+                Use
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4 max-w-3xl">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-4">
+      {/* Header: search + new button */}
+      <div className="flex items-center gap-3 max-w-3xl">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -1745,133 +1853,114 @@ function CommandsPanel({
         </div>
         <button
           onClick={onNew}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors shrink-0"
+          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shrink-0"
         >
           <Plus size={14} />
           New Command
         </button>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-100 pb-0">
-        {(['all', 'quick', 'slash'] as const).map((f) => {
-          const labels = { all: 'All', quick: 'Quick Grab', slash: 'Slash Commands' };
+      {/* Mode tabs */}
+      <div className="flex gap-0 border-b border-slate-200 max-w-3xl">
+        {(['prompts', 'slash'] as const).map((m) => {
+          const labels = { prompts: 'Prompts', slash: 'Slash Commands' };
           return (
             <button
-              key={f}
-              onClick={() => setCmdFilter(f)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors border-b-2 -mb-px ${
-                cmdFilter === f
-                  ? 'border-slate-900 text-slate-900'
+              key={m}
+              onClick={() => setMode(m)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                mode === m
+                  ? 'border-indigo-600 text-indigo-700'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
-              {labels[f]}
+              {labels[m]}
             </button>
           );
         })}
       </div>
 
+      {/* Content */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex flex-col items-center justify-center py-16 text-center max-w-3xl">
           <Terminal size={40} className="text-slate-300 mb-3" />
-          <p className="text-slate-500 font-medium">{commands.length === 0 ? 'No commands yet' : 'No commands match your search'}</p>
-          {commands.length === 0 ? (
+          <p className="text-slate-500 font-medium">{commands.length === 0 ? 'No commands yet' : 'No commands match'}</p>
+          {commands.length === 0 && (
             <>
               <p className="text-slate-400 text-sm mt-1 mb-5">Commands are reusable AI prompts with variables and linked documents</p>
               <button
                 onClick={onNew}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
               >
                 <Plus size={14} /> Create your first command
               </button>
             </>
-          ) : null}
+          )}
+        </div>
+      ) : mode === 'prompts' ? (
+        /* Prompts mode — single column list */
+        <div className="flex flex-col gap-3 max-w-3xl">
+          {filtered.map((cmd) => <CommandCard key={cmd.id} cmd={cmd} />)}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((cmd) => {
-            const vars = extractVariables(cmd.prompt);
-            const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
-            const whenToUse = extractWhenToUse(cmd.prompt, cmd.description);
-            const slug = cmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            return (
-              <div key={cmd.id} className="group bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all flex gap-4">
-                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 mt-0.5">
-                  <Terminal size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {/* Title row + secondary actions */}
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-800">{cmd.name}</h3>
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => copyPrompt(cmd)} title="Copy prompt text" className={`p-1.5 rounded-lg transition-colors ${copiedId === cmd.id ? 'text-emerald-600 bg-emerald-50' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'}`}>
-                        {copiedId === cmd.id ? <Check size={13} /> : <ClipboardCopy size={13} />}
-                      </button>
-                      <button onClick={() => onDuplicate(cmd)} title="Duplicate" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
-                        <Copy size={13} />
-                      </button>
-                      <button onClick={() => onEdit(cmd)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
-                        <Edit3 size={13} />
-                      </button>
-                      <button onClick={() => onDelete(cmd.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
+        /* Slash Commands mode — two-column split */
+        <div className="flex gap-4" style={{ minHeight: 400 }}>
+          {/* Left: command list */}
+          <div className="flex flex-col gap-2 w-[380px] shrink-0">
+            {filtered.map((cmd) => <CommandCard key={cmd.id} cmd={cmd} />)}
+          </div>
 
-                  {/* When to use — chips */}
-                  {whenToUse && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {splitUseForChips(whenToUse).map((chip) => (
-                        <span key={chip} className="px-2 py-0.5 bg-slate-800 text-white rounded-full text-[11px] font-medium whitespace-nowrap">
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Variables + linked docs + actions row */}
-                  <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {vars.map((v) => (
-                        <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[11px] font-medium">
-                          <Zap size={9} />
-                          {humanizeVarName(v)}
-                        </span>
-                      ))}
-                      {linkedDocs.map((doc) => (
-                        <span key={doc.id} title={doc.title} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px] font-medium max-w-[160px]">
-                          <Link2 size={9} />
-                          <span className="truncate">{shortDocTitle(doc.title)}</span>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => syncToClaudeCommand(cmd)}
-                        title={`Sync as /${slug} to Claude Code`}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
-                          syncedIds.has(cmd.id)
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                            : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                        }`}
-                      >
-                        {syncedIds.has(cmd.id) ? <Check size={11} /> : <Share2 size={11} />}
-                        {syncedIds.has(cmd.id) ? 'Synced' : '→ Claude'}
-                      </button>
-                      <button
-                        onClick={() => onRun(cmd)}
-                        className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors"
-                      >
-                        <Zap size={11} />
-                        Use
-                      </button>
-                    </div>
-                  </div>
-                </div>
+          {/* Right: linked doc panel */}
+          {selectedCmd && (
+            <div className="flex-1 min-w-0 border border-slate-200 rounded-xl bg-white p-5 flex flex-col gap-4">
+              <div>
+                <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wider mb-1">Linked Documents</p>
+                <h3 className="text-base font-semibold text-slate-800">{selectedCmd.name}</h3>
+                {selectedCmd.description && (
+                  <p className="text-sm text-slate-500 mt-0.5">{selectedCmd.description}</p>
+                )}
               </div>
-            );
-          })}
+
+              {selectedLinkedDocs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center flex-1 text-center py-8">
+                  <Link2 size={28} className="text-slate-300 mb-2" />
+                  <p className="text-slate-400 text-sm">No linked documents</p>
+                  <p className="text-slate-400 text-xs mt-0.5">Edit this command to link knowledge docs</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 overflow-y-auto">
+                  {selectedLinkedDocs.map((doc) => (
+                    <div key={doc.id} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <FileText size={13} className="text-slate-400 shrink-0" />
+                        <span className="text-xs font-semibold text-slate-700 truncate">{doc.title}</span>
+                      </div>
+                      {(doc.editableContent || doc.content) && (
+                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-6 whitespace-pre-wrap">
+                          {(doc.editableContent || doc.content || '').slice(0, 600)}
+                          {(doc.editableContent || doc.content || '').length > 600 ? '…' : ''}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Slash command hint */}
+              <div className="mt-auto pt-3 border-t border-slate-100">
+                <p className="text-[11px] text-slate-400">
+                  Slash command: <span className="text-slate-600 font-mono">/{selectedCmd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}</span>
+                  {' · '}
+                  <button
+                    onClick={() => syncToClaudeCommand(selectedCmd)}
+                    className={`font-medium transition-colors ${syncedIds.has(selectedCmd.id) ? 'text-emerald-600' : 'text-blue-500 hover:text-blue-700'}`}
+                  >
+                    {syncedIds.has(selectedCmd.id) ? 'Synced ✓' : 'Sync to Claude Code'}
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
