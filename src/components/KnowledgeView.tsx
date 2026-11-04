@@ -1159,7 +1159,7 @@ const KnowledgeViewInner: React.FC = () => {
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-slate-800">Playbooks</h1>
+            <h1 className="text-2xl font-bold text-slate-800">AI Arsenal</h1>
             <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
               <button
                 onClick={() => setActiveTab('documents')}
