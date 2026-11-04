@@ -1675,12 +1675,25 @@ function splitUseForChips(text: string): string[] {
 function extractUseCases(prompt: string, description: string): string[] {
   const match = prompt.match(/##\s*when to use(?:\s+this\s+command)?\s*\n+([\s\S]*?)(?:\n##|\n#|$)/i);
   if (match) {
-    const lines = match[1]
+    const rawLines = match[1]
       .split('\n')
       .map(l => stripMd(l.replace(/^[-*•\d.]+\s*/, '').trim()))
-      .filter(l => l.length > 8)
-      .slice(0, 3);
-    if (lines.length > 0) return lines;
+      .filter(l => l.length > 5);
+    // Expand comma/or run-ons into individual items
+    const expanded: string[] = [];
+    for (const line of rawLines) {
+      if (expanded.length >= 3) break;
+      if (line.includes(',') || /\bor\b/.test(line)) {
+        const parts = line.split(/,\s*|\s+or\s+/)
+          .map(p => p.replace(/\.$/, '').trim())
+          .filter(p => p.length > 4);
+        expanded.push(...parts);
+      } else {
+        expanded.push(line);
+      }
+    }
+    const result = expanded.slice(0, 3);
+    if (result.length > 0) return result;
   }
   if (description) {
     const chips = splitUseForChips(stripMd(description));
