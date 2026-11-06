@@ -235,12 +235,15 @@
   // KNOWLEDGE COMMANDS
   // --------------------------------------------------
 
+  export type KnowledgeCommandType = 'slash' | 'learning' | 'example';
+
   export interface KnowledgeCommand {
     id: string;
     name: string;
     description: string;
     prompt: string;
     linkedDocumentIds: string[]; // product_knowledge ids
+    commandType?: KnowledgeCommandType; // 'slash' | 'learning' | 'example'
     createdAt: string;
     updatedAt: string;
   }
@@ -264,5 +267,18 @@
     utterances: SpeakerUtterance[];
     speakerNames?: Record<string, string>; // e.g. {"A": "Matthew", "B": "Priya"}
     status: 'recording' | 'processing' | 'done' | 'error';
+    createdAt: string;
+  }
+
+  // --------------------------------------------------
+  // SAVED ARTIFACTS
+  // --------------------------------------------------
+
+  export interface SavedArtifact {
+    id: string;
+    url: string;
+    title: string;
+    description: string;
+    tags: string[];
     createdAt: string;
   }

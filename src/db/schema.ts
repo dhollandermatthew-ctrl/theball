@@ -200,6 +200,7 @@ export const knowledgeCommands = sqliteTable("knowledge_commands", {
   description: text("description").notNull().default(""),
   prompt: text("prompt").notNull(),
   linkedDocumentIds: text("linkedDocumentIds").notNull().default("[]"), // JSON array of product_knowledge ids
+  commandType: text("commandType"), // 'slash' | 'learning' | 'example'
   createdAt: text("createdAt").notNull(),
   updatedAt: text("updatedAt").notNull(),
 });
@@ -215,5 +216,17 @@ export const transcripts = sqliteTable("transcripts", {
   utterances: text("utterances").notNull().default("[]"), // JSON array of SpeakerUtterance
   speakerNames: text("speakerNames"),                     // JSON object {"A": "Matthew"}
   status: text("status").notNull().default("done"),       // recording|processing|done|error
+  createdAt: text("createdAt").notNull(),
+});
+
+// -----------------------------------------------------
+// SAVED ARTIFACTS TABLE
+// -----------------------------------------------------
+export const savedArtifacts = sqliteTable("saved_artifacts", {
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  tags: text("tags").notNull().default("[]"), // JSON array of strings
   createdAt: text("createdAt").notNull(),
 });

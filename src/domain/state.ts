@@ -1,7 +1,7 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance, UserCollection } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance, UserCollection, SavedArtifact } from "./types";
 
   import { enqueue, triggerSync } from "@/db/sync";
   import { db, client } from "@/db/client";
@@ -22,6 +22,7 @@
     productKnowledge as productKnowledgeTable,
     knowledgeCommands as knowledgeCommandsTable,
     transcripts as transcriptsTable,
+    savedArtifacts as savedArtifactsTable,
   } from "@/db/schema";
 
   export const CURRENT_STATE_VERSION = 6;
@@ -108,6 +109,7 @@ export interface AppState {
   knowledgeCommands: KnowledgeCommand[];
   userCollections: UserCollection[];
   transcripts: TranscriptRecord[];
+  savedArtifacts: SavedArtifact[];
 
   settings: Settings;
 
@@ -189,6 +191,11 @@ export interface AppState {
     updateTranscript: (id: string, updates: Partial<TranscriptRecord>) => void;
     deleteTranscript: (id: string) => void;
 
+    // Saved Artifacts
+    addSavedArtifact: (artifact: SavedArtifact) => void;
+    updateSavedArtifact: (id: string, updates: Partial<SavedArtifact>) => void;
+    deleteSavedArtifact: (id: string) => void;
+
     // helpers
     getNoteCount: (id: string) => number;
   }
@@ -213,6 +220,7 @@ export const defaultState: Pick<
   | "userCollections"
   | "pinnedKnowledgeIds"
   | "transcripts"
+  | "savedArtifacts"
   | "settings"
   | "hydrated"
 > = {
@@ -232,6 +240,7 @@ export const defaultState: Pick<
   userCollections: loadUserCollections(),
   pinnedKnowledgeIds: loadPinnedKnowledge(),
   transcripts: [],
+  savedArtifacts: [],
 
     settings: {
     zoom: 1,
@@ -1088,6 +1097,7 @@ loadGoals: (goals) =>
               description: cmd.description,
               prompt: cmd.prompt,
               linkedDocumentIds: JSON.stringify(cmd.linkedDocumentIds),
+              commandType: cmd.commandType ?? null,
               createdAt: cmd.createdAt,
               updatedAt: cmd.updatedAt,
             },
@@ -1108,6 +1118,7 @@ loadGoals: (goals) =>
             data: {
               ...updates,
               linkedDocumentIds: updates.linkedDocumentIds ? JSON.stringify(updates.linkedDocumentIds) : undefined,
+              commandType: updates.commandType !== undefined ? updates.commandType : undefined,
               updatedAt: cmd.updatedAt,
             },
           });
@@ -1210,6 +1221,46 @@ loadGoals: (goals) =>
             id,
           });
         }),
+
+      // ---------------------- SAVED ARTIFACTS ----------------------
+      addSavedArtifact: (artifact) =>
+        set((state) => {
+          state.savedArtifacts = [artifact, ...state.savedArtifacts];
+          enqueue({
+            type: "insert",
+            table: "savedArtifacts",
+            data: {
+              id: artifact.id,
+              url: artifact.url,
+              title: artifact.title,
+              description: artifact.description,
+              tags: JSON.stringify(artifact.tags),
+              createdAt: artifact.createdAt,
+            },
+          });
+        }),
+
+      updateSavedArtifact: (id, updates) =>
+        set((state) => {
+          const artifact = state.savedArtifacts.find((a) => a.id === id);
+          if (!artifact) return;
+          Object.assign(artifact, updates);
+          enqueue({
+            type: "update",
+            table: "savedArtifacts",
+            id,
+            data: {
+              ...updates,
+              tags: updates.tags !== undefined ? JSON.stringify(updates.tags) : undefined,
+            },
+          });
+        }),
+
+      deleteSavedArtifact: (id) =>
+        set((state) => {
+          state.savedArtifacts = state.savedArtifacts.filter((a) => a.id !== id);
+          enqueue({ type: "delete", table: "savedArtifacts", id });
+        }),
     }))
   );
 
@@ -1258,6 +1309,7 @@ loadGoals: (goals) =>
         state.productKnowledge = offlineData.productKnowledge;
         state.knowledgeCommands = offlineData.knowledgeCommands ?? [];
         state.transcripts = offlineData.transcripts;
+        state.savedArtifacts = (offlineData as any).savedArtifacts ?? [];
         state.hydrated = true;
       });
       
@@ -1300,8 +1352,23 @@ loadGoals: (goals) =>
           description TEXT NOT NULL DEFAULT '',
           prompt TEXT NOT NULL,
           linkedDocumentIds TEXT NOT NULL DEFAULT '[]',
+          commandType TEXT,
           createdAt TEXT NOT NULL,
           updatedAt TEXT NOT NULL
+        )`);
+      } catch (_) { /* table already exists */ }
+      // Add commandType column to existing tables if missing
+      try { await client.execute(`ALTER TABLE knowledge_commands ADD COLUMN commandType TEXT`); } catch (_) {}
+
+      // Create saved_artifacts table if it doesn't exist yet
+      try {
+        await client.execute(`CREATE TABLE IF NOT EXISTS saved_artifacts (
+          id TEXT PRIMARY KEY,
+          url TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          tags TEXT NOT NULL DEFAULT '[]',
+          createdAt TEXT NOT NULL
         )`);
       } catch (_) { /* table already exists */ }
 
@@ -1328,6 +1395,7 @@ loadGoals: (goals) =>
         knowledgeRows,
         commandRows,
         transcriptRows,
+        artifactRows,
       ] = await Promise.all([
         db.select().from(tasksTable),
         db.select().from(oneOnOneTable),
@@ -1342,6 +1410,7 @@ loadGoals: (goals) =>
         db.select().from(productKnowledgeTable),
         db.select().from(knowledgeCommandsTable),
         db.select().from(transcriptsTable),
+        db.select().from(savedArtifactsTable),
       ]);
       
       console.log(`[Init] Turso queries took ${Math.round(performance.now() - queryStart)}ms`);
@@ -1469,6 +1538,7 @@ loadGoals: (goals) =>
         description: r.description || '',
         prompt: r.prompt,
         linkedDocumentIds: r.linkedDocumentIds ? JSON.parse(r.linkedDocumentIds) : [],
+        commandType: r.commandType ?? undefined,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       }));
@@ -1482,6 +1552,16 @@ loadGoals: (goals) =>
         utterances: r.utterances ? JSON.parse(r.utterances) : [],
         speakerNames: r.speakerNames ? JSON.parse(r.speakerNames) : undefined,
         status: r.status as TranscriptRecord['status'],
+        createdAt: r.createdAt,
+      }));
+
+      // Build saved artifacts
+      const savedArtifactRecords: SavedArtifact[] = artifactRows.map((r: any) => ({
+        id: r.id,
+        url: r.url,
+        title: r.title,
+        description: r.description || '',
+        tags: r.tags ? JSON.parse(r.tags) : [],
         createdAt: r.createdAt,
       }));
 
@@ -1533,6 +1613,7 @@ loadGoals: (goals) =>
         s.productKnowledge = finalProductKnowledge;
         s.knowledgeCommands = knowledgeCommandRecords;
         s.transcripts = transcriptRecords;
+        s.savedArtifacts = savedArtifactRecords;
         s.hydrated = true;
       });
       
@@ -1548,7 +1629,8 @@ loadGoals: (goals) =>
         productKnowledge: currentState.productKnowledge,
         knowledgeCommands: currentState.knowledgeCommands,
         transcripts: currentState.transcripts,
-      });
+        savedArtifacts: currentState.savedArtifacts,
+      } as any);
       
       const totalTime = Math.round(performance.now() - startTime);
       console.log(`[Init] ✅ App state synced with Turso in ${totalTime}ms`);

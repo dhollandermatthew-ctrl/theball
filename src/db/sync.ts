@@ -16,6 +16,7 @@ import {
   productKnowledge,
   knowledgeCommands,
   transcripts,
+  savedArtifacts,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { 
@@ -74,7 +75,11 @@ type Change =
   // TRANSCRIPTS
   | { type: "insert"; table: "transcripts"; data: any }
   | { type: "update"; table: "transcripts"; id: string; data: any }
-  | { type: "delete"; table: "transcripts"; id: string };
+  | { type: "delete"; table: "transcripts"; id: string }
+  // SAVED ARTIFACTS
+  | { type: "insert"; table: "savedArtifacts"; data: any }
+  | { type: "update"; table: "savedArtifacts"; id: string; data: any }
+  | { type: "delete"; table: "savedArtifacts"; id: string };
 
 // ==================== PERSISTENT SYNC QUEUE ====================
 
@@ -439,6 +444,22 @@ async function apply(change: Change) {
       }
       if (change.type === "delete") {
         return db.delete(transcripts).where(eq(transcripts.id, change.id));
+      }
+      break;
+
+    // ---------------- SAVED ARTIFACTS ----------------
+    case "savedArtifacts":
+      if (change.type === "insert") {
+        return db.insert(savedArtifacts).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(savedArtifacts)
+          .set(change.data)
+          .where(eq(savedArtifacts.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(savedArtifacts).where(eq(savedArtifacts.id, change.id));
       }
       break;
 

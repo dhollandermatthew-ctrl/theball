@@ -28,7 +28,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 import { useAppStore } from '@/domain/state';
-import { ProductKnowledgeItem, KnowledgeCommand, UserCollection } from '@/domain/types';
+import { ProductKnowledgeItem, KnowledgeCommand, UserCollection, SavedArtifact } from '@/domain/types';
 import { generateId } from '@/domain/utils';
 import { extractText } from '@/domain/extractText';
 import { formatFileSize, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
@@ -797,7 +797,14 @@ const KnowledgeViewInner: React.FC = () => {
   const addUserCollection = useAppStore((s) => s.addUserCollection);
   const deleteUserCollection = useAppStore((s) => s.deleteUserCollection);
 
-  const [activeTab, setActiveTab] = useState<'documents' | 'commands'>('commands');
+  const savedArtifacts = useAppStore((s) => s.savedArtifacts);
+  const addSavedArtifact = useAppStore((s) => s.addSavedArtifact);
+  const updateSavedArtifact = useAppStore((s) => s.updateSavedArtifact);
+  const deleteSavedArtifact = useAppStore((s) => s.deleteSavedArtifact);
+
+  const [activeTab, setActiveTab] = useState<'documents' | 'commands' | 'created'>('commands');
+  const [showAddArtifactModal, setShowAddArtifactModal] = useState(false);
+  const [editingArtifact, setEditingArtifact] = useState<SavedArtifact | null>(null);
   const [showCommandModal, setShowCommandModal] = useState(false);
   const [editingCommand, setEditingCommand] = useState<KnowledgeCommand | null>(null);
   const [runningCommand, setRunningCommand] = useState<KnowledgeCommand | null>(null);
@@ -1183,6 +1190,14 @@ const KnowledgeViewInner: React.FC = () => {
               >
                 Commands{knowledgeCommands.length > 0 ? ` (${knowledgeCommands.length})` : ''}
               </button>
+              <button
+                onClick={() => setActiveTab('created')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'created' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Artifacts{savedArtifacts.length > 0 ? ` (${savedArtifacts.length})` : ''}
+              </button>
             </div>
           </div>
 
@@ -1289,7 +1304,14 @@ const KnowledgeViewInner: React.FC = () => {
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'commands' ? (
+          {activeTab === 'created' ? (
+            <ArtifactsPanel
+              artifacts={savedArtifacts}
+              onAdd={() => { setEditingArtifact(null); setShowAddArtifactModal(true); }}
+              onEdit={(a) => { setEditingArtifact(a); setShowAddArtifactModal(true); }}
+              onDelete={(id) => deleteSavedArtifact(id)}
+            />
+          ) : activeTab === 'commands' ? (
             <CommandsPanel
               commands={knowledgeCommands}
               documents={productKnowledge}
@@ -1457,6 +1479,22 @@ const KnowledgeViewInner: React.FC = () => {
           documents={productKnowledge}
           onClose={() => setRunningCommand(null)}
           onUpdateLinkedDocs={(ids) => updateKnowledgeCommand(runningCommand.id, { linkedDocumentIds: ids })}
+        />
+      )}
+
+      {showAddArtifactModal && (
+        <ArtifactModal
+          initial={editingArtifact}
+          onSave={(data) => {
+            if (editingArtifact) {
+              updateSavedArtifact(editingArtifact.id, data);
+            } else {
+              addSavedArtifact({ id: generateId(), ...data, createdAt: new Date().toISOString() });
+            }
+            setShowAddArtifactModal(false);
+            setEditingArtifact(null);
+          }}
+          onCancel={() => { setShowAddArtifactModal(false); setEditingArtifact(null); }}
         />
       )}
 
@@ -1840,8 +1878,10 @@ function CommandsPanel({
           {/* Left: compact command list */}
           <div className="flex flex-col w-64 shrink-0 overflow-y-auto pr-1">
             {(() => {
-              const slashCmds = filtered.filter((c) => c.linkedDocumentIds.length > 0);
-              const pureCmds = filtered.filter((c) => c.linkedDocumentIds.length === 0);
+              const slashCmds = filtered.filter((c) => c.commandType === 'slash' || (!c.commandType && c.linkedDocumentIds.length > 0));
+              const learningCmds = filtered.filter((c) => c.commandType === 'learning');
+              const exampleCmds = filtered.filter((c) => c.commandType === 'example');
+              const pureCmds = filtered.filter((c) => !c.commandType && c.linkedDocumentIds.length === 0);
 
               const renderCard = (cmd: typeof filtered[0]) => {
                 const isSelected = selectedCmdId === cmd.id;
@@ -1889,26 +1929,24 @@ function CommandsPanel({
                 );
               };
 
+              const sections: Array<{ label: string; color: string; items: typeof filtered }> = [
+                { label: 'Slash Commands', color: 'text-indigo-500', items: slashCmds },
+                { label: 'For Learning', color: 'text-emerald-600', items: learningCmds },
+                { label: 'Examples', color: 'text-amber-600', items: exampleCmds },
+                { label: 'Prompts', color: 'text-violet-500', items: pureCmds },
+              ].filter((s) => s.items.length > 0);
+
               return (
                 <>
-                  {slashCmds.length > 0 && (
-                    <div className="mb-1">
+                  {sections.map((section, i) => (
+                    <div key={section.label} className={i > 0 ? 'mt-5' : ''}>
                       <div className="flex items-center gap-2 px-1 mb-2">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-indigo-500">Slash Commands</span>
-                        <span className="text-[10px] text-slate-400 font-medium tabular-nums">{slashCmds.length}</span>
+                        <span className={`text-[10px] font-bold tracking-widest uppercase ${section.color}`}>{section.label}</span>
+                        <span className="text-[10px] text-slate-400 font-medium tabular-nums">{section.items.length}</span>
                       </div>
-                      <div className="flex flex-col gap-1.5">{slashCmds.map(renderCard)}</div>
+                      <div className="flex flex-col gap-1.5">{section.items.map(renderCard)}</div>
                     </div>
-                  )}
-                  {pureCmds.length > 0 && (
-                    <div className={slashCmds.length > 0 ? 'mt-5' : ''}>
-                      <div className="flex items-center gap-2 px-1 mb-2">
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-violet-500">Prompts</span>
-                        <span className="text-[10px] text-slate-400 font-medium tabular-nums">{pureCmds.length}</span>
-                      </div>
-                      <div className="flex flex-col gap-1.5">{pureCmds.map(renderCard)}</div>
-                    </div>
-                  )}
+                  ))}
                 </>
               );
             })()}
@@ -2062,13 +2100,14 @@ function CommandModal({
 }: {
   initial: KnowledgeCommand | null;
   documents: ProductKnowledgeItem[];
-  onSave: (data: { name: string; description: string; prompt: string; linkedDocumentIds: string[] }) => void;
+  onSave: (data: { name: string; description: string; prompt: string; linkedDocumentIds: string[]; commandType: import('@/domain/types').KnowledgeCommandType }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [prompt, setPrompt] = useState(initial?.prompt ?? '');
   const [linkedDocumentIds, setLinkedDocumentIds] = useState<string[]>(initial?.linkedDocumentIds ?? []);
+  const [commandType, setCommandType] = useState<import('@/domain/types').KnowledgeCommandType>(initial?.commandType ?? 'slash');
 
   const detectedVars = extractVariables(prompt);
 
@@ -2094,6 +2133,33 @@ function CommandModal({
               placeholder="e.g. Summarise for stakeholders"
               className="mt-1.5 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2 block">Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: 'slash', label: 'Slash Command', desc: 'Runs with linked docs', color: 'indigo' },
+                { value: 'learning', label: 'For Learning', desc: 'Prompts to understand topics', color: 'emerald' },
+                { value: 'example', label: 'Example', desc: 'Reference prompts to browse', color: 'amber' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setCommandType(opt.value)}
+                  className={`flex flex-col items-start px-3 py-2.5 rounded-lg border text-left transition-all ${
+                    commandType === opt.value
+                      ? opt.color === 'indigo' ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
+                        : opt.color === 'emerald' ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
+                        : 'border-amber-400 bg-amber-50 text-amber-900'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-xs font-semibold">{opt.label}</span>
+                  <span className="text-[10px] mt-0.5 opacity-70 leading-snug">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -2156,7 +2222,7 @@ function CommandModal({
             Cancel
           </button>
           <button
-            onClick={() => { if (name.trim() && prompt.trim()) onSave({ name: name.trim(), description: description.trim(), prompt: prompt.trim(), linkedDocumentIds }); }}
+            onClick={() => { if (name.trim() && prompt.trim()) onSave({ name: name.trim(), description: description.trim(), prompt: prompt.trim(), linkedDocumentIds, commandType }); }}
             disabled={!name.trim() || !prompt.trim()}
             className="px-4 py-2 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-700 disabled:opacity-40 transition-colors"
           >
@@ -2448,6 +2514,252 @@ function RunCommandModal({
             {copied ? 'Copied to clipboard!' : 'Copy prompt'}
           </button>
           <span className="text-xs text-slate-400 shrink-0 hidden sm:block">⌘↵</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ArtifactsPanel ────────────────────────────────────────────────────────────
+
+function ArtifactsPanel({
+  artifacts,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  artifacts: SavedArtifact[];
+  onAdd: () => void;
+  onEdit: (a: SavedArtifact) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const sorted = [...artifacts].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="text-sm text-slate-500">
+            HTML artifacts generated by Claude — save links to revisit and share them.
+          </p>
+        </div>
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm shrink-0"
+        >
+          <Plus size={13} />
+          Save artifact
+        </button>
+      </div>
+
+      {/* Grid */}
+      {sorted.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+            <Link2 size={22} className="text-slate-400" />
+          </div>
+          <p className="text-slate-500 font-medium">No saved artifacts yet</p>
+          <p className="text-slate-400 text-sm max-w-xs">
+            Paste a claude.ai artifact URL to save it here for quick access.
+          </p>
+          <button
+            onClick={onAdd}
+            className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+          >
+            <Plus size={14} />
+            Save your first artifact
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {sorted.map((artifact) => (
+            <div
+              key={artifact.id}
+              className="group bg-white border border-slate-200 border-l-4 border-l-indigo-400 rounded-xl hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-hidden"
+            >
+              <div className="p-4 flex flex-col gap-2 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 flex-1">
+                    {artifact.title}
+                  </h3>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      onClick={() => onEdit(artifact)}
+                      className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <Edit3 size={12} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(artifact.id)}
+                      className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+                {artifact.description && (
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{artifact.description}</p>
+                )}
+                {artifact.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {artifact.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-md text-[11px] font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-t border-slate-100">
+                <span className="text-[11px] text-slate-400 truncate max-w-[180px]">{artifact.url}</span>
+                <a
+                  href={artifact.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors shrink-0"
+                >
+                  <Share2 size={10} />
+                  Open
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-base font-semibold text-slate-800">Remove this artifact?</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {artifacts.find((a) => a.id === confirmDeleteId)?.title}
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setConfirmDeleteId(null)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ArtifactModal ─────────────────────────────────────────────────────────────
+
+function ArtifactModal({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: SavedArtifact | null;
+  onSave: (data: Omit<SavedArtifact, 'id' | 'createdAt'>) => void;
+  onCancel: () => void;
+}) {
+  const [url, setUrl] = useState(initial?.url ?? '');
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [tagInput, setTagInput] = useState(initial?.tags.join(', ') ?? '');
+
+  const handleSave = () => {
+    if (!url.trim() || !title.trim()) return;
+    const tags = tagInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[480px] flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-800">
+            {initial ? 'Edit artifact' : 'Save artifact'}
+          </h2>
+          <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
+              Artifact URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://claude.ai/artifact/…"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
+              Title <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What does this artifact do?"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of what this artifact is for…"
+              rows={2}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
+              Tags <span className="text-slate-400 font-normal normal-case">(comma-separated)</span>
+            </label>
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="e.g. dashboard, sales, prototype"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!url.trim() || !title.trim()}
+            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-40 transition-colors"
+          >
+            {initial ? 'Save changes' : 'Save artifact'}
+          </button>
         </div>
       </div>
     </div>
