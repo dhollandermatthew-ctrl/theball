@@ -439,160 +439,166 @@ function DocumentEditorModal({ item, userCollections, onSave, onDelete, onClose 
     }
   };
 
-
   const addTag = (t: string) => {
     const clean = t.trim().toLowerCase();
     if (clean && !tags.includes(clean)) setTags((prev) => [...prev, clean]);
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#1e1e1e]" data-color-mode="dark">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-slate-100">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-[#252526] border-b border-[#3c3c3c] shrink-0">
+      <div className="flex items-center gap-3 px-5 py-3 bg-white border-b border-slate-200 shadow-sm shrink-0">
         <button
           onClick={() => { handleSave(); onClose(); }}
-          className="p-1.5 rounded hover:bg-white/10 text-[#cccccc] transition-colors"
-          title="Close"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors text-xs font-medium shrink-0"
+          title="Back"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} /> Back
         </button>
+
+        <div className="w-px h-5 bg-slate-200 shrink-0" />
 
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="flex-1 bg-transparent text-sm font-medium text-[#cccccc] focus:outline-none placeholder:text-[#6e6e6e]"
-          placeholder="Document title"
+          className="flex-1 bg-transparent text-base font-semibold text-slate-800 focus:outline-none placeholder:text-slate-300"
+          placeholder="Untitled document"
         />
 
         {/* View toggle */}
-        <div className="flex bg-[#3c3c3c] rounded overflow-hidden text-xs font-medium">
+        <div className="flex bg-slate-100 rounded-lg p-0.5 text-xs font-medium shrink-0">
           {(['edit', 'live', 'preview'] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setPreview(mode)}
-              className={`px-3 py-1.5 transition-colors capitalize ${
-                preview === mode ? 'bg-[#0e639c] text-white' : 'text-[#cccccc] hover:bg-white/10'
+              className={`px-3 py-1 rounded-md transition-all ${
+                preview === mode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {mode === 'live' ? 'Split' : mode === 'preview' ? 'Preview' : 'Edit'}
+              {mode === 'live' ? 'Split' : mode === 'preview' ? 'Read' : 'Edit'}
             </button>
           ))}
         </div>
 
-        <div className="w-px h-5 bg-[#3c3c3c]" />
+        <div className="w-px h-5 bg-slate-200 shrink-0" />
 
         <button
           onClick={handleSharpen}
           disabled={sharpening}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-[#cccccc] hover:bg-white/10 disabled:opacity-50 transition-colors"
-          title="Restructure into a field guide with Quick Reference block"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 transition-colors shrink-0"
+          title="AI-restructure into a sharp field guide"
         >
           {sharpening
-            ? <><Loader2 size={13} className="animate-spin" /> Sharpening…</>
-            : <><Sparkles size={13} className="text-violet-400" /> Sharpen</>
+            ? <><Loader2 size={12} className="animate-spin" /> Sharpening…</>
+            : <><Sparkles size={12} /> Sharpen</>
           }
         </button>
 
-        <div className="w-px h-5 bg-[#3c3c3c]" />
-
         <button
           onClick={handleDownload}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-[#cccccc] hover:bg-white/10 transition-colors"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
           title="Download as .md"
         >
-          <Download size={13} /> Download
+          <Download size={15} />
         </button>
 
         <button
           onClick={() => setConfirmDelete(true)}
-          className="p-1.5 rounded hover:bg-red-900/40 text-[#cccccc] hover:text-red-400 transition-colors"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
           title="Delete"
         >
-          <Trash2 size={14} />
+          <Trash2 size={15} />
         </button>
 
         <button
           onClick={handleSave}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-[#0e639c] hover:bg-[#1177bb] text-white transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shrink-0 shadow-sm"
         >
           Save
         </button>
       </div>
 
-      {/* Collection + tags row */}
-      <div className="flex items-center gap-2 px-4 py-1.5 bg-[#252526] border-b border-[#3c3c3c] shrink-0 overflow-x-auto">
-        <span className="text-xs text-[#6e6e6e] shrink-0">Collection:</span>
-        <button
-          onClick={() => setCollection('')}
-          className={`px-2 py-0.5 rounded text-xs transition-colors ${!collection ? 'bg-[#0e639c] text-white' : 'text-[#9d9d9d] hover:text-[#cccccc]'}`}
-        >
-          None
-        </button>
-        {userCollections.map((c) => {
-          const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
-          return (
-            <button
-              key={c.id}
-              onClick={() => setCollection(collection === c.id ? '' : c.id)}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-                collection === c.id ? 'bg-[#0e639c] text-white' : 'text-[#9d9d9d] hover:text-[#cccccc]'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${preset.swatch}`} />
-              {c.label}
-            </button>
-          );
-        })}
-        <div className="w-px h-3.5 bg-[#3c3c3c] mx-1 shrink-0" />
-        <span className="text-xs text-[#6e6e6e] shrink-0">Tags:</span>
-        {tags.map((tag) => (
-          <span key={tag} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#3c3c3c] text-[#9d9d9d] rounded text-xs shrink-0">
-            {tag}
-            <button onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-red-400"><X size={9} /></button>
-          </span>
-        ))}
-        <input
-          type="text"
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); setTagInput(''); }
-          }}
-          placeholder="+ tag"
-          className="bg-transparent text-xs text-[#cccccc] focus:outline-none placeholder:text-[#6e6e6e] w-16 min-w-0"
-        />
+      {/* Metadata bar */}
+      <div className="flex items-center gap-3 px-5 py-1.5 bg-white border-b border-slate-100 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-semibold tracking-wider uppercase text-slate-400">Collection</span>
+          <button
+            onClick={() => setCollection('')}
+            className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${!collection ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+          >
+            None
+          </button>
+          {userCollections.map((c) => {
+            const preset = COLOR_PRESETS[c.color] || COLOR_PRESETS.slate;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setCollection(collection === c.id ? '' : c.id)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                  collection === c.id ? `${preset.badge} border` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${preset.swatch}`} />
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="w-px h-3.5 bg-slate-200 mx-0.5 shrink-0" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold tracking-wider uppercase text-slate-400 shrink-0">Tags</span>
+          {tags.map((tag) => (
+            <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[11px] shrink-0">
+              {tag}
+              <button onClick={() => setTags(tags.filter((t) => t !== tag))} className="hover:text-red-500 ml-0.5"><X size={8} /></button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); setTagInput(''); }
+            }}
+            placeholder="+ add tag"
+            className="bg-transparent text-[11px] text-slate-500 focus:outline-none placeholder:text-slate-300 w-20 min-w-0"
+          />
+        </div>
       </div>
 
-      {/* Editor */}
-      <div className="flex-1 overflow-hidden" data-color-mode="dark">
-        <MDEditor
-          value={content}
-          onChange={(val) => setContent(val ?? '')}
-          preview={preview}
-          height="100%"
-          style={{ height: '100%', backgroundColor: '#1e1e1e' }}
-          visibleDragbar={false}
-          hideToolbar={false}
-        />
+      {/* Editor — paper feel on slate canvas */}
+      <div className="flex-1 overflow-hidden flex flex-col" data-color-mode="light">
+        <div className="flex-1 overflow-hidden">
+          <MDEditor
+            value={content}
+            onChange={(val) => setContent(val ?? '')}
+            preview={preview}
+            height="100%"
+            style={{ height: '100%', background: '#f1f5f9' }}
+            visibleDragbar={false}
+            hideToolbar={false}
+          />
+        </div>
       </div>
 
-      {/* Slash command hint */}
-      <div className="px-4 py-1.5 bg-[#252526] border-t border-[#3c3c3c] shrink-0">
-        <p className="text-[10px] text-[#6e6e6e]">
-          Slash command: <span className="text-[#9d9d9d] font-mono">/{slug}</span> · Sync to make available in Claude Code
+      {/* Footer hint */}
+      <div className="flex items-center justify-between px-5 py-1.5 bg-white border-t border-slate-100 shrink-0">
+        <p className="text-[10px] text-slate-400">
+          /{slug}
         </p>
+        <p className="text-[10px] text-slate-400">Markdown · syncs to Claude Code on save</p>
       </div>
 
       {/* Delete confirm */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60">
-          <div className="bg-[#252526] border border-[#3c3c3c] rounded-xl shadow-2xl p-6 w-[320px]">
-            <h2 className="text-sm font-semibold text-[#cccccc]">Delete "{title}"?</h2>
-            <p className="text-xs text-[#6e6e6e] mt-1">This cannot be undone.</p>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-2xl p-6 w-[320px]">
+            <h2 className="text-sm font-semibold text-slate-800">Delete "{title}"?</h2>
+            <p className="text-xs text-slate-500 mt-1">This cannot be undone.</p>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setConfirmDelete(false)} className="px-4 py-2 text-xs rounded border border-[#3c3c3c] text-[#9d9d9d] hover:bg-white/5">Cancel</button>
-              <button onClick={() => { onDelete(); onClose(); }} className="px-4 py-2 text-xs rounded bg-red-700 hover:bg-red-600 text-white font-medium">Delete</button>
+              <button onClick={() => setConfirmDelete(false)} className="px-4 py-2 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button onClick={() => { onDelete(); onClose(); }} className="px-4 py-2 text-xs rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium">Delete</button>
             </div>
           </div>
         </div>
@@ -1515,11 +1521,11 @@ function KnowledgeCard({
 
   return (
     <div
-      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col gap-2.5`}
+      className={`group bg-white border border-slate-200 border-l-4 ${accentColor} rounded-xl cursor-pointer hover:shadow-md hover:border-slate-300 transition-all relative flex flex-col overflow-hidden`}
       onClick={onClick}
     >
       {/* Hover actions */}
-      <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={(e) => e.stopPropagation()}>
         {hasFile && (
           <button
             onClick={() => item.filePath
@@ -1537,54 +1543,56 @@ function KnowledgeCard({
         </button>
       </div>
 
-      {/* Badge row */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {docBadge && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${docBadge.color} ${docBadge.bg} ${docBadge.border}`}>
-            {docBadge.label}
-          </span>
+      {/* Main content */}
+      <div className="p-4 flex flex-col gap-2.5 flex-1">
+        {/* Badge row */}
+        <div className="flex items-center gap-1.5 flex-wrap pr-10">
+          {docBadge && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${docBadge.color} ${docBadge.bg} ${docBadge.border}`}>
+              {docBadge.label}
+            </span>
+          )}
+          {item.type === 'document' && item.fileName && (
+            <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />
+          )}
+          <button ref={colBtnRef} onClick={openPicker} title={item.collection ? 'Change collection' : 'Add to collection'} className="shrink-0">
+            {item.collection
+              ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
+              : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border border-dashed border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-500 transition-colors">+ collection</span>
+            }
+          </button>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h3>
+
+        {/* Use for chips / preview text */}
+        {useFor ? (
+          <div className="flex flex-wrap gap-1.5 flex-1">
+            {splitUseForChips(useFor).map((chip) => (
+              <span key={chip} className="px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[11px] font-medium whitespace-nowrap leading-none">
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : preview ? (
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 flex-1">{preview}</p>
+        ) : (
+          <div className="flex-1" />
         )}
-        {item.type === 'document' && item.fileName && (
-          <FileTypeBadge fileType={item.fileType} fileName={item.fileName} />
-        )}
-        <button ref={colBtnRef} onClick={openPicker} title={item.collection ? 'Change collection' : 'Add to collection'} className="shrink-0">
-          {item.collection
-            ? <CollectionBadge collection={item.collection} userCollections={userCollections} />
-            : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border border-dashed border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-500 transition-colors">+ collection</span>
-          }
-        </button>
       </div>
 
-      {/* Title */}
-      <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 pr-12">{item.title}</h3>
-
-      {/* Use for chips / preview text */}
-      {useFor ? (
-        <div className="flex flex-wrap gap-1 mt-1 flex-1">
-          {splitUseForChips(useFor).map((chip) => (
-            <span key={chip} className="px-2 py-0.5 bg-slate-800 text-white rounded-full text-[11px] font-medium whitespace-nowrap">
-              {chip}
-            </span>
-          ))}
-        </div>
-      ) : preview ? (
-        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 flex-1">{preview}</p>
-      ) : (
-        <div className="flex-1" />
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between gap-2 mt-0.5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex flex-wrap gap-1 items-center">
+      {/* Footer strip */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2 bg-slate-50 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap gap-1 items-center min-w-0">
           {(item.tags || []).filter(t => t !== 'ai-context' && t !== 'raw-notes').slice(0, 2).map((tag) => (
-            <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[11px]">{tag}</span>
+            <span key={tag} className="px-1.5 py-0.5 bg-white border border-slate-200 text-slate-500 rounded-full text-[10px]">{tag}</span>
           ))}
           {(item.tags || []).filter(t => t !== 'ai-context' && t !== 'raw-notes').length > 2 && (
-            <span className="text-[11px] text-slate-400">+{(item.tags!).filter(t => t !== 'ai-context' && t !== 'raw-notes').length - 2}</span>
+            <span className="text-[10px] text-slate-400">+{(item.tags!).filter(t => t !== 'ai-context' && t !== 'raw-notes').length - 2}</span>
           )}
         </div>
-
-        <span className="text-[11px] text-slate-400 shrink-0">{formatCardDate(item.createdAt)}</span>
+        <span className="text-[10px] text-slate-400 shrink-0">{formatCardDate(item.createdAt)}</span>
       </div>
 
       {/* Collection picker — rendered via portal so it escapes overflow:auto parents */}
@@ -1830,56 +1838,80 @@ function CommandsPanel({
       ) : (
         <div className="flex gap-4 flex-1 min-h-0" style={{ minHeight: 480 }}>
           {/* Left: compact command list */}
-          <div className="flex flex-col gap-2 w-64 shrink-0 overflow-y-auto pr-1">
-            {filtered.map((cmd) => {
-              const isSelected = selectedCmdId === cmd.id;
-              const useCases = extractUseCases(cmd.prompt, cmd.description);
-              const vars = extractVariables(cmd.prompt);
-              const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
-              return (
-                <div
-                  key={cmd.id}
-                  onClick={() => setSelectedCmdId(cmd.id)}
-                  className={`group cursor-pointer border rounded-xl p-3 transition-all ${
-                    isSelected
-                      ? 'border-indigo-500 bg-indigo-50 shadow-sm ring-1 ring-indigo-100'
-                      : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
-                      <Terminal size={13} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 leading-tight">{cmd.name}</p>
-                      {useCases.length > 0 ? (
-                        <div className="mt-1 flex flex-col gap-0.5">
-                          {useCases.slice(0, 2).map((u, i) => (
-                            <p key={i} className="text-[11px] text-slate-500 leading-snug line-clamp-1">{u}</p>
-                          ))}
-                        </div>
-                      ) : cmd.description ? (
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-snug">{cmd.description}</p>
-                      ) : null}
-                      {(vars.length > 0 || linkedDocs.length > 0) && (
-                        <div className="flex gap-1 mt-1.5 flex-wrap">
-                          {vars.slice(0, 2).map((v) => (
-                            <span key={v} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[10px] font-medium">
-                              <Zap size={8} />{humanizeVarName(v)}
-                            </span>
-                          ))}
-                          {linkedDocs.length > 0 && (
-                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[10px] font-medium">
-                              <Link2 size={8} />{linkedDocs.length}
-                            </span>
-                          )}
-                        </div>
-                      )}
+          <div className="flex flex-col w-64 shrink-0 overflow-y-auto pr-1">
+            {(() => {
+              const slashCmds = filtered.filter((c) => c.linkedDocumentIds.length > 0);
+              const pureCmds = filtered.filter((c) => c.linkedDocumentIds.length === 0);
+
+              const renderCard = (cmd: typeof filtered[0]) => {
+                const isSelected = selectedCmdId === cmd.id;
+                const useCases = extractUseCases(cmd.prompt, cmd.description);
+                const vars = extractVariables(cmd.prompt);
+                const linkedDocs = documents.filter((d) => cmd.linkedDocumentIds.includes(d.id));
+                return (
+                  <div
+                    key={cmd.id}
+                    onClick={() => setSelectedCmdId(cmd.id)}
+                    className={`cursor-pointer rounded-lg p-2.5 transition-all ${
+                      isSelected
+                        ? 'bg-indigo-50 border border-indigo-200 shadow-sm'
+                        : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className={`shrink-0 mt-0.5 w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <Terminal size={11} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>{cmd.name}</p>
+                        {useCases.length > 0 ? (
+                          <p className="text-[10.5px] text-slate-500 mt-0.5 leading-snug line-clamp-2">{useCases[0]}</p>
+                        ) : cmd.description ? (
+                          <p className="text-[10.5px] text-slate-500 mt-0.5 line-clamp-2 leading-snug">{cmd.description}</p>
+                        ) : null}
+                        {(vars.length > 0 || linkedDocs.length > 0) && (
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
+                            {vars.slice(0, 2).map((v) => (
+                              <span key={v} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[9px] font-medium">
+                                <Zap size={7} />{humanizeVarName(v)}
+                              </span>
+                            ))}
+                            {linkedDocs.length > 0 && (
+                              <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[9px] font-medium">
+                                <Link2 size={7} />{linkedDocs.length} doc{linkedDocs.length > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                );
+              };
+
+              return (
+                <>
+                  {slashCmds.length > 0 && (
+                    <div className="mb-1">
+                      <div className="flex items-center gap-2 px-1 mb-2">
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-indigo-500">Slash Commands</span>
+                        <span className="text-[10px] text-slate-400 font-medium tabular-nums">{slashCmds.length}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">{slashCmds.map(renderCard)}</div>
+                    </div>
+                  )}
+                  {pureCmds.length > 0 && (
+                    <div className={slashCmds.length > 0 ? 'mt-5' : ''}>
+                      <div className="flex items-center gap-2 px-1 mb-2">
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-violet-500">Prompts</span>
+                        <span className="text-[10px] text-slate-400 font-medium tabular-nums">{pureCmds.length}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">{pureCmds.map(renderCard)}</div>
+                    </div>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
 
           {/* Right: detail panel */}
