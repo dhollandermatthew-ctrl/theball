@@ -1,7 +1,7 @@
   // FILE: src/domain/state.ts
   import { create } from "zustand";
   import { immer } from "zustand/middleware/immer";
-  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance, UserCollection, SavedArtifact } from "./types";
+  import type { Goal, MeetingSpace, HealthData, MeetingRecord, SpaceNotePage, BloodWorkRecord, WorkoutRecord, PersonalProfile, ProductKnowledgeItem, KnowledgeCommand, TranscriptRecord, SpeakerUtterance, UserCollection, SavedArtifact, StakeholderProfile, TalkTrack } from "./types";
 
   import { enqueue, triggerSync } from "@/db/sync";
   import { db, client } from "@/db/client";
@@ -23,6 +23,8 @@
     knowledgeCommands as knowledgeCommandsTable,
     transcripts as transcriptsTable,
     savedArtifacts as savedArtifactsTable,
+    stakeholderProfiles as stakeholderProfilesTable,
+    talkTracks as talkTracksTable,
   } from "@/db/schema";
 
   export const CURRENT_STATE_VERSION = 6;
@@ -110,6 +112,8 @@ export interface AppState {
   userCollections: UserCollection[];
   transcripts: TranscriptRecord[];
   savedArtifacts: SavedArtifact[];
+  stakeholderProfiles: StakeholderProfile[];
+  talkTracks: TalkTrack[];
 
   settings: Settings;
 
@@ -196,6 +200,16 @@ export interface AppState {
     updateSavedArtifact: (id: string, updates: Partial<SavedArtifact>) => void;
     deleteSavedArtifact: (id: string) => void;
 
+    // Stakeholder Profiles
+    addStakeholderProfile: (profile: StakeholderProfile) => void;
+    updateStakeholderProfile: (id: string, updates: Partial<StakeholderProfile>) => void;
+    deleteStakeholderProfile: (id: string) => void;
+
+    // Talk Tracks
+    addTalkTrack: (track: TalkTrack) => void;
+    updateTalkTrack: (id: string, updates: Partial<TalkTrack>) => void;
+    deleteTalkTrack: (id: string) => void;
+
     // helpers
     getNoteCount: (id: string) => number;
   }
@@ -221,6 +235,8 @@ export const defaultState: Pick<
   | "pinnedKnowledgeIds"
   | "transcripts"
   | "savedArtifacts"
+  | "stakeholderProfiles"
+  | "talkTracks"
   | "settings"
   | "hydrated"
 > = {
@@ -241,6 +257,8 @@ export const defaultState: Pick<
   pinnedKnowledgeIds: loadPinnedKnowledge(),
   transcripts: [],
   savedArtifacts: [],
+  stakeholderProfiles: [],
+  talkTracks: [],
 
     settings: {
     zoom: 1,
@@ -1261,6 +1279,107 @@ loadGoals: (goals) =>
           state.savedArtifacts = state.savedArtifacts.filter((a) => a.id !== id);
           enqueue({ type: "delete", table: "savedArtifacts", id });
         }),
+
+      // ---------------------- STAKEHOLDER PROFILES ----------------------
+      addStakeholderProfile: (profile) =>
+        set((state) => {
+          state.stakeholderProfiles = [profile, ...state.stakeholderProfiles];
+          enqueue({
+            type: "insert",
+            table: "stakeholderProfiles",
+            data: {
+              id: profile.id,
+              name: profile.name,
+              role: profile.role,
+              company: profile.company ?? null,
+              avatarColor: profile.avatarColor,
+              influence: profile.influence,
+              priorities: JSON.stringify(profile.priorities),
+              concerns: JSON.stringify(profile.concerns),
+              whatLands: JSON.stringify(profile.whatLands),
+              whatBackfires: JSON.stringify(profile.whatBackfires),
+              knownUnknowns: JSON.stringify(profile.knownUnknowns),
+              notes: profile.notes,
+              createdAt: profile.createdAt,
+              updatedAt: profile.updatedAt,
+            },
+          });
+        }),
+
+      updateStakeholderProfile: (id, updates) =>
+        set((state) => {
+          const profile = state.stakeholderProfiles.find((p) => p.id === id);
+          if (!profile) return;
+          Object.assign(profile, updates);
+          profile.updatedAt = new Date().toISOString();
+          enqueue({
+            type: "update",
+            table: "stakeholderProfiles",
+            id,
+            data: {
+              ...updates,
+              priorities: updates.priorities !== undefined ? JSON.stringify(updates.priorities) : undefined,
+              concerns: updates.concerns !== undefined ? JSON.stringify(updates.concerns) : undefined,
+              whatLands: updates.whatLands !== undefined ? JSON.stringify(updates.whatLands) : undefined,
+              whatBackfires: updates.whatBackfires !== undefined ? JSON.stringify(updates.whatBackfires) : undefined,
+              knownUnknowns: updates.knownUnknowns !== undefined ? JSON.stringify(updates.knownUnknowns) : undefined,
+              updatedAt: profile.updatedAt,
+            },
+          });
+        }),
+
+      deleteStakeholderProfile: (id) =>
+        set((state) => {
+          state.stakeholderProfiles = state.stakeholderProfiles.filter((p) => p.id !== id);
+          enqueue({ type: "delete", table: "stakeholderProfiles", id });
+        }),
+
+      // ---------------------- TALK TRACKS ----------------------
+      addTalkTrack: (track) =>
+        set((state) => {
+          state.talkTracks = [track, ...state.talkTracks];
+          enqueue({
+            type: "insert",
+            table: "talkTracks",
+            data: {
+              id: track.id,
+              title: track.title,
+              audience: track.audience,
+              goal: track.goal,
+              keyMessages: JSON.stringify(track.keyMessages),
+              slides: JSON.stringify(track.slides),
+              linkedStakeholderIds: JSON.stringify(track.linkedStakeholderIds),
+              createdAt: track.createdAt,
+              updatedAt: track.updatedAt,
+            },
+          });
+        }),
+
+      updateTalkTrack: (id, updates) =>
+        set((state) => {
+          const track = state.talkTracks.find((t) => t.id === id);
+          if (!track) return;
+          Object.assign(track, updates);
+          track.updatedAt = new Date().toISOString();
+          enqueue({
+            type: "update",
+            table: "talkTracks",
+            id,
+            data: {
+              ...updates,
+              keyMessages: updates.keyMessages !== undefined ? JSON.stringify(updates.keyMessages) : undefined,
+              slides: updates.slides !== undefined ? JSON.stringify(updates.slides) : undefined,
+              linkedStakeholderIds: updates.linkedStakeholderIds !== undefined ? JSON.stringify(updates.linkedStakeholderIds) : undefined,
+              updatedAt: track.updatedAt,
+            },
+          });
+        }),
+
+      deleteTalkTrack: (id) =>
+        set((state) => {
+          state.talkTracks = state.talkTracks.filter((t) => t.id !== id);
+          enqueue({ type: "delete", table: "talkTracks", id });
+        }),
     }))
   );
 
@@ -1310,6 +1429,8 @@ loadGoals: (goals) =>
         state.knowledgeCommands = offlineData.knowledgeCommands ?? [];
         state.transcripts = offlineData.transcripts;
         state.savedArtifacts = (offlineData as any).savedArtifacts ?? [];
+        state.stakeholderProfiles = (offlineData as any).stakeholderProfiles ?? [];
+        state.talkTracks = (offlineData as any).talkTracks ?? [];
         state.hydrated = true;
       });
       
@@ -1380,6 +1501,41 @@ loadGoals: (goals) =>
         await client.execute("ALTER TABLE tasks ADD COLUMN attachments TEXT");
       } catch (_) { /* column already exists */ }
 
+      // Create stakeholder_profiles table if it doesn't exist yet
+      try {
+        await client.execute(`CREATE TABLE IF NOT EXISTS stakeholder_profiles (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT '',
+          company TEXT,
+          avatarColor TEXT NOT NULL DEFAULT 'bg-blue-500',
+          influence TEXT NOT NULL DEFAULT 'unknown',
+          priorities TEXT NOT NULL DEFAULT '[]',
+          concerns TEXT NOT NULL DEFAULT '[]',
+          whatLands TEXT NOT NULL DEFAULT '[]',
+          whatBackfires TEXT NOT NULL DEFAULT '[]',
+          knownUnknowns TEXT NOT NULL DEFAULT '[]',
+          notes TEXT NOT NULL DEFAULT '',
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        )`);
+      } catch (_) { /* table already exists */ }
+
+      // Create talk_tracks table if it doesn't exist yet
+      try {
+        await client.execute(`CREATE TABLE IF NOT EXISTS talk_tracks (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          audience TEXT NOT NULL DEFAULT '',
+          goal TEXT NOT NULL DEFAULT '',
+          keyMessages TEXT NOT NULL DEFAULT '[]',
+          slides TEXT NOT NULL DEFAULT '[]',
+          linkedStakeholderIds TEXT NOT NULL DEFAULT '[]',
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        )`);
+      } catch (_) { /* table already exists */ }
+
       const queryStart = performance.now();
       const [
         taskRows,
@@ -1396,6 +1552,8 @@ loadGoals: (goals) =>
         commandRows,
         transcriptRows,
         artifactRows,
+        stakeholderRows,
+        talkTrackRows,
       ] = await Promise.all([
         db.select().from(tasksTable),
         db.select().from(oneOnOneTable),
@@ -1411,6 +1569,8 @@ loadGoals: (goals) =>
         db.select().from(knowledgeCommandsTable),
         db.select().from(transcriptsTable),
         db.select().from(savedArtifactsTable),
+        db.select().from(stakeholderProfilesTable),
+        db.select().from(talkTracksTable),
       ]);
       
       console.log(`[Init] Turso queries took ${Math.round(performance.now() - queryStart)}ms`);
@@ -1614,6 +1774,33 @@ loadGoals: (goals) =>
         s.knowledgeCommands = knowledgeCommandRecords;
         s.transcripts = transcriptRecords;
         s.savedArtifacts = savedArtifactRecords;
+        s.stakeholderProfiles = stakeholderRows.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          role: r.role,
+          company: r.company ?? undefined,
+          avatarColor: r.avatarColor,
+          influence: r.influence as StakeholderProfile['influence'],
+          priorities: JSON.parse(r.priorities || '[]'),
+          concerns: JSON.parse(r.concerns || '[]'),
+          whatLands: JSON.parse(r.whatLands || '[]'),
+          whatBackfires: JSON.parse(r.whatBackfires || '[]'),
+          knownUnknowns: JSON.parse(r.knownUnknowns || '[]'),
+          notes: r.notes,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }));
+        s.talkTracks = talkTrackRows.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          audience: r.audience,
+          goal: r.goal,
+          keyMessages: JSON.parse(r.keyMessages || '[]'),
+          slides: JSON.parse(r.slides || '[]'),
+          linkedStakeholderIds: JSON.parse(r.linkedStakeholderIds || '[]'),
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }));
         s.hydrated = true;
       });
       
@@ -1630,6 +1817,8 @@ loadGoals: (goals) =>
         knowledgeCommands: currentState.knowledgeCommands,
         transcripts: currentState.transcripts,
         savedArtifacts: currentState.savedArtifacts,
+        stakeholderProfiles: currentState.stakeholderProfiles,
+        talkTracks: currentState.talkTracks,
       } as any);
       
       const totalTime = Math.round(performance.now() - startTime);

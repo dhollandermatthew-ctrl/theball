@@ -282,3 +282,49 @@
     tags: string[];
     createdAt: string;
   }
+
+  // --------------------------------------------------
+  // STAKEHOLDER PROFILES
+  // --------------------------------------------------
+
+  export type StakeholderInfluence = 'champion' | 'decision-maker' | 'influencer' | 'blocker' | 'unknown';
+
+  export interface StakeholderProfile {
+    id: string;
+    name: string;
+    role: string;
+    company?: string;
+    avatarColor: string;
+    influence: StakeholderInfluence;
+    priorities: string[];     // What they care most about
+    concerns: string[];       // Objections, red flags, blockers
+    whatLands: string[];      // Approaches/framings that work with them
+    whatBackfires: string[];  // Things that push them away
+    knownUnknowns: string[];  // "We don't know their view on X"
+    notes: string;            // Freeform raw intel
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  // --------------------------------------------------
+  // TALK TRACKS
+  // --------------------------------------------------
+
+  export interface TalkTrackSlide {
+    id: string;
+    title: string;
+    bullets: string[];
+    speakerNotes?: string;
+  }
+
+  export interface TalkTrack {
+    id: string;
+    title: string;
+    audience: string;               // Who this is for
+    goal: string;                   // What you want them to do/think/feel
+    keyMessages: string[];          // 3-5 must-land points
+    slides: TalkTrackSlide[];       // Stored as JSON blob
+    linkedStakeholderIds: string[]; // Links to StakeholderProfile ids
+    createdAt: string;
+    updatedAt: string;
+  }

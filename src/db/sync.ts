@@ -17,6 +17,8 @@ import {
   knowledgeCommands,
   transcripts,
   savedArtifacts,
+  stakeholderProfiles,
+  talkTracks,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { 
@@ -79,7 +81,15 @@ type Change =
   // SAVED ARTIFACTS
   | { type: "insert"; table: "savedArtifacts"; data: any }
   | { type: "update"; table: "savedArtifacts"; id: string; data: any }
-  | { type: "delete"; table: "savedArtifacts"; id: string };
+  | { type: "delete"; table: "savedArtifacts"; id: string }
+  // STAKEHOLDER PROFILES
+  | { type: "insert"; table: "stakeholderProfiles"; data: any }
+  | { type: "update"; table: "stakeholderProfiles"; id: string; data: any }
+  | { type: "delete"; table: "stakeholderProfiles"; id: string }
+  // TALK TRACKS
+  | { type: "insert"; table: "talkTracks"; data: any }
+  | { type: "update"; table: "talkTracks"; id: string; data: any }
+  | { type: "delete"; table: "talkTracks"; id: string };
 
 // ==================== PERSISTENT SYNC QUEUE ====================
 
@@ -460,6 +470,38 @@ async function apply(change: Change) {
       }
       if (change.type === "delete") {
         return db.delete(savedArtifacts).where(eq(savedArtifacts.id, change.id));
+      }
+      break;
+
+    // ---------------- STAKEHOLDER PROFILES ----------------
+    case "stakeholderProfiles":
+      if (change.type === "insert") {
+        return db.insert(stakeholderProfiles).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(stakeholderProfiles)
+          .set(change.data)
+          .where(eq(stakeholderProfiles.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(stakeholderProfiles).where(eq(stakeholderProfiles.id, change.id));
+      }
+      break;
+
+    // ---------------- TALK TRACKS ----------------
+    case "talkTracks":
+      if (change.type === "insert") {
+        return db.insert(talkTracks).values(change.data);
+      }
+      if (change.type === "update") {
+        return db
+          .update(talkTracks)
+          .set(change.data)
+          .where(eq(talkTracks.id, change.id));
+      }
+      if (change.type === "delete") {
+        return db.delete(talkTracks).where(eq(talkTracks.id, change.id));
       }
       break;
 

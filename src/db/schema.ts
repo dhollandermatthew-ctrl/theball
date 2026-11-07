@@ -220,6 +220,41 @@ export const transcripts = sqliteTable("transcripts", {
 });
 
 // -----------------------------------------------------
+// STAKEHOLDER PROFILES TABLE
+// -----------------------------------------------------
+export const stakeholderProfiles = sqliteTable("stakeholder_profiles", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  role: text("role").notNull().default(""),
+  company: text("company"),
+  avatarColor: text("avatarColor").notNull().default("bg-blue-500"),
+  influence: text("influence").notNull().default("unknown"),
+  priorities: text("priorities").notNull().default("[]"),
+  concerns: text("concerns").notNull().default("[]"),
+  whatLands: text("whatLands").notNull().default("[]"),
+  whatBackfires: text("whatBackfires").notNull().default("[]"),
+  knownUnknowns: text("knownUnknowns").notNull().default("[]"),
+  notes: text("notes").notNull().default(""),
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+});
+
+// -----------------------------------------------------
+// TALK TRACKS TABLE
+// -----------------------------------------------------
+export const talkTracks = sqliteTable("talk_tracks", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  audience: text("audience").notNull().default(""),
+  goal: text("goal").notNull().default(""),
+  keyMessages: text("keyMessages").notNull().default("[]"),
+  slides: text("slides").notNull().default("[]"),
+  linkedStakeholderIds: text("linkedStakeholderIds").notNull().default("[]"),
+  createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt").notNull(),
+});
+
+// -----------------------------------------------------
 // SAVED ARTIFACTS TABLE
 // -----------------------------------------------------
 export const savedArtifacts = sqliteTable("saved_artifacts", {
