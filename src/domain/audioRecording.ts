@@ -11,7 +11,14 @@ export async function recordAndTranscribe(): Promise<string> {
   console.log('[AudioRecording] Starting...');
   
   // Request microphone access
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      sampleRate: 16000,
+    },
+  });
   
   return new Promise<string>((resolve, reject) => {
     const mediaRecorder = new MediaRecorder(stream, {
@@ -114,16 +121,23 @@ export function startRecording(): {
   const transcriptPromise = new Promise<string>((resolve, reject) => {
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            sampleRate: 16000,
+          },
+        });
+
         const mediaRecorder = new MediaRecorder(stream, {
           mimeType: 'audio/webm'
         });
-        
+
         mediaRecorderRef = mediaRecorder;
-        
+
         // Setup audio analysis for silence detection
-        audioContextRef = new AudioContext();
+        audioContextRef = new AudioContext({ sampleRate: 16000 });
         const source = audioContextRef.createMediaStreamSource(stream);
         analyserRef = audioContextRef.createAnalyser();
         analyserRef.fftSize = 512;

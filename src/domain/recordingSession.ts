@@ -90,7 +90,14 @@ export async function startRecording(mode: "room" | "call"): Promise<void> {
   console.log("[recording] requesting getUserMedia...");
   let micStream: MediaStream;
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: 16000,
+      },
+    });
     console.log("[recording] getUserMedia OK, tracks:", micStream.getAudioTracks().length);
   } catch (e: any) {
     console.error("[recording] getUserMedia FAILED:", e.name, e.message, e);
