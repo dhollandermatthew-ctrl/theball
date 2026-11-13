@@ -2534,6 +2534,28 @@ function ArtifactsPanel({
   onDelete: (id: string) => void;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownload = async (artifact: SavedArtifact) => {
+    setDownloadingId(artifact.id);
+    setDownloadError(null);
+    try {
+      const res = await fetch(artifact.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const html = await res.text();
+      const slug = artifact.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const filename = `${slug}.html`;
+      const path = await invoke<string>('save_to_downloads', { filename, content: html });
+      await invoke('reveal_in_finder', { path });
+    } catch (e: any) {
+      setDownloadError(`Could not download "${artifact.title}". The artifact may be private or require sign-in.`);
+      setTimeout(() => setDownloadError(null), 5000);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const sorted = [...artifacts].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -2618,19 +2640,41 @@ function ArtifactsPanel({
                 )}
               </div>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-t border-slate-100">
-                <span className="text-[11px] text-slate-400 truncate max-w-[180px]">{artifact.url}</span>
-                <a
-                  href={artifact.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors shrink-0"
-                >
-                  <Share2 size={10} />
-                  Open
-                </a>
+                <span className="text-[11px] text-slate-400 truncate max-w-[140px]">{artifact.url}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleDownload(artifact)}
+                    disabled={downloadingId === artifact.id}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-semibold hover:bg-slate-200 transition-colors disabled:opacity-50"
+                    title="Download as HTML to your computer"
+                  >
+                    {downloadingId === artifact.id ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Download size={10} />
+                    )}
+                    Save
+                  </button>
+                  <a
+                    href={artifact.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors"
+                  >
+                    <Share2 size={10} />
+                    Open
+                  </a>
+                </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Download error toast */}
+      {downloadError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] bg-red-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg max-w-sm text-center">
+          {downloadError}
         </div>
       )}
 
