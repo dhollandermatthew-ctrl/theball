@@ -662,24 +662,19 @@ const handleContentBlur = () => {
       : "bg-white border-slate-200"
   )}
 >
-        {/* Selection overlay — captures all clicks in grab mode */}
+        {/* Selection checkmark — click to toggle; everything else on the card is unaffected */}
         {onToggleSelect && (
-          <div
-            className="absolute inset-0 z-30 cursor-pointer rounded-lg"
-            onClick={() => onToggleSelect(task.id)}
-          />
-        )}
-
-        {/* Selection checkmark */}
-        {onToggleSelect && (
-          <div className={cn(
-            "absolute top-1.5 right-1.5 z-40 w-5 h-5 rounded-full flex items-center justify-center transition-all",
-            selected
-              ? "bg-blue-500 shadow-sm"
-              : "border-2 border-slate-300 bg-white"
-          )}>
+          <button
+            className={cn(
+              "absolute top-1.5 right-1.5 z-40 w-5 h-5 rounded-full flex items-center justify-center transition-all",
+              selected
+                ? "bg-blue-500 shadow-sm"
+                : "border-2 border-slate-300 bg-white hover:border-blue-400"
+            )}
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(task.id); }}
+          >
             {selected && <Check className="w-3 h-3 text-white" />}
-          </div>
+          </button>
         )}
 
         {/* Star Indicator */}
