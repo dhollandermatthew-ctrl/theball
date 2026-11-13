@@ -2541,9 +2541,12 @@ function ArtifactsPanel({
     setDownloadingId(artifact.id);
     setDownloadError(null);
     try {
-      const res = await fetch(artifact.url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
+      let html = artifact.htmlContent;
+      if (!html) {
+        const res = await fetch(artifact.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        html = await res.text();
+      }
       const slug = artifact.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const filename = `${slug}.html`;
       const path = await invoke<string>('save_to_downloads', { filename, content: html });
@@ -2646,14 +2649,14 @@ function ArtifactsPanel({
                     onClick={() => handleDownload(artifact)}
                     disabled={downloadingId === artifact.id}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-semibold hover:bg-slate-200 transition-colors disabled:opacity-50"
-                    title="Download as HTML to your computer"
+                    title={artifact.htmlContent ? "Download saved HTML to your computer" : "Download HTML to your computer (requires network)"}
                   >
                     {downloadingId === artifact.id ? (
                       <Loader2 size={10} className="animate-spin" />
                     ) : (
                       <Download size={10} />
                     )}
-                    Save
+                    {artifact.htmlContent ? 'Download' : 'Download'}
                   </button>
                   <a
                     href={artifact.url}
@@ -2719,14 +2722,26 @@ function ArtifactModal({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [tagInput, setTagInput] = useState(initial?.tags.join(', ') ?? '');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!url.trim() || !title.trim()) return;
     const tags = tagInput
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags });
+    setIsSaving(true);
+    let htmlContent: string | undefined;
+    if (!initial) {
+      try {
+        const res = await fetch(url.trim());
+        if (res.ok) htmlContent = await res.text();
+      } catch {
+        // Silently skip — URL stays accessible via Open
+      }
+    }
+    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags, htmlContent });
+    setIsSaving(false);
   };
 
   return (
@@ -2799,10 +2814,11 @@ function ArtifactModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!url.trim() || !title.trim()}
-            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-40 transition-colors"
+            disabled={!url.trim() || !title.trim() || isSaving}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-40 transition-colors"
           >
-            {initial ? 'Save changes' : 'Save artifact'}
+            {isSaving && <Loader2 size={13} className="animate-spin" />}
+            {isSaving ? 'Saving…' : initial ? 'Save changes' : 'Save artifact'}
           </button>
         </div>
       </div>

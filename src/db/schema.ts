@@ -263,5 +263,6 @@ export const savedArtifacts = sqliteTable("saved_artifacts", {
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   tags: text("tags").notNull().default("[]"), // JSON array of strings
+  htmlContent: text("html_content"), // Captured HTML at save time for offline/cross-machine access
   createdAt: text("createdAt").notNull(),
 });

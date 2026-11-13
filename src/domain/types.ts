@@ -280,6 +280,7 @@
     title: string;
     description: string;
     tags: string[];
+    htmlContent?: string; // HTML captured at save time, stored in Turso for cross-machine access
     createdAt: string;
   }
 

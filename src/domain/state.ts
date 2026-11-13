@@ -1253,6 +1253,7 @@ loadGoals: (goals) =>
               title: artifact.title,
               description: artifact.description,
               tags: JSON.stringify(artifact.tags),
+              htmlContent: artifact.htmlContent ?? null,
               createdAt: artifact.createdAt,
             },
           });
@@ -1722,6 +1723,7 @@ loadGoals: (goals) =>
         title: r.title,
         description: r.description || '',
         tags: r.tags ? JSON.parse(r.tags) : [],
+        htmlContent: r.htmlContent || undefined,
         createdAt: r.createdAt,
       }));
 
