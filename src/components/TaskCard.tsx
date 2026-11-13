@@ -369,7 +369,9 @@ interface TaskCardProps {
   cardRef?: React.RefObject<HTMLDivElement | null>;
 
   disableDrag?: boolean;
-  showMissedStatus?: boolean; // ✅ ADD THIS
+  showMissedStatus?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -385,7 +387,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   bodyRef,
   cardRef,
   disableDrag = false,
-  showMissedStatus = true, // ✅ default
+  showMissedStatus = true,
+  selected = false,
+  onToggleSelect,
 }) => {
   const normalizedStatus = normalizeStatus(task.status);
   const starTask = useAppStore((s) => s.starTask);
@@ -648,6 +652,7 @@ const handleContentBlur = () => {
     "hover:shadow-md hover:-translate-y-[1px]",
     isFlashing && "animate-task-flash",
     styles.cardGap,
+    selected && "ring-2 ring-blue-500 ring-offset-1",
     task.status === "done"
       ? "bg-slate-50/60 border-slate-200"
       : task.priority === "p1"
@@ -657,6 +662,26 @@ const handleContentBlur = () => {
       : "bg-white border-slate-200"
   )}
 >
+        {/* Selection overlay — captures all clicks in grab mode */}
+        {onToggleSelect && (
+          <div
+            className="absolute inset-0 z-30 cursor-pointer rounded-lg"
+            onClick={() => onToggleSelect(task.id)}
+          />
+        )}
+
+        {/* Selection checkmark */}
+        {onToggleSelect && (
+          <div className={cn(
+            "absolute top-1.5 right-1.5 z-40 w-5 h-5 rounded-full flex items-center justify-center transition-all",
+            selected
+              ? "bg-blue-500 shadow-sm"
+              : "border-2 border-slate-300 bg-white"
+          )}>
+            {selected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+
         {/* Star Indicator */}
         {isStarred && task.starredRank && (
           <div className="absolute -left-2 top-1/2 -translate-y-1/2 z-20">

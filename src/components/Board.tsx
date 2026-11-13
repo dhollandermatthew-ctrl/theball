@@ -1,7 +1,7 @@
 // FILE: src/components/Board.tsx
 
-import React, { useState, useMemo, useRef } from "react";
-import { addDays, addWeeks, addMonths } from "date-fns";
+import React, { useState, useMemo, useRef, useCallback } from "react";
+import { addDays, addWeeks, addMonths, format } from "date-fns";
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +39,7 @@ import type { AppState } from "@/domain/state";
 import type { Task } from "@/domain/state";
 import { TaskStatus, TaskCategory, TaskPriority } from "@/domain/types";
 import {
+  cn,
   generateId,
   formatDateKey,
   DEFAULT_TASK_BODY,
@@ -283,6 +284,28 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   const [activeTask, setActiveTask] = useState<import("@/domain/state").Task | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+
+  const handleGrabAll = useCallback((dayKey: string) => {
+    const ids = tasks
+      .filter(t => t.date === dayKey && t.status === 'todo' && t.taskType !== 'oneonone' && t.category === category)
+      .map(t => t.id);
+    setSelectedTaskIds(new Set(ids));
+  }, [tasks, category]);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleMoveSelected = useCallback((targetDate: string) => {
+    selectedTaskIds.forEach(id => updateTask(id, { date: targetDate }));
+    setSelectedTaskIds(new Set());
+  }, [selectedTaskIds, updateTask]);
 
   useEffect(() => {
     if (newTaskId) {
@@ -521,6 +544,9 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   onUpdateTaskContent={(id, c) => updateTask(id, { content: c })}
   onUpdateTaskTitle={(id, t) => updateTask(id, { title: t })}
   onDeleteTask={deleteTask}
+  selectedTaskIds={selectedTaskIds}
+  onGrabAll={handleGrabAll}
+  onToggleSelect={handleToggleSelect}
 />
                   );
                 })}
@@ -555,6 +581,42 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
           onConfirm={(ids) => rollTasksToNextWeek(ids)}
           onClose={() => setShowRollover(false)}
         />
+      )}
+
+      {/* Floating grab action bar */}
+      {selectedTaskIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white rounded-full px-4 py-2.5 shadow-2xl ring-1 ring-white/10">
+          <span className="text-sm font-medium mr-1 text-slate-300">
+            Move {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} to
+          </span>
+          {weekDays.map(day => {
+            const key = formatDateKey(day);
+            const allSelected = tasks
+              .filter(t => t.date === key && t.status === 'todo' && t.taskType !== 'oneonone' && t.category === category)
+              .every(t => selectedTaskIds.has(t.id));
+            const isSource = allSelected && tasks.filter(t => t.date === key && t.status === 'todo' && t.taskType !== 'oneonone' && t.category === category).length === selectedTaskIds.size;
+            return (
+              <button
+                key={key}
+                onClick={() => handleMoveSelected(key)}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-xs font-bold transition-all",
+                  isSource
+                    ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                    : "bg-blue-500 hover:bg-blue-400 text-white"
+                )}
+              >
+                {format(day, 'EEE d')}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setSelectedTaskIds(new Set())}
+            className="ml-1 text-slate-400 hover:text-white text-xs font-medium transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );

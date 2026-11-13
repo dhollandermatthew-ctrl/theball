@@ -47,6 +47,9 @@ interface ColumnProps {
   onUpdateTaskContent: (id: string, content: string) => void;
   onUpdateTaskTitle: (id: string, title: string) => void;
   onDeleteTask: (id: string) => void;
+  selectedTaskIds?: Set<string>;
+  onGrabAll?: (dayKey: string) => void;
+  onToggleSelect?: (id: string) => void;
 }
 
 /* -----------------------------------------------
@@ -73,6 +76,9 @@ export const Column: React.FC<ColumnProps> = ({
   onUpdateTaskContent,
   onUpdateTaskTitle,
   onDeleteTask,
+  selectedTaskIds,
+  onGrabAll,
+  onToggleSelect,
 }) => {
   const dateStr = formatDateKey(date);
   const isCurrentDay = isToday(date);
@@ -163,7 +169,7 @@ export const Column: React.FC<ColumnProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-medium text-slate-600">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
             <span className="flex items-center gap-1">
               <span className="text-green-600">✓</span>
               {completed}
@@ -176,6 +182,20 @@ export const Column: React.FC<ColumnProps> = ({
               <span className="text-slate-400">|</span>
               {total}
             </span>
+            {onGrabAll && activeTasks.length > 0 && (
+              <button
+                onClick={() => onGrabAll(dateStr)}
+                className={cn(
+                  "ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide transition-all",
+                  selectedTaskIds && activeTasks.some(t => selectedTaskIds.has(t.id))
+                    ? "bg-blue-500 text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-blue-100 hover:text-blue-600"
+                )}
+                title="Grab all incomplete tasks"
+              >
+                Grab
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -205,6 +225,8 @@ export const Column: React.FC<ColumnProps> = ({
   onUpdateContent={onUpdateTaskContent}
   onUpdateTitle={onUpdateTaskTitle}
   onDelete={onDeleteTask}
+  selected={selectedTaskIds?.has(task.id)}
+  onToggleSelect={onToggleSelect}
 />
           ))}
 
