@@ -35,7 +35,6 @@ import { extractText } from '@/domain/extractText';
 import { formatFileSize, readKnowledgeFile, deleteKnowledgeFile, openKnowledgeFile, downloadFile, base64ToBlob } from '@/domain/fileStorage';
 import { suggestTags } from '@/domain/ai/suggestTags';
 import { askKnowledgeBase, KnowledgeAnswer } from '@/domain/ai/knowledgeAsk';
-import { askArtifacts, ArtifactAnswer } from '@/domain/ai/artifactAsk';
 import { WysiwygEditor } from './WysiwygEditor';
 import MDEditor from '@uiw/react-md-editor';
 import { sharpenPlaybook } from '@/domain/ai/sharpenPlaybook';
@@ -2578,10 +2577,6 @@ function ArtifactsPanel({
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState<'keyword' | 'ask'>('keyword');
-  const [aiAnswer, setAiAnswer] = useState<ArtifactAnswer | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
   const [viewingArtifact, setViewingArtifact] = useState<SavedArtifact | null>(null);
 
   const handleDownload = async (artifact: SavedArtifact) => {
@@ -2600,24 +2595,9 @@ function ArtifactsPanel({
     }
   };
 
-  const handleAsk = async () => {
-    if (!searchQuery.trim() || aiLoading) return;
-    setAiLoading(true);
-    setAiError(null);
-    setAiAnswer(null);
-    try {
-      const result = await askArtifacts(searchQuery.trim(), artifacts);
-      setAiAnswer(result);
-    } catch {
-      setAiError('Could not reach AI. Check your connection and try again.');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   // Keyword filter
   const q = searchQuery.toLowerCase().trim();
-  const filtered = q && searchMode === 'keyword'
+  const filtered = q
     ? artifacts.filter((a) => {
         const hay = [a.title, a.description, a.tags.join(' '), a.textContent || '', a.fileName || ''].join(' ').toLowerCase();
         return q.split(/\s+/).every((word) => hay.includes(word));
@@ -2627,8 +2607,6 @@ function ArtifactsPanel({
   const sorted = [...filtered].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-
-  const sourceSet = new Set(aiAnswer?.sourceIds ?? []);
 
   // In-app artifact viewer
   if (viewingArtifact) {
@@ -2701,51 +2679,21 @@ function ArtifactsPanel({
     <div className="h-full flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3">
-        {/* Search bar */}
         <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
           <Search size={14} className="text-slate-400 shrink-0" />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); if (searchMode === 'ask') setAiAnswer(null); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && searchMode === 'ask') handleAsk(); }}
-            placeholder={searchMode === 'keyword' ? 'Filter artifacts…' : 'Ask a question about your artifacts…'}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter artifacts…"
             className="flex-1 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400"
           />
           {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setAiAnswer(null); setAiError(null); }} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
               <X size={13} />
             </button>
           )}
-          {searchMode === 'ask' && searchQuery.trim() && (
-            <button
-              onClick={handleAsk}
-              disabled={aiLoading}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors shrink-0"
-            >
-              {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-              {aiLoading ? 'Thinking…' : 'Ask'}
-            </button>
-          )}
         </div>
-
-        {/* Mode toggle */}
-        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0">
-          <button
-            onClick={() => { setSearchMode('keyword'); setAiAnswer(null); setAiError(null); }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${searchMode === 'keyword' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            Search
-          </button>
-          <button
-            onClick={() => setSearchMode('ask')}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${searchMode === 'ask' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Sparkles size={11} />
-            Ask AI
-          </button>
-        </div>
-
         <button
           onClick={onAdd}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm shrink-0"
@@ -2754,50 +2702,6 @@ function ArtifactsPanel({
           Save
         </button>
       </div>
-
-      {/* AI Answer panel */}
-      {searchMode === 'ask' && (aiAnswer || aiLoading || aiError) && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex flex-col gap-3">
-          {aiLoading && (
-            <div className="flex items-center gap-2 text-sm text-indigo-600">
-              <Loader2 size={14} className="animate-spin" />
-              Searching your artifacts…
-            </div>
-          )}
-          {aiError && (
-            <p className="text-sm text-red-600">{aiError}</p>
-          )}
-          {aiAnswer && (
-            <>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 uppercase tracking-wider">
-                <Sparkles size={11} />
-                AI Answer
-              </div>
-              <div
-                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{
-                  __html: aiAnswer.answer
-                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                    .replace(/^- (.+)$/gm, '<li>$1</li>')
-                    .replace(/(<li>.*<\/li>)/gs, '<ul class="list-disc pl-4 my-1">$1</ul>')
-                    .replace(/\n\n/g, '</p><p class="mt-2">')
-                    .replace(/\n/g, '<br/>')
-                }}
-              />
-              {aiAnswer.sourceIds.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-medium">
-                  Sources: {aiAnswer.sourceIds.map((id) => {
-                    const a = artifacts.find((x) => x.id === id);
-                    return a ? <span key={id} className="bg-indigo-100 px-1.5 py-0.5 rounded">{a.title}</span> : null;
-                  })}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
 
       {/* Grid */}
       {sorted.length === 0 ? (
@@ -2819,16 +2723,10 @@ function ArtifactsPanel({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sorted.map((artifact) => {
-            const isSource = sourceSet.has(artifact.id);
-            return (
+          {sorted.map((artifact) => (
             <div
               key={artifact.id}
-              className={`group bg-white border rounded-xl hover:shadow-md transition-all flex flex-col overflow-hidden ${
-                isSource
-                  ? 'border-indigo-400 border-l-4 border-l-indigo-500 ring-2 ring-indigo-200 shadow-sm'
-                  : 'border-slate-200 border-l-4 border-l-indigo-400 hover:border-slate-300'
-              }`}
+              className="group bg-white border border-slate-200 border-l-4 border-l-indigo-400 rounded-xl hover:shadow-md hover:border-slate-300 transition-all flex flex-col overflow-hidden"
             >
               <div
                 className="p-4 flex flex-col gap-2 flex-1 cursor-pointer"
@@ -2840,12 +2738,6 @@ function ArtifactsPanel({
                       <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
                         {artifact.title}
                       </h3>
-                      {isSource && (
-                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-semibold rounded-full shrink-0">
-                          <Sparkles size={9} />
-                          Source
-                        </span>
-                      )}
                     </div>
                     {artifact.fileName && (
                       <p className="text-[11px] text-slate-400 mt-0.5 truncate">{artifact.fileName}</p>
@@ -2934,8 +2826,7 @@ function ArtifactsPanel({
                 </div>
               </div>
             </div>
-          );
-          })}
+          ))}
         </div>
       )}
 
