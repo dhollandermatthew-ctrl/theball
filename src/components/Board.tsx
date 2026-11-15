@@ -285,12 +285,14 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [newTaskId, setNewTaskId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [grabModeActive, setGrabModeActive] = useState(false);
 
   const handleGrabAll = useCallback((dayKey: string) => {
     const ids = tasks
       .filter(t => t.date === dayKey && t.status === 'todo' && t.taskType !== 'oneonone' && t.category === category)
       .map(t => t.id);
     setSelectedTaskIds(new Set(ids));
+    setGrabModeActive(true);
   }, [tasks, category]);
 
   const handleToggleSelect = useCallback((id: string) => {
@@ -305,6 +307,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   const handleMoveSelected = useCallback((targetDate: string) => {
     selectedTaskIds.forEach(id => updateTask(id, { date: targetDate }));
     setSelectedTaskIds(new Set());
+    setGrabModeActive(false);
   }, [selectedTaskIds, updateTask]);
 
   useEffect(() => {
@@ -546,7 +549,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
   onDeleteTask={deleteTask}
   selectedTaskIds={selectedTaskIds}
   onGrabAll={handleGrabAll}
-  onToggleSelect={handleToggleSelect}
+  onToggleSelect={grabModeActive ? handleToggleSelect : undefined}
 />
                   );
                 })}
@@ -611,7 +614,7 @@ export const Board: React.FC<BoardProps> = ({ onAIEntryClick, highlightTaskId, o
             );
           })}
           <button
-            onClick={() => setSelectedTaskIds(new Set())}
+            onClick={() => { setSelectedTaskIds(new Set()); setGrabModeActive(false); }}
             className="ml-1 text-slate-400 hover:text-white text-xs font-medium transition-colors"
           >
             Cancel
