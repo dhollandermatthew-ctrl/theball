@@ -1486,13 +1486,19 @@ loadGoals: (goals) =>
       try {
         await client.execute(`CREATE TABLE IF NOT EXISTS saved_artifacts (
           id TEXT PRIMARY KEY,
-          url TEXT NOT NULL,
+          url TEXT,
           title TEXT NOT NULL,
           description TEXT NOT NULL DEFAULT '',
           tags TEXT NOT NULL DEFAULT '[]',
           createdAt TEXT NOT NULL
         )`);
       } catch (_) { /* table already exists */ }
+      // Add new artifact columns if missing (added in v0.1.59)
+      try { await client.execute("ALTER TABLE saved_artifacts ADD COLUMN html_content TEXT"); } catch (_) {}
+      try { await client.execute("ALTER TABLE saved_artifacts ADD COLUMN text_content TEXT"); } catch (_) {}
+      try { await client.execute("ALTER TABLE saved_artifacts ADD COLUMN file_name TEXT"); } catch (_) {}
+      try { await client.execute("ALTER TABLE saved_artifacts ADD COLUMN updatedAt TEXT"); } catch (_) {}
+      // Make url nullable for existing rows (already nullable in SQLite — no migration needed)
 
       // Add urls and attachments columns to tasks if they don't exist (added in v0.1.44)
       try {
@@ -1719,12 +1725,15 @@ loadGoals: (goals) =>
       // Build saved artifacts
       const savedArtifactRecords: SavedArtifact[] = artifactRows.map((r: any) => ({
         id: r.id,
-        url: r.url,
+        url: r.url || undefined,
         title: r.title,
         description: r.description || '',
         tags: r.tags ? JSON.parse(r.tags) : [],
-        htmlContent: r.htmlContent || undefined,
+        htmlContent: r.html_content || r.htmlContent || undefined,
+        textContent: r.text_content || r.textContent || undefined,
+        fileName: r.file_name || r.fileName || undefined,
         createdAt: r.createdAt,
+        updatedAt: r.updatedAt || undefined,
       }));
 
       // Data-loss guard: if Turso returns 0 docs but localStorage had some,

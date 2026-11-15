@@ -276,12 +276,15 @@
 
   export interface SavedArtifact {
     id: string;
-    url: string;
+    url?: string; // Optional link back to Claude to edit
     title: string;
     description: string;
     tags: string[];
-    htmlContent?: string; // HTML captured at save time, stored in Turso for cross-machine access
+    htmlContent?: string; // Full HTML file content
+    textContent?: string; // Stripped plain text for search/RAG
+    fileName?: string; // Original filename
     createdAt: string;
+    updatedAt?: string; // Set when file is replaced
   }
 
   // --------------------------------------------------

@@ -259,10 +259,13 @@ export const talkTracks = sqliteTable("talk_tracks", {
 // -----------------------------------------------------
 export const savedArtifacts = sqliteTable("saved_artifacts", {
   id: text("id").primaryKey(),
-  url: text("url").notNull(),
+  url: text("url"), // Optional — link back to Claude to edit; not used for fetching
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   tags: text("tags").notNull().default("[]"), // JSON array of strings
-  htmlContent: text("html_content"), // Captured HTML at save time for offline/cross-machine access
+  htmlContent: text("html_content"), // Full HTML file content
+  textContent: text("text_content"), // Stripped plain text for search/RAG
+  fileName: text("file_name"), // Original filename
   createdAt: text("createdAt").notNull(),
+  updatedAt: text("updatedAt"), // Set when file is replaced
 });

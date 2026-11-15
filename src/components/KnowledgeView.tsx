@@ -22,6 +22,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
   Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff, ClipboardCopy,
+  RefreshCw, ExternalLink,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -805,6 +806,8 @@ const KnowledgeViewInner: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'documents' | 'commands' | 'created'>('commands');
   const [showAddArtifactModal, setShowAddArtifactModal] = useState(false);
   const [editingArtifact, setEditingArtifact] = useState<SavedArtifact | null>(null);
+  const [replacingArtifact, setReplacingArtifact] = useState<SavedArtifact | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
   const [showCommandModal, setShowCommandModal] = useState(false);
   const [editingCommand, setEditingCommand] = useState<KnowledgeCommand | null>(null);
   const [runningCommand, setRunningCommand] = useState<KnowledgeCommand | null>(null);
@@ -1310,6 +1313,7 @@ const KnowledgeViewInner: React.FC = () => {
               onAdd={() => { setEditingArtifact(null); setShowAddArtifactModal(true); }}
               onEdit={(a) => { setEditingArtifact(a); setShowAddArtifactModal(true); }}
               onDelete={(id) => deleteSavedArtifact(id)}
+              onReplace={(a) => { setReplacingArtifact(a); replaceFileInputRef.current?.click(); }}
             />
           ) : activeTab === 'commands' ? (
             <CommandsPanel
@@ -1497,6 +1501,40 @@ const KnowledgeViewInner: React.FC = () => {
           onCancel={() => { setShowAddArtifactModal(false); setEditingArtifact(null); }}
         />
       )}
+
+      {/* Hidden file input for replacing an artifact's HTML */}
+      <input
+        ref={replaceFileInputRef}
+        type="file"
+        accept=".html"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file || !replacingArtifact) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const html = ev.target?.result as string;
+            const textContent = html
+              ? (() => {
+                  const cleaned = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+                  const d = document.createElement('div');
+                  d.innerHTML = cleaned;
+                  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+                })()
+              : undefined;
+            updateSavedArtifact(replacingArtifact.id, {
+              htmlContent: html,
+              textContent,
+              fileName: file.name,
+              updatedAt: new Date().toISOString(),
+            });
+            setReplacingArtifact(null);
+          };
+          reader.readAsText(file);
+          // Reset so same file can be re-selected
+          e.target.value = '';
+        }}
+      />
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange}
         accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md" />
@@ -2527,32 +2565,28 @@ function ArtifactsPanel({
   onAdd,
   onEdit,
   onDelete,
+  onReplace,
 }: {
   artifacts: SavedArtifact[];
   onAdd: () => void;
   onEdit: (a: SavedArtifact) => void;
   onDelete: (id: string) => void;
+  onReplace: (artifact: SavedArtifact) => void;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownload = async (artifact: SavedArtifact) => {
+    if (!artifact.htmlContent) return;
     setDownloadingId(artifact.id);
-    setDownloadError(null);
     try {
-      let html = artifact.htmlContent;
-      if (!html) {
-        const res = await fetch(artifact.url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        html = await res.text();
-      }
       const slug = artifact.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const filename = `${slug}.html`;
-      const path = await invoke<string>('save_to_downloads', { filename, content: html });
+      const filename = artifact.fileName || `${slug}.html`;
+      const path = await invoke<string>('save_to_downloads', { filename, content: artifact.htmlContent });
       await invoke('reveal_in_finder', { path });
-    } catch (e: any) {
-      setDownloadError(`Could not download "${artifact.title}". The artifact may be private or require sign-in.`);
+    } catch {
+      setDownloadError(`Could not save "${artifact.title}" to Downloads.`);
       setTimeout(() => setDownloadError(null), 5000);
     } finally {
       setDownloadingId(null);
@@ -2569,7 +2603,7 @@ function ArtifactsPanel({
       <div className="flex items-center justify-between mb-5">
         <div>
           <p className="text-sm text-slate-500">
-            HTML artifacts generated by Claude — save links to revisit and share them.
+            HTML artifacts from Claude — stored permanently for reference and future search.
           </p>
         </div>
         <button
@@ -2585,11 +2619,11 @@ function ArtifactsPanel({
       {sorted.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-            <Link2 size={22} className="text-slate-400" />
+            <FileText size={22} className="text-slate-400" />
           </div>
           <p className="text-slate-500 font-medium">No saved artifacts yet</p>
           <p className="text-slate-400 text-sm max-w-xs">
-            Paste a claude.ai artifact URL to save it here for quick access.
+            Download an artifact from Claude as HTML, then save it here permanently.
           </p>
           <button
             onClick={onAdd}
@@ -2608,18 +2642,32 @@ function ArtifactsPanel({
             >
               <div className="p-4 flex flex-col gap-2 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 flex-1">
-                    {artifact.title}
-                  </h3>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
+                      {artifact.title}
+                    </h3>
+                    {artifact.fileName && (
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{artifact.fileName}</p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                     <button
                       onClick={() => onEdit(artifact)}
+                      title="Edit details"
                       className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
                     >
                       <Edit3 size={12} />
                     </button>
                     <button
+                      onClick={() => onReplace(artifact)}
+                      title="Replace HTML file"
+                      className="p-1 rounded hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                    <button
                       onClick={() => setConfirmDeleteId(artifact.id)}
+                      title="Remove"
                       className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={12} />
@@ -2643,30 +2691,49 @@ function ArtifactsPanel({
                 )}
               </div>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-t border-slate-100">
-                <span className="text-[11px] text-slate-400 truncate max-w-[140px]">{artifact.url}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {artifact.htmlContent ? (
+                    <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                      <FileText size={10} />
+                      Stored
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">No file</span>
+                  )}
+                  {artifact.updatedAt && (
+                    <span className="text-[11px] text-slate-400">
+                      · Updated {new Date(artifact.updatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => handleDownload(artifact)}
-                    disabled={downloadingId === artifact.id}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-semibold hover:bg-slate-200 transition-colors disabled:opacity-50"
-                    title={artifact.htmlContent ? "Download saved HTML to your computer" : "Download HTML to your computer (requires network)"}
-                  >
-                    {downloadingId === artifact.id ? (
-                      <Loader2 size={10} className="animate-spin" />
-                    ) : (
-                      <Download size={10} />
-                    )}
-                    {artifact.htmlContent ? 'Download' : 'Download'}
-                  </button>
-                  <a
-                    href={artifact.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors"
-                  >
-                    <Share2 size={10} />
-                    Open
-                  </a>
+                  {artifact.htmlContent && (
+                    <button
+                      onClick={() => handleDownload(artifact)}
+                      disabled={downloadingId === artifact.id}
+                      title="Save to Downloads"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-semibold hover:bg-slate-200 transition-colors disabled:opacity-50"
+                    >
+                      {downloadingId === artifact.id ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <Download size={10} />
+                      )}
+                      Download
+                    </button>
+                  )}
+                  {artifact.url && (
+                    <a
+                      href={artifact.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open in Claude to edit"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors"
+                    >
+                      <ExternalLink size={10} />
+                      Open in Claude
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -2707,6 +2774,23 @@ function ArtifactsPanel({
   );
 }
 
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function extractHtmlTitle(html: string): string {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return match ? match[1].trim() : '';
+}
+
+function extractHtmlText(html: string): string {
+  // Remove script and style blocks first, then strip tags
+  const cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '');
+  const d = document.createElement('div');
+  d.innerHTML = cleaned;
+  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+}
+
 // ── ArtifactModal ─────────────────────────────────────────────────────────────
 
 function ArtifactModal({
@@ -2722,19 +2806,47 @@ function ArtifactModal({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [tagInput, setTagInput] = useState(initial?.tags.join(', ') ?? '');
-  const handleSave = () => {
-    if (!url.trim() || !title.trim()) return;
-    const tags = tagInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-    // Save immediately — don't block on HTML capture
-    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags, htmlContent: undefined });
+  const [htmlContent, setHtmlContent] = useState<string | undefined>(initial?.htmlContent);
+  const [fileName, setFileName] = useState<string | undefined>(initial?.fileName);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const html = ev.target?.result as string;
+      setHtmlContent(html);
+      // Auto-populate title from <title> tag if title is still empty
+      if (!title.trim()) {
+        const extracted = extractHtmlTitle(html);
+        if (extracted) setTitle(extracted);
+      }
+    };
+    reader.readAsText(file);
   };
+
+  const handleSave = () => {
+    if (!title.trim()) return;
+    const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean);
+    const textContent = htmlContent ? extractHtmlText(htmlContent) : undefined;
+    onSave({
+      url: url.trim() || undefined,
+      title: title.trim(),
+      description: description.trim(),
+      tags,
+      htmlContent,
+      textContent,
+      fileName,
+    });
+  };
+
+  const hasFile = !!htmlContent;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[480px] flex flex-col gap-4">
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[500px] flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-800">
             {initial ? 'Edit artifact' : 'Save artifact'}
@@ -2744,20 +2856,46 @@ function ArtifactModal({
           </button>
         </div>
 
+        {/* File upload zone */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+            hasFile
+              ? 'border-indigo-300 bg-indigo-50'
+              : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".html"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          {hasFile ? (
+            <>
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <FileText size={16} className="text-indigo-600" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-indigo-700">{fileName}</p>
+                <p className="text-xs text-indigo-500 mt-0.5">Click to replace file</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                <Upload size={16} className="text-slate-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-600">Drop your artifact HTML here</p>
+                <p className="text-xs text-slate-400 mt-0.5">Download from Claude → save here for permanent access</p>
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="flex flex-col gap-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
-              Artifact URL <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://claude.ai/artifact/…"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              autoFocus
-            />
-          </div>
           <div>
             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
               Title <span className="text-red-400">*</span>
@@ -2766,8 +2904,9 @@ function ArtifactModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="What does this artifact do?"
+              placeholder="What does this artifact cover?"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
             />
           </div>
           <div>
@@ -2777,7 +2916,7 @@ function ArtifactModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of what this artifact is for…"
+              placeholder="Brief description…"
               rows={2}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
@@ -2790,7 +2929,19 @@ function ArtifactModal({
               type="text"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              placeholder="e.g. dashboard, sales, prototype"
+              placeholder="e.g. systems thinking, delivery, pre-sales"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5 block">
+              Claude URL <span className="text-slate-400 font-normal normal-case">(optional — to open and re-edit later)</span>
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://claude.ai/artifact/…"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -2802,7 +2953,7 @@ function ArtifactModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!url.trim() || !title.trim()}
+            disabled={!title.trim()}
             className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-40 transition-colors"
           >
             {initial ? 'Save changes' : 'Save artifact'}
