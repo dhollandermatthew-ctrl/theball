@@ -2582,6 +2582,7 @@ function ArtifactsPanel({
   const [aiAnswer, setAiAnswer] = useState<ArtifactAnswer | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [viewingArtifact, setViewingArtifact] = useState<SavedArtifact | null>(null);
 
   const handleDownload = async (artifact: SavedArtifact) => {
     if (!artifact.htmlContent) return;
@@ -2628,6 +2629,73 @@ function ArtifactsPanel({
   );
 
   const sourceSet = new Set(aiAnswer?.sourceIds ?? []);
+
+  // In-app artifact viewer
+  if (viewingArtifact) {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Viewer header */}
+        <div className="flex items-center gap-3 mb-3 shrink-0">
+          <button
+            onClick={() => setViewingArtifact(null)}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors font-medium"
+          >
+            <ChevronLeft size={16} />
+            Back
+          </button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-slate-800 truncate">{viewingArtifact.title}</h2>
+            {viewingArtifact.updatedAt && (
+              <p className="text-[11px] text-slate-400">Updated {new Date(viewingArtifact.updatedAt).toLocaleDateString()}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {viewingArtifact.htmlContent && (
+              <button
+                onClick={() => handleDownload(viewingArtifact)}
+                disabled={downloadingId === viewingArtifact.id}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <Download size={12} />
+                Download
+              </button>
+            )}
+            <button
+              onClick={() => { setViewingArtifact(null); onReplace(viewingArtifact); }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <RefreshCw size={12} />
+              Replace
+            </button>
+            {viewingArtifact.url && (
+              <a
+                href={viewingArtifact.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              >
+                <ExternalLink size={12} />
+                Open in Claude
+              </a>
+            )}
+          </div>
+        </div>
+        {/* Rendered artifact */}
+        {viewingArtifact.htmlContent ? (
+          <iframe
+            srcDoc={viewingArtifact.htmlContent}
+            sandbox="allow-scripts allow-same-origin"
+            className="flex-1 w-full rounded-xl border border-slate-200 bg-white"
+            title={viewingArtifact.title}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+            No HTML file stored for this artifact.
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -2750,7 +2818,10 @@ function ArtifactsPanel({
                   : 'border-slate-200 border-l-4 border-l-indigo-400 hover:border-slate-300'
               }`}
             >
-              <div className="p-4 flex flex-col gap-2 flex-1">
+              <div
+                className="p-4 flex flex-col gap-2 flex-1 cursor-pointer"
+                onClick={() => artifact.htmlContent && setViewingArtifact(artifact)}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -2810,17 +2881,13 @@ function ArtifactsPanel({
               </div>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-t border-slate-100">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {artifact.htmlContent ? (
-                    <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-                      <FileText size={10} />
-                      Stored
+                  {artifact.updatedAt ? (
+                    <span className="text-[11px] text-slate-400">
+                      Updated {new Date(artifact.updatedAt).toLocaleDateString()}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-slate-400">No file</span>
-                  )}
-                  {artifact.updatedAt && (
                     <span className="text-[11px] text-slate-400">
-                      · Updated {new Date(artifact.updatedAt).toLocaleDateString()}
+                      {new Date(artifact.createdAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
