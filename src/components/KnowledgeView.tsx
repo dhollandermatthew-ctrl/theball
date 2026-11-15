@@ -2722,26 +2722,14 @@ function ArtifactModal({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [tagInput, setTagInput] = useState(initial?.tags.join(', ') ?? '');
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!url.trim() || !title.trim()) return;
     const tags = tagInput
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    setIsSaving(true);
-    let htmlContent: string | undefined;
-    if (!initial) {
-      try {
-        const res = await fetch(url.trim());
-        if (res.ok) htmlContent = await res.text();
-      } catch {
-        // Silently skip — URL stays accessible via Open
-      }
-    }
-    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags, htmlContent });
-    setIsSaving(false);
+    // Save immediately — don't block on HTML capture
+    onSave({ url: url.trim(), title: title.trim(), description: description.trim(), tags, htmlContent: undefined });
   };
 
   return (
@@ -2814,11 +2802,10 @@ function ArtifactModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!url.trim() || !title.trim() || isSaving}
+            disabled={!url.trim() || !title.trim()}
             className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-40 transition-colors"
           >
-            {isSaving && <Loader2 size={13} className="animate-spin" />}
-            {isSaving ? 'Saving…' : initial ? 'Save changes' : 'Save artifact'}
+            {initial ? 'Save changes' : 'Save artifact'}
           </button>
         </div>
       </div>
