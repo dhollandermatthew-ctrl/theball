@@ -435,7 +435,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     )}
   >
     <BookOpen size={18} className={cn("transition-colors", currentView === "product-knowledge" ? "text-purple-600" : "text-slate-400")} />
-    AI Arsenal
+    Library
   </button>
 
   {/* Transcripts */}
