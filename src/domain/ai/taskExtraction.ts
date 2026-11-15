@@ -10,7 +10,7 @@ import { TaskPriority, TaskCategory } from "@/domain/types";
  * ----------------------------------------- */
 
 const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-const groqModel = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was retired by Groq
+const groqModel = "qwen/qwen3.8-27b"; // openai/gpt-oss-120b doesn't follow structured JSON prompts reliably
 
 /* -----------------------------------------
  * TYPES
