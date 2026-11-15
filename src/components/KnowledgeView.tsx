@@ -2773,7 +2773,19 @@ function ArtifactsPanel({
                 <Sparkles size={11} />
                 AI Answer
               </div>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{aiAnswer.answer}</p>
+              <div
+                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: aiAnswer.answer
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                    .replace(/^- (.+)$/gm, '<li>$1</li>')
+                    .replace(/(<li>.*<\/li>)/gs, '<ul class="list-disc pl-4 my-1">$1</ul>')
+                    .replace(/\n\n/g, '</p><p class="mt-2">')
+                    .replace(/\n/g, '<br/>')
+                }}
+              />
               {aiAnswer.sourceIds.length > 0 && (
                 <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-medium">
                   Sources: {aiAnswer.sourceIds.map((id) => {

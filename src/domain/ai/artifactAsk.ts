@@ -45,32 +45,30 @@ export async function askArtifacts(
     })
     .join('\n\n---\n\n');
 
-  const system = `You are a personal knowledge assistant. The user has a library of learning artifacts — interactive HTML documents they built in Claude on topics they're studying or working on.
-
-Answer the user's question using ONLY information from the provided artifacts.
+  const system = `You are a personal knowledge assistant. Answer the user's question directly and concisely using only the provided artifacts.
 
 Rules:
-- Be direct and specific. Reference the artifact content closely.
-- At the end, include a SOURCES section listing the artifact IDs you drew from, one per line, as: [ART_N]
-- If the artifacts don't contain a relevant answer, say so clearly.
-- Do not add information not present in the artifacts.`;
+- Answer as if talking to the person directly. No preamble, no "Based on the artifacts...".
+- Be specific and extract the actual facts. Don't summarize what an artifact is about — answer the question.
+- Keep it short. A few sentences is usually enough. Use bullet points only if listing genuinely distinct items.
+- NEVER mention [ART_N] labels or artifact references in your answer body. Write naturally.
+- If the artifacts don't contain the answer, say so in one sentence.
+- End with a SOURCES line listing only the artifact numbers you used: SOURCES: [ART_N], [ART_N]`;
 
   const userPrompt = `Here are my artifacts:\n\n${docsBlock}\n\n---\n\nMy question: ${question}`;
 
   const raw = await callAI({ system, user: userPrompt, temperature: 0.2 });
 
-  // Parse SOURCES block to extract artifact ids
-  const sourcesMatch = raw.match(/SOURCES[\s\S]*$/i);
+  // Parse SOURCES line to extract artifact ids
+  const sourcesMatch = raw.match(/SOURCES:\s*(.+)$/im);
   const answerText = sourcesMatch
-    ? raw.slice(0, raw.indexOf(sourcesMatch[0])).trim()
+    ? raw.slice(0, raw.search(/SOURCES:/i)).trim()
     : raw.trim();
 
   const sourceIds: string[] = [];
   if (sourcesMatch) {
-    const lines = sourcesMatch[0].split('\n').slice(1);
-    for (const line of lines) {
-      const m = line.match(/\[ART_(\d+)\]/);
-      if (!m) continue;
+    const nums = sourcesMatch[1].matchAll(/\[ART_(\d+)\]/g);
+    for (const m of nums) {
       const idx = parseInt(m[1], 10) - 1;
       if (idx >= 0 && idx < scored.length) {
         sourceIds.push(scored[idx].artifact.id);
