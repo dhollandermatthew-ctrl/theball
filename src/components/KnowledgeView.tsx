@@ -2899,21 +2899,36 @@ function ArtifactModal({
   const [fileName, setFileName] = useState<string | undefined>(initial?.fileName);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = (file: File) => {
+    if (!file.name.endsWith('.html') && file.type !== 'text/html') return;
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (ev) => {
       const html = ev.target?.result as string;
       setHtmlContent(html);
-      // Auto-populate title from <title> tag if title is still empty
       if (!title.trim()) {
         const extracted = extractHtmlTitle(html);
         if (extracted) setTitle(extracted);
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
   };
 
   const handleSave = () => {
@@ -2948,6 +2963,8 @@ function ArtifactModal({
         {/* File upload zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
             hasFile
               ? 'border-indigo-300 bg-indigo-50'
