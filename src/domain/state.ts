@@ -1249,11 +1249,14 @@ loadGoals: (goals) =>
             table: "savedArtifacts",
             data: {
               id: artifact.id,
-              url: artifact.url,
+              url: artifact.url ?? null,
               title: artifact.title,
               description: artifact.description,
               tags: JSON.stringify(artifact.tags),
               htmlContent: artifact.htmlContent ?? null,
+              textContent: artifact.textContent ?? null,
+              fileName: artifact.fileName ?? null,
+              updatedAt: artifact.updatedAt ?? null,
               createdAt: artifact.createdAt,
             },
           });
@@ -1766,6 +1769,34 @@ loadGoals: (goals) =>
         }
       }
 
+      // Data-loss guard for savedArtifacts: if Turso returns fewer than localStorage, restore missing ones
+      let finalSavedArtifacts = savedArtifactRecords;
+      const cachedArtifacts: SavedArtifact[] = (offlineData as any)?.savedArtifacts ?? [];
+      if (savedArtifactRecords.length < cachedArtifacts.length) {
+        const tursoIds = new Set(savedArtifactRecords.map((a) => a.id));
+        const missing = cachedArtifacts.filter((a) => !tursoIds.has(a.id));
+        console.warn(`[Init] ⚠️ Turso has ${savedArtifactRecords.length} artifacts but localStorage has ${cachedArtifacts.length} — re-enqueuing ${missing.length} missing`);
+        finalSavedArtifacts = [...savedArtifactRecords, ...missing];
+        for (const artifact of missing) {
+          enqueue({
+            type: 'insert',
+            table: 'savedArtifacts',
+            data: {
+              id: artifact.id,
+              url: artifact.url ?? null,
+              title: artifact.title,
+              description: artifact.description,
+              tags: JSON.stringify(artifact.tags),
+              htmlContent: artifact.htmlContent ?? null,
+              textContent: artifact.textContent ?? null,
+              fileName: artifact.fileName ?? null,
+              updatedAt: artifact.updatedAt ?? null,
+              createdAt: artifact.createdAt,
+            },
+          });
+        }
+      }
+
       useAppStore.setState((s) => {
         s.tasks = taskRows.map((r: any) => ({
           ...r,
@@ -1784,7 +1815,7 @@ loadGoals: (goals) =>
         s.productKnowledge = finalProductKnowledge;
         s.knowledgeCommands = knowledgeCommandRecords;
         s.transcripts = transcriptRecords;
-        s.savedArtifacts = savedArtifactRecords;
+        s.savedArtifacts = finalSavedArtifacts;
         s.stakeholderProfiles = stakeholderRows.map((r: any) => ({
           id: r.id,
           name: r.name,
