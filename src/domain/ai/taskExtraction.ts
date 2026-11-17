@@ -142,6 +142,7 @@ export async function extractTaskFromNaturalLanguage(
           { role: 'user', content: input }
         ],
         temperature: 0.1,
+        max_tokens: 500,
         response_format: { type: 'json_object' },
       }),
     });
