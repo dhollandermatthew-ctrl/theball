@@ -122,6 +122,7 @@ fn save_to_downloads(filename: String, content: String) -> Result<String, String
 #[tauri::command]
 fn reveal_in_finder(path: String) -> Result<(), String> {
     std::process::Command::new("open")
+        .arg("-R")
         .arg(&path)
         .spawn()
         .map_err(|e| format!("Failed to open Finder: {}", e))?;
