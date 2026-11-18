@@ -20,12 +20,45 @@ function SlideCard({
   onDelete: () => void;
 }) {
   const [bulletDraft, setBulletDraft] = useState("");
+  const bulletRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const addBulletRef = useRef<HTMLInputElement | null>(null);
 
   function addBullet() {
     const trimmed = bulletDraft.trim();
     if (!trimmed) return;
     onUpdate({ bullets: [...slide.bullets, trimmed] });
     setBulletDraft("");
+  }
+
+  function handleBulletKeyDown(e: React.KeyboardEvent<HTMLInputElement>, i: number) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+Tab: go to previous bullet or title
+        if (i > 0) bulletRefs.current[i - 1]?.focus();
+      } else {
+        // Tab: go to next bullet or the add-bullet input
+        if (i < slide.bullets.length - 1) bulletRefs.current[i + 1]?.focus();
+        else addBulletRef.current?.focus();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // Enter on an existing bullet: insert a new blank one after it
+      const updated = [...slide.bullets];
+      updated.splice(i + 1, 0, '');
+      onUpdate({ bullets: updated });
+      // Focus the new input on next render
+      setTimeout(() => bulletRefs.current[i + 1]?.focus(), 0);
+    } else if (e.key === 'Backspace' && (e.currentTarget as HTMLInputElement).value === '') {
+      e.preventDefault();
+      if (slide.bullets.length > 1) {
+        onUpdate({ bullets: slide.bullets.filter((_, idx) => idx !== i) });
+        setTimeout(() => {
+          if (i > 0) bulletRefs.current[i - 1]?.focus();
+          else bulletRefs.current[0]?.focus();
+        }, 0);
+      }
+    }
   }
 
   return (
@@ -51,15 +84,18 @@ function SlideCard({
           <div key={i} className="flex items-start gap-2 group">
             <span className="text-slate-300 mt-0.5 text-xs font-bold flex-shrink-0">·</span>
             <input
+              ref={(el) => { bulletRefs.current[i] = el; }}
               value={bullet}
               onChange={(e) => {
                 const updated = [...slide.bullets];
                 updated[i] = e.target.value;
                 onUpdate({ bullets: updated });
               }}
+              onKeyDown={(e) => handleBulletKeyDown(e, i)}
               className="flex-1 text-sm text-slate-700 bg-transparent outline-none border-b border-transparent focus:border-slate-300"
             />
             <button
+              tabIndex={-1}
               onClick={() => onUpdate({ bullets: slide.bullets.filter((_, idx) => idx !== i) })}
               className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-200 hover:text-red-400"
             >
@@ -70,13 +106,22 @@ function SlideCard({
         <div className="flex gap-1.5 pt-1">
           <span className="text-slate-200 text-xs font-bold mt-1 flex-shrink-0">·</span>
           <input
+            ref={addBulletRef}
             value={bulletDraft}
             onChange={(e) => setBulletDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBullet(); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                addBullet();
+              } else if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                bulletRefs.current[slide.bullets.length - 1]?.focus();
+              }
+            }}
             placeholder="Add bullet…"
             className="flex-1 text-sm bg-transparent outline-none border-b border-slate-200 focus:border-slate-400 placeholder:text-slate-300 text-slate-700"
           />
-          <button onClick={addBullet} className="text-xs text-slate-400 hover:text-slate-700 px-1">+</button>
+          <button tabIndex={-1} onClick={addBullet} className="text-xs text-slate-400 hover:text-slate-700 px-1">+</button>
         </div>
       </div>
 

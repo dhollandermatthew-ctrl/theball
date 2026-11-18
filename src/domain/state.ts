@@ -27,7 +27,7 @@
     talkTracks as talkTracksTable,
   } from "@/db/schema";
 
-  export const CURRENT_STATE_VERSION = 6;
+  export const CURRENT_STATE_VERSION = 7;
 
 // Task IDs that exist in Zustand/localStorage but haven't been INSERTed to Turso yet.
 // We defer the INSERT until the user commits a real title so Turso never stores "New Task".
@@ -1256,6 +1256,7 @@ loadGoals: (goals) =>
               htmlContent: artifact.htmlContent ?? null,
               textContent: artifact.textContent ?? null,
               fileName: artifact.fileName ?? null,
+              meta: artifact.meta ? JSON.stringify(artifact.meta) : null,
               updatedAt: artifact.updatedAt ?? null,
               createdAt: artifact.createdAt,
             },
@@ -1274,6 +1275,7 @@ loadGoals: (goals) =>
             data: {
               ...updates,
               tags: updates.tags !== undefined ? JSON.stringify(updates.tags) : undefined,
+              meta: updates.meta !== undefined ? (updates.meta ? JSON.stringify(updates.meta) : null) : undefined,
             },
           });
         }),
@@ -1735,6 +1737,7 @@ loadGoals: (goals) =>
         htmlContent: r.html_content || r.htmlContent || undefined,
         textContent: r.text_content || r.textContent || undefined,
         fileName: r.file_name || r.fileName || undefined,
+        meta: r.meta ? JSON.parse(r.meta) : undefined,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt || undefined,
       }));
@@ -1769,31 +1772,38 @@ loadGoals: (goals) =>
         }
       }
 
-      // Data-loss guard for savedArtifacts: if Turso returns fewer than localStorage, restore missing ones
+      // Data-loss guard for savedArtifacts (0a): reconcile by id — restore any artifact
+      // present in localStorage but absent from Turso. Does NOT restore deleted artifacts
+      // because we only add items that are missing from Turso; a Turso delete produces no
+      // local copy, so it stays gone. Count-based guards are intentionally avoided here:
+      // MCP writes go straight to Turso and would cause false restores with a count check.
       let finalSavedArtifacts = savedArtifactRecords;
       const cachedArtifacts: SavedArtifact[] = (offlineData as any)?.savedArtifacts ?? [];
-      if (savedArtifactRecords.length < cachedArtifacts.length) {
+      if (cachedArtifacts.length > 0) {
         const tursoIds = new Set(savedArtifactRecords.map((a) => a.id));
         const missing = cachedArtifacts.filter((a) => !tursoIds.has(a.id));
-        console.warn(`[Init] ⚠️ Turso has ${savedArtifactRecords.length} artifacts but localStorage has ${cachedArtifacts.length} — re-enqueuing ${missing.length} missing`);
-        finalSavedArtifacts = [...savedArtifactRecords, ...missing];
-        for (const artifact of missing) {
-          enqueue({
-            type: 'insert',
-            table: 'savedArtifacts',
-            data: {
-              id: artifact.id,
-              url: artifact.url ?? null,
-              title: artifact.title,
-              description: artifact.description,
-              tags: JSON.stringify(artifact.tags),
-              htmlContent: artifact.htmlContent ?? null,
-              textContent: artifact.textContent ?? null,
-              fileName: artifact.fileName ?? null,
-              updatedAt: artifact.updatedAt ?? null,
-              createdAt: artifact.createdAt,
-            },
-          });
+        if (missing.length > 0) {
+          console.warn(`[Init] ⚠️ ${missing.length} artifact(s) in localStorage missing from Turso — re-enqueuing inserts`);
+          finalSavedArtifacts = [...savedArtifactRecords, ...missing];
+          for (const artifact of missing) {
+            enqueue({
+              type: 'insert',
+              table: 'savedArtifacts',
+              data: {
+                id: artifact.id,
+                url: artifact.url ?? null,
+                title: artifact.title,
+                description: artifact.description,
+                tags: JSON.stringify(artifact.tags),
+                htmlContent: artifact.htmlContent ?? null,
+                textContent: artifact.textContent ?? null,
+                fileName: artifact.fileName ?? null,
+                meta: artifact.meta ? JSON.stringify(artifact.meta) : null,
+                updatedAt: artifact.updatedAt ?? null,
+                createdAt: artifact.createdAt,
+              },
+            });
+          }
         }
       }
 
@@ -1908,6 +1918,68 @@ loadGoals: (goals) =>
       });
 
       console.log(`[Init] Online/offline listener enabled (currently ${navigator.onLine ? 'online' : 'offline'})`);
+
+      // 0c: Focus refresh — when the window regains focus, re-pull from Turso for
+      // tables that MCP writes to directly (savedArtifacts, productKnowledge, knowledgeCommands).
+      // Throttled to once per 30 seconds so rapid focus events don't hammer the DB.
+      let lastFocusRefresh = 0;
+      window.addEventListener('focus', async () => {
+        const now = Date.now();
+        if (now - lastFocusRefresh < 30_000) return;
+        lastFocusRefresh = now;
+        try {
+          const [artifacts, knowledge, commands] = await Promise.all([
+            db.select().from(savedArtifactsTable),
+            db.select().from(productKnowledgeTable),
+            db.select().from(knowledgeCommandsTable),
+          ]);
+          useAppStore.setState((state) => {
+            state.savedArtifacts = artifacts.map((r: any) => ({
+              id: r.id,
+              url: r.url ?? undefined,
+              title: r.title,
+              description: r.description,
+              tags: r.tags ? JSON.parse(r.tags) : [],
+              htmlContent: r.htmlContent ?? undefined,
+              textContent: r.textContent ?? undefined,
+              fileName: r.fileName ?? undefined,
+              meta: r.meta ? JSON.parse(r.meta) : undefined,
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt ?? undefined,
+            }));
+            state.productKnowledge = knowledge.map((r: any) => ({
+              id: r.id,
+              title: r.title,
+              type: r.type as 'note' | 'document',
+              content: r.content ?? undefined,
+              editableContent: r.editableContent ?? undefined,
+              collection: r.collection ?? undefined,
+              filePath: r.filePath ?? undefined,
+              fileData: r.fileData ?? undefined,
+              fileName: r.fileName ?? undefined,
+              fileType: r.fileType ?? undefined,
+              fileSize: r.fileSize ?? undefined,
+              tags: r.tags ? JSON.parse(r.tags) : undefined,
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt,
+            }));
+            state.knowledgeCommands = commands.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              description: r.description,
+              prompt: r.prompt,
+              linkedDocumentIds: r.linkedDocumentIds ? JSON.parse(r.linkedDocumentIds) : [],
+              commandType: r.commandType ?? undefined,
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt,
+            }));
+          });
+          backupToLocalStorage(useAppStore.getState());
+          console.log('[Focus] Refreshed artifacts, knowledge, commands from Turso');
+        } catch (err) {
+          console.warn('[Focus] Refresh failed (offline?):', err);
+        }
+      });
     }
   }
 

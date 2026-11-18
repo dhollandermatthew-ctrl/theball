@@ -317,6 +317,108 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+
+    // ── ARTIFACT TOOLS ────────────────────────────────────────────────
+    {
+      name: 'search_artifacts',
+      description:
+        "Search Matthew's saved artifacts by title, description, tags, or text content. Returns id, title, description, tags, url, fileName, meta, and createdAt — but NOT the full HTML (call get_artifact for that).",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Text to match against title, description, tags, and textContent (case-insensitive)',
+          },
+          tag: {
+            type: 'string',
+            description: 'Exact tag to filter by',
+          },
+          limit: {
+            type: 'number',
+            description: 'Max results (default 20)',
+          },
+        },
+      },
+    },
+    {
+      name: 'get_artifact',
+      description:
+        "Fetch a single saved artifact by id or url (the claude.ai link), including its full htmlContent and textContent.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Artifact id' },
+          url: { type: 'string', description: 'claude.ai artifact URL (used if id not provided)' },
+        },
+      },
+    },
+    {
+      name: 'create_artifact',
+      description:
+        "Save a new artifact to The Ball. If a row with the same url already exists it is updated in place (upsert). Always provide htmlContent so the user can download it. Provide textContent as plain text for search. The meta field carries structured metadata written by /understand.",
+      inputSchema: {
+        type: 'object',
+        required: ['title', 'description'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          url: { type: 'string', description: 'claude.ai artifact URL — used as the upsert key' },
+          htmlContent: { type: 'string', description: 'Full HTML of the artifact page' },
+          textContent: { type: 'string', description: 'Plain text version for search/RAG' },
+          fileName: { type: 'string', description: 'Suggested download filename (e.g. "rezolve-overview.html")' },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of tag strings',
+          },
+          meta: {
+            type: 'object',
+            description: 'Structured metadata (type, topic, anchorDecision, position, score, sourceProject, sourceCommand)',
+            properties: {
+              type: { type: 'string' },
+              topic: { type: 'string' },
+              anchorDecision: { type: 'string' },
+              position: { type: 'string' },
+              score: { type: 'number' },
+              sourceProject: { type: 'string' },
+              sourceCommand: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: 'update_artifact',
+      description:
+        "Update fields on an existing saved artifact. Only the fields you provide are changed. Use this to update description, tags, meta, or replace htmlContent/textContent.",
+      inputSchema: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'Artifact id' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          url: { type: 'string' },
+          htmlContent: { type: 'string' },
+          textContent: { type: 'string' },
+          fileName: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+          meta: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              topic: { type: 'string' },
+              anchorDecision: { type: 'string' },
+              position: { type: 'string' },
+              score: { type: 'number' },
+              sourceProject: { type: 'string' },
+              sourceCommand: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
   ],
 }));
 
@@ -748,6 +850,136 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           unfilled_variables: unfilled.length > 0 ? unfilled : undefined,
           linked_documents: docs,
         }, null, 2));
+      }
+
+      // ── search_artifacts ─────────────────────────
+      case 'search_artifacts': {
+        const { query, tag, limit = 20 } = args as any;
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (query) {
+          conditions.push(`(LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(text_content) LIKE ? OR LOWER(tags) LIKE ?)`);
+          const q = `%${query.toLowerCase()}%`;
+          params.push(q, q, q, q);
+        }
+        if (tag) {
+          conditions.push(`LOWER(tags) LIKE ?`);
+          params.push(`%"${tag.toLowerCase()}"%`);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await db.execute({
+          sql: `SELECT id, url, title, description, tags, file_name, meta, createdAt, updatedAt FROM saved_artifacts ${where} ORDER BY createdAt DESC LIMIT ?`,
+          args: [...params, limit],
+        });
+
+        const results = rows.rows.map((r: any) => ({
+          id: r.id,
+          url: r.url,
+          title: r.title,
+          description: r.description,
+          tags: r.tags ? JSON.parse(r.tags) : [],
+          fileName: r.file_name,
+          meta: r.meta ? JSON.parse(r.meta) : undefined,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }));
+
+        return text(JSON.stringify(results, null, 2));
+      }
+
+      // ── get_artifact ─────────────────────────
+      case 'get_artifact': {
+        const { id, url } = args as any;
+        if (!id && !url) return { content: [{ type: 'text', text: 'Provide id or url' }], isError: true };
+
+        const row = await db.execute({
+          sql: id
+            ? `SELECT * FROM saved_artifacts WHERE id = ? LIMIT 1`
+            : `SELECT * FROM saved_artifacts WHERE url = ? LIMIT 1`,
+          args: [id ?? url],
+        });
+
+        if (!row.rows.length) return text('Artifact not found');
+        const r = row.rows[0] as any;
+
+        return text(JSON.stringify({
+          id: r.id,
+          url: r.url,
+          title: r.title,
+          description: r.description,
+          tags: r.tags ? JSON.parse(r.tags) : [],
+          htmlContent: r.html_content,
+          textContent: r.text_content,
+          fileName: r.file_name,
+          meta: r.meta ? JSON.parse(r.meta) : undefined,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }, null, 2));
+      }
+
+      // ── create_artifact ─────────────────────────
+      case 'create_artifact': {
+        const { title, description = '', url, htmlContent, textContent, fileName, tags = [], meta } = args as any;
+
+        // Upsert-by-url: if a row already has this url, update it instead
+        if (url) {
+          const existing = await db.execute({
+            sql: `SELECT id FROM saved_artifacts WHERE url = ? LIMIT 1`,
+            args: [url],
+          });
+          if (existing.rows.length) {
+            const existingId = (existing.rows[0] as any).id;
+            const now = new Date().toISOString();
+            await db.execute({
+              sql: `UPDATE saved_artifacts SET title=?, description=?, tags=?, html_content=?, text_content=?, file_name=?, meta=?, updatedAt=? WHERE id=?`,
+              args: [title, description, JSON.stringify(tags), htmlContent ?? null, textContent ?? null, fileName ?? null, meta ? JSON.stringify(meta) : null, now, existingId],
+            });
+            return text(JSON.stringify({ id: existingId, action: 'updated' }));
+          }
+        }
+
+        // Insert new
+        const id = `artifact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        await db.execute({
+          sql: `INSERT INTO saved_artifacts (id, url, title, description, tags, html_content, text_content, file_name, meta, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          args: [id, url ?? null, title, description, JSON.stringify(tags), htmlContent ?? null, textContent ?? null, fileName ?? null, meta ? JSON.stringify(meta) : null, now, now],
+        });
+
+        return text(JSON.stringify({ id, action: 'created' }));
+      }
+
+      // ── update_artifact ─────────────────────────
+      case 'update_artifact': {
+        const { id, ...updates } = args as any;
+        if (!id) return { content: [{ type: 'text', text: 'id is required' }], isError: true };
+
+        const fields: string[] = [];
+        const params: any[] = [];
+
+        if (updates.title !== undefined) { fields.push('title=?'); params.push(updates.title); }
+        if (updates.description !== undefined) { fields.push('description=?'); params.push(updates.description); }
+        if (updates.url !== undefined) { fields.push('url=?'); params.push(updates.url); }
+        if (updates.htmlContent !== undefined) { fields.push('html_content=?'); params.push(updates.htmlContent); }
+        if (updates.textContent !== undefined) { fields.push('text_content=?'); params.push(updates.textContent); }
+        if (updates.fileName !== undefined) { fields.push('file_name=?'); params.push(updates.fileName); }
+        if (updates.tags !== undefined) { fields.push('tags=?'); params.push(JSON.stringify(updates.tags)); }
+        if (updates.meta !== undefined) { fields.push('meta=?'); params.push(updates.meta ? JSON.stringify(updates.meta) : null); }
+
+        if (!fields.length) return text('Nothing to update');
+
+        fields.push('updatedAt=?');
+        params.push(new Date().toISOString());
+        params.push(id);
+
+        await db.execute({
+          sql: `UPDATE saved_artifacts SET ${fields.join(', ')} WHERE id=?`,
+          args: params,
+        });
+
+        return text(JSON.stringify({ id, action: 'updated', fields: fields.filter(f => !f.startsWith('updatedAt')) }));
       }
 
       default:

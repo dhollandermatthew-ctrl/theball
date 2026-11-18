@@ -11,7 +11,6 @@ import { MeetingHub } from "./components/MeetingHub";
 import { HealthView } from "./components/HealthView";
 import { KnowledgeView } from "./components/KnowledgeView";
 import { TranscriptsView } from "./components/TranscriptsView";
-import { StakeholdersView } from "./components/StakeholdersView";
 import { TalkTracksView } from "./components/TalkTracksView";
 import { AITaskEntryModal } from "./components/AITaskEntryModal";
 
@@ -255,8 +254,6 @@ function App() {
           <KnowledgeView />
         ) : currentView === "transcripts" ? (
           <TranscriptsView />
-        ) : currentView === "stakeholders" ? (
-          <StakeholdersView />
         ) : currentView === "talk-tracks" ? (
           <TalkTracksView />
         ) : activePerson ? (

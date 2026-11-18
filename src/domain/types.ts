@@ -274,15 +274,26 @@
   // SAVED ARTIFACTS
   // --------------------------------------------------
 
+  export interface ArtifactMeta {
+    type?: string;           // e.g. "understanding", "field-guide", "talk-track"
+    topic?: string;          // e.g. "Meridian CC integration"
+    anchorDecision?: string; // The key decision or insight
+    position?: string;       // Where this fits in the broader picture
+    score?: number;          // Understanding score 0–100
+    sourceProject?: string;  // Claude project where this was created
+    sourceCommand?: string;  // e.g. "understand"
+  }
+
   export interface SavedArtifact {
     id: string;
-    url?: string; // Optional link back to Claude to edit
+    url?: string; // Optional link back to Claude to edit; upsert key for MCP
     title: string;
     description: string;
     tags: string[];
     htmlContent?: string; // Full HTML file content
     textContent?: string; // Stripped plain text for search/RAG
     fileName?: string; // Original filename
+    meta?: ArtifactMeta; // Structured metadata written by /understand
     createdAt: string;
     updatedAt?: string; // Set when file is replaced
   }

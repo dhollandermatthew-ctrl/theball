@@ -22,7 +22,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   Layers, Send, Loader2, Edit3, ArrowLeft, Mic, Download,
   Terminal, Zap, Copy, Check, Link2, Share2, Pin, PinOff, ClipboardCopy,
-  RefreshCw, ExternalLink,
+  RefreshCw, ExternalLink, Maximize2,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -2575,9 +2575,23 @@ function ArtifactsPanel({
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadToast, setDownloadToast] = useState<{ type: 'success' | 'error'; message: string; filename?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingArtifact, setViewingArtifact] = useState<SavedArtifact | null>(null);
+  const [presentMode, setPresentMode] = useState(false);
+
+  // Esc exits present mode
+  useEffect(() => {
+    if (!presentMode) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPresentMode(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [presentMode]);
+
+  const showToast = (toast: typeof downloadToast) => {
+    setDownloadToast(toast);
+    setTimeout(() => setDownloadToast(null), 4000);
+  };
 
   const handleDownload = async (artifact: SavedArtifact) => {
     if (!artifact.htmlContent) return;
@@ -2587,9 +2601,9 @@ function ArtifactsPanel({
       const filename = artifact.fileName || `${slug}.html`;
       const path = await invoke<string>('save_to_downloads', { filename, content: artifact.htmlContent });
       await invoke('reveal_in_finder', { path });
+      showToast({ type: 'success', message: 'Saved to Downloads', filename });
     } catch {
-      setDownloadError(`Could not save "${artifact.title}" to Downloads.`);
-      setTimeout(() => setDownloadError(null), 5000);
+      showToast({ type: 'error', message: `Could not save "${artifact.title}" to Downloads` });
     } finally {
       setDownloadingId(null);
     }
@@ -2638,6 +2652,16 @@ function ArtifactsPanel({
                 Download
               </button>
             )}
+            {viewingArtifact.htmlContent && (
+              <button
+                onClick={() => setPresentMode(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                title="Present (full screen)"
+              >
+                <Maximize2 size={12} />
+                Present
+              </button>
+            )}
             <button
               onClick={() => { setViewingArtifact(null); onReplace(viewingArtifact); }}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
@@ -2670,6 +2694,30 @@ function ArtifactsPanel({
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
             No HTML file stored for this artifact.
           </div>
+        )}
+
+        {/* Present mode — full-window overlay */}
+        {presentMode && viewingArtifact.htmlContent && createPortal(
+          <div className="fixed inset-0 z-[500] bg-black flex flex-col">
+            {/* Minimal exit bar — fades out on hover of iframe */}
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-black/70 backdrop-blur-sm">
+              <span className="text-white/70 text-xs font-medium truncate max-w-xs">{viewingArtifact.title}</span>
+              <button
+                onClick={() => setPresentMode(false)}
+                className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs font-medium transition-colors"
+              >
+                <X size={13} />
+                Exit (Esc)
+              </button>
+            </div>
+            <iframe
+              srcDoc={viewingArtifact.htmlContent}
+              sandbox="allow-scripts allow-same-origin"
+              className="flex-1 w-full border-0"
+              title={viewingArtifact.title}
+            />
+          </div>,
+          document.body
         )}
       </div>
     );
@@ -2830,10 +2878,30 @@ function ArtifactsPanel({
         </div>
       )}
 
-      {/* Download error toast */}
-      {downloadError && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] bg-red-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg max-w-sm text-center">
-          {downloadError}
+      {/* Download toast */}
+      {downloadToast && (
+        <div className={`fixed bottom-6 right-6 z-[300] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          downloadToast.type === 'success'
+            ? 'bg-slate-900 text-white'
+            : 'bg-red-600 text-white'
+        }`}>
+          {downloadToast.type === 'success' ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-green-400">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M8 5v3M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          )}
+          <div>
+            <div>{downloadToast.message}</div>
+            {downloadToast.filename && (
+              <div className="text-[11px] opacity-60 mt-0.5 font-normal">{downloadToast.filename}</div>
+            )}
+          </div>
         </div>
       )}
 
