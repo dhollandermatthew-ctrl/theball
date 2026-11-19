@@ -2580,13 +2580,20 @@ function ArtifactsPanel({
   const [viewingArtifact, setViewingArtifact] = useState<SavedArtifact | null>(null);
   const [presentMode, setPresentMode] = useState(false);
 
-  // Esc exits present mode
+  // Esc exits present mode; P enters it when an artifact with htmlContent is open
   useEffect(() => {
-    if (!presentMode) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPresentMode(false); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && presentMode) { setPresentMode(false); return; }
+      if (e.key === 'p' && !presentMode && viewingArtifact?.htmlContent) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        setPresentMode(true);
+      }
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [presentMode]);
+  }, [presentMode, viewingArtifact]);
 
   const showToast = (toast: typeof downloadToast) => {
     setDownloadToast(toast);
