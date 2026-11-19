@@ -2558,6 +2558,15 @@ function RunCommandModal({
   );
 }
 
+// Injects a tiny script into artifact HTML so P/Esc bridge back to the parent
+// window via postMessage — needed because clicking inside the iframe steals focus.
+const KEY_BRIDGE = `<script>(function(){document.addEventListener('keydown',function(e){if((e.key==='p'||e.key==='P')&&!e.metaKey&&!e.ctrlKey){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.preventDefault();window.parent.postMessage('__theball_present__','*');}if(e.key==='Escape'){window.parent.postMessage('__theball_exit__','*');}});})();<\/script>`;
+function injectKeyBridge(html: string): string {
+  if (html.includes('__theball_present__')) return html;
+  const idx = html.lastIndexOf('</body>');
+  return idx !== -1 ? html.slice(0, idx) + KEY_BRIDGE + html.slice(idx) : html + KEY_BRIDGE;
+}
+
 // ── ArtifactsPanel ────────────────────────────────────────────────────────────
 
 function ArtifactsPanel({
@@ -2604,8 +2613,9 @@ function ArtifactsPanel({
   };
 
   // Esc exits; P enters when viewing an artifact with HTML
+  // Also handles postMessage from inside the iframe (iframe captures keyboard focus)
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && presentMode) { exitPresent(); return; }
       if (e.key === 'p' && !presentMode && viewingArtifact?.htmlContent) {
         const tag = (e.target as HTMLElement)?.tagName;
@@ -2614,8 +2624,16 @@ function ArtifactsPanel({
         enterPresent();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const onMessage = (e: MessageEvent) => {
+      if (e.data === '__theball_present__' && !presentMode && viewingArtifact?.htmlContent) enterPresent();
+      if (e.data === '__theball_exit__' && presentMode) exitPresent();
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onMessage);
+    };
   }, [presentMode, viewingArtifact]);
 
   // Also exit if OS fullscreen is closed via native controls
@@ -2724,7 +2742,7 @@ function ArtifactsPanel({
         {/* Rendered artifact */}
         {viewingArtifact.htmlContent ? (
           <iframe
-            srcDoc={viewingArtifact.htmlContent}
+            srcDoc={injectKeyBridge(viewingArtifact.htmlContent)}
             sandbox="allow-scripts allow-same-origin"
             className="flex-1 w-full rounded-xl border border-slate-200 bg-white"
             title={viewingArtifact.title}
@@ -2765,7 +2783,7 @@ function ArtifactsPanel({
               </button>
             </div>
             <iframe
-              srcDoc={viewingArtifact.htmlContent}
+              srcDoc={injectKeyBridge(viewingArtifact.htmlContent)}
               sandbox="allow-scripts allow-same-origin"
               className="flex-1 w-full border-0"
               title={viewingArtifact.title}
