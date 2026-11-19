@@ -2579,21 +2579,53 @@ function ArtifactsPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingArtifact, setViewingArtifact] = useState<SavedArtifact | null>(null);
   const [presentMode, setPresentMode] = useState(false);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
+  const toolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presentOverlayRef = useRef<HTMLDivElement | null>(null);
 
-  // Esc exits present mode; P enters it when an artifact with htmlContent is open
+  const enterPresent = () => {
+    setPresentMode(true);
+    setToolbarVisible(true);
+    // request OS fullscreen
+    setTimeout(() => {
+      presentOverlayRef.current?.requestFullscreen?.().catch(() => {});
+    }, 50);
+  };
+
+  const exitPresent = () => {
+    setPresentMode(false);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
+
+  const resetToolbarTimer = () => {
+    setToolbarVisible(true);
+    if (toolbarTimerRef.current) clearTimeout(toolbarTimerRef.current);
+    toolbarTimerRef.current = setTimeout(() => setToolbarVisible(false), 2000);
+  };
+
+  // Esc exits; P enters when viewing an artifact with HTML
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && presentMode) { setPresentMode(false); return; }
+      if (e.key === 'Escape' && presentMode) { exitPresent(); return; }
       if (e.key === 'p' && !presentMode && viewingArtifact?.htmlContent) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
         e.preventDefault();
-        setPresentMode(true);
+        enterPresent();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [presentMode, viewingArtifact]);
+
+  // Also exit if OS fullscreen is closed via native controls
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement && presentMode) setPresentMode(false);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [presentMode]);
 
   const showToast = (toast: typeof downloadToast) => {
     setDownloadToast(toast);
@@ -2661,9 +2693,9 @@ function ArtifactsPanel({
             )}
             {viewingArtifact.htmlContent && (
               <button
-                onClick={() => setPresentMode(true)}
+                onClick={enterPresent}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                title="Present (full screen)"
+                title="Present — P"
               >
                 <Maximize2 size={12} />
                 Present
@@ -2705,15 +2737,30 @@ function ArtifactsPanel({
 
         {/* Present mode — full-window overlay */}
         {presentMode && viewingArtifact.htmlContent && createPortal(
-          <div className="fixed inset-0 z-[500] bg-black flex flex-col">
-            {/* Minimal exit bar — fades out on hover of iframe */}
-            <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-black/70 backdrop-blur-sm">
-              <span className="text-white/70 text-xs font-medium truncate max-w-xs">{viewingArtifact.title}</span>
+          <div
+            ref={presentOverlayRef}
+            className="fixed inset-0 z-[500] bg-black flex flex-col"
+            onMouseMove={resetToolbarTimer}
+            style={{ animation: 'presentFadeIn 0.25s ease forwards' }}
+          >
+            <style>{`
+              @keyframes presentFadeIn { from { opacity: 0 } to { opacity: 1 } }
+            `}</style>
+            {/* Auto-hiding toolbar */}
+            <div
+              className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-5 py-3 transition-all duration-300"
+              style={{
+                opacity: toolbarVisible ? 1 : 0,
+                pointerEvents: toolbarVisible ? 'auto' : 'none',
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)',
+              }}
+            >
+              <span className="text-white/80 text-sm font-semibold tracking-wide truncate max-w-sm">{viewingArtifact.title}</span>
               <button
-                onClick={() => setPresentMode(false)}
-                className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs font-medium transition-colors"
+                onClick={exitPresent}
+                className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-medium transition-colors bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full backdrop-blur-sm"
               >
-                <X size={13} />
+                <X size={12} />
                 Exit (Esc)
               </button>
             </div>
