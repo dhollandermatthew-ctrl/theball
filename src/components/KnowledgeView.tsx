@@ -2890,18 +2890,6 @@ function ArtifactsPanel({
                 {artifact.description && (
                   <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{artifact.description}</p>
                 )}
-                {artifact.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {artifact.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-md text-[11px] font-medium"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
               <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-t border-slate-100">
                 <div className="flex items-center gap-1.5 min-w-0">
