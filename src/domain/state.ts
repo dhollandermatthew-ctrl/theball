@@ -1986,3 +1986,169 @@ loadGoals: (goals) =>
   // Devtools helper
   // @ts-ignore
   (window as any).store = useAppStore;
+
+// ==================== Manual refresh from Turso (Cmd+R) ====================
+let isRefreshing = false;
+
+export async function refreshFromTurso(): Promise<void> {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  try {
+    const [
+      taskRows,
+      oneOnOneRows,
+      peopleRows,
+      goalRows,
+      meetingSpaceRows,
+      meetingRecordRows,
+      spaceNoteRows,
+      bloodworkRows,
+      workoutRows,
+      profileRows,
+      knowledgeRows,
+      commandRows,
+      transcriptRows,
+      artifactRows,
+      stakeholderRows,
+      talkTrackRows,
+    ] = await Promise.all([
+      db.select().from(tasksTable),
+      db.select().from(oneOnOneTable),
+      db.select().from(oneOnOnePeopleTable),
+      db.select().from(goalsTable),
+      db.select().from(meetingSpacesTable),
+      db.select().from(meetingRecordsTable),
+      db.select().from(spaceNotesTable),
+      db.select().from(healthBloodworkTable),
+      db.select().from(healthWorkoutsTable),
+      db.select().from(healthProfileTable),
+      db.select().from(productKnowledgeTable),
+      db.select().from(knowledgeCommandsTable),
+      db.select().from(transcriptsTable),
+      db.select().from(savedArtifactsTable),
+      db.select().from(stakeholderProfilesTable),
+      db.select().from(talkTracksTable),
+    ]);
+
+    const grouped: Record<string, OneOnOneItem[]> = {};
+    for (const row of oneOnOneRows) {
+      const item = row as unknown as OneOnOneItem;
+      (grouped[item.personId] ??= []).push(item);
+    }
+
+    const meetingSpaces: MeetingSpace[] = meetingSpaceRows.map((spaceRow: any) => ({
+      id: spaceRow.id,
+      name: spaceRow.name,
+      description: spaceRow.description,
+      category: spaceRow.category as "tech" | "architecture" | "leadership" | "client",
+      color: spaceRow.color,
+      sortOrder: spaceRow.sortOrder ?? 0,
+      records: meetingRecordRows
+        .filter((r: any) => r.spaceId === spaceRow.id)
+        .map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          date: r.date,
+          transcript: r.transcript,
+          notes: r.notes || undefined,
+          meetingType: r.meetingType as "normal" | "discovery" | undefined,
+          insight: r.insight ? JSON.parse(r.insight) : undefined,
+          createdAt: r.createdAt,
+        })),
+      spaceNotes: spaceNoteRows
+        .filter((n: any) => n.spaceId === spaceRow.id)
+        .map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+        })),
+    }));
+    meetingSpaces.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+
+    useAppStore.setState((s) => {
+      s.tasks = taskRows.map((r: any) => ({
+        ...r,
+        urls: r.urls ? JSON.parse(r.urls) : [],
+        attachments: r.attachments ? JSON.parse(r.attachments) : [],
+      })) as Task[];
+      s.goals = (goalRows as Goal[]).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      s.people = (peopleRows as OneOnOnePerson[]).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      s.oneOnOnes = grouped;
+      s.meetingSpaces = meetingSpaces;
+      s.healthData = {
+        bloodWorkRecords: bloodworkRows.map((r: any) => ({
+          id: r.id, date: r.date, labName: r.labName || undefined,
+          sourceType: r.sourceType as "pdf" | "image" | "manual",
+          sourceFileName: r.sourceFileName || undefined,
+          labValues: JSON.parse(r.labValues), aiAnalysis: r.aiAnalysis || undefined,
+          aiFlags: r.aiFlags ? JSON.parse(r.aiFlags) : undefined,
+          notes: r.notes || undefined, createdAt: r.createdAt,
+        })),
+        workoutRecords: workoutRows.map((r: any) => ({
+          id: r.id, date: r.date,
+          type: r.type as "run" | "treadmill" | "bike" | "walk" | "other",
+          distance: r.distance || undefined, duration: r.duration || undefined,
+          pace: r.pace || undefined, calories: r.calories || undefined,
+          sourceType: r.sourceType as "image" | "manual",
+          sourceFileName: r.sourceFileName || undefined,
+          notes: r.notes || undefined, createdAt: r.createdAt,
+        })),
+        personalProfile: profileRows.length > 0 ? {
+          dateOfBirth: profileRows[0].dateOfBirth || undefined,
+          sex: profileRows[0].sex as "male" | "female" | "other" | undefined,
+          weight: profileRows[0].weight || undefined,
+          height: profileRows[0].height || undefined,
+        } : undefined,
+      };
+      s.productKnowledge = knowledgeRows.map((r: any) => ({
+        id: r.id, title: r.title, type: r.type as 'note' | 'document',
+        content: r.content || undefined, editableContent: r.editableContent || undefined,
+        filePath: r.filePath || undefined, fileData: r.fileData || undefined,
+        fileName: r.fileName || undefined, fileType: r.fileType || undefined,
+        fileSize: r.fileSize || undefined, tags: r.tags ? JSON.parse(r.tags) : undefined,
+        collection: r.collection || undefined, createdAt: r.createdAt, updatedAt: r.updatedAt,
+      }));
+      s.knowledgeCommands = commandRows.map((r: any) => ({
+        id: r.id, name: r.name, description: r.description || '',
+        prompt: r.prompt, linkedDocumentIds: r.linkedDocumentIds ? JSON.parse(r.linkedDocumentIds) : [],
+        commandType: r.commandType ?? undefined, createdAt: r.createdAt, updatedAt: r.updatedAt,
+      }));
+      s.transcripts = transcriptRows.map((r: any) => ({
+        id: r.id, title: r.title, date: r.date, rawTranscript: r.rawTranscript || '',
+        utterances: r.utterances ? JSON.parse(r.utterances) : [],
+        speakerNames: r.speakerNames ? JSON.parse(r.speakerNames) : undefined,
+        status: r.status as TranscriptRecord['status'], createdAt: r.createdAt,
+      }));
+      s.savedArtifacts = artifactRows.map((r: any) => ({
+        id: r.id, url: r.url || undefined, title: r.title,
+        description: r.description || '', tags: r.tags ? JSON.parse(r.tags) : [],
+        htmlContent: r.html_content || r.htmlContent || undefined,
+        textContent: r.text_content || r.textContent || undefined,
+        fileName: r.file_name || r.fileName || undefined,
+        meta: r.meta ? JSON.parse(r.meta) : undefined,
+        createdAt: r.createdAt, updatedAt: r.updatedAt || undefined,
+      }));
+      s.stakeholderProfiles = stakeholderRows.map((r: any) => ({
+        id: r.id, name: r.name, role: r.role, company: r.company ?? undefined,
+        avatarColor: r.avatarColor, influence: r.influence as StakeholderProfile['influence'],
+        priorities: JSON.parse(r.priorities || '[]'), concerns: JSON.parse(r.concerns || '[]'),
+        whatLands: JSON.parse(r.whatLands || '[]'), whatBackfires: JSON.parse(r.whatBackfires || '[]'),
+        knownUnknowns: JSON.parse(r.knownUnknowns || '[]'), notes: r.notes,
+        createdAt: r.createdAt, updatedAt: r.updatedAt,
+      }));
+      s.talkTracks = talkTrackRows.map((r: any) => ({
+        id: r.id, title: r.title, audience: r.audience, goal: r.goal,
+        keyMessages: JSON.parse(r.keyMessages || '[]'), slides: JSON.parse(r.slides || '[]'),
+        linkedStakeholderIds: JSON.parse(r.linkedStakeholderIds || '[]'),
+        createdAt: r.createdAt, updatedAt: r.updatedAt,
+      }));
+    });
+
+    backupToLocalStorage(useAppStore.getState() as any);
+    console.log('[Refresh] ✅ Full refresh from Turso complete');
+  } finally {
+    isRefreshing = false;
+  }
+}

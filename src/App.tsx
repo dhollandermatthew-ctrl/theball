@@ -17,7 +17,7 @@ import { AITaskEntryModal } from "./components/AITaskEntryModal";
 import { generateId, getRandomColor } from "./domain/utils";
 import { ExtractedTask } from "./domain/ai/taskExtraction";
 import { MeetingSpace, Task } from "@/domain/types";
-import { useAppStore, initializeAppState } from "./domain/state";
+import { useAppStore, initializeAppState, refreshFromTurso } from "./domain/state";
 
 function App() {
   const {
@@ -66,6 +66,7 @@ function App() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAIEntryOpen, setIsAIEntryOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
@@ -114,11 +115,21 @@ function App() {
   /* -------------------------------------------------- */
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       // Cmd+Shift+N: Open AI Task Entry
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         setIsAIEntryOpen(true);
+      }
+      // Cmd+R: Refresh from Turso
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        setIsSyncing(true);
+        try {
+          await refreshFromTurso();
+        } finally {
+          setIsSyncing(false);
+        }
       }
     };
 
@@ -238,6 +249,15 @@ function App() {
           >
             <Menu size={20} />
           </button>
+        )}
+
+        {isSyncing && (
+          <div className="absolute top-3 right-4 z-50 flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-600 font-medium shadow-sm pointer-events-none">
+            <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 7" />
+            </svg>
+            Syncing…
+          </div>
         )}
 
         {currentView === "calendar" ? (
