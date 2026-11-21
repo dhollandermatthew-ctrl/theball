@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Zap,
   Sparkles,
-  ArrowRight,
 } from 'lucide-react';
 
 import { cn } from '@/domain/utils';
@@ -31,26 +30,22 @@ interface HeaderProps {
   currentDate: Date;
   viewMode: ViewMode;
   weeklyStats: { total: number; done: number };
-  incompleteCount: number;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onAIEntryClick: () => void;
-  onRollToNextWeek: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentDate,
   viewMode,
   weeklyStats,
-  incompleteCount,
   onPrev,
   onNext,
   onToday,
   onViewModeChange,
   onAIEntryClick,
-  onRollToNextWeek,
 }) => {
   const start = getStartOfWeek(currentDate);
 
@@ -132,21 +127,6 @@ export const Header: React.FC<HeaderProps> = ({
               {weeklyStats.done}
             </span>
           </div>
-
-          {/* Roll to next week — only in week view when there are incomplete tasks */}
-          {viewMode === 'week' && incompleteCount > 0 && (
-            <button
-              onClick={onRollToNextWeek}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors"
-              title="Roll incomplete tasks to next week"
-            >
-              <ArrowRight size={13} />
-              Roll
-              <span className="bg-slate-600 text-slate-200 rounded px-1 text-[10px] font-bold">
-                {incompleteCount}
-              </span>
-            </button>
-          )}
 
           {/* Quick Add */}
           <button
